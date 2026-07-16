@@ -70,7 +70,16 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            | xcbeautify --renderer github-actions
+            2>&1 | tee build/xcodebuild.log | xcbeautify --renderer github-actions \
+            || { echo '===== raw log tail (beautifier hides script-phase stderr) ====='; tail -n 400 build/xcodebuild.log; exit 65; }
+
+      - name: Upload raw xcodebuild log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: apps/mobile/build/xcodebuild.log
+          retention-days: 7
 
       - name: Package unsigned .ipa
         working-directory: apps/mobile

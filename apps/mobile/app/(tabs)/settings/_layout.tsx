@@ -8,6 +8,7 @@ export default function SettingsLayout() {
       <Stack.Screen name="devices" options={{ title: 'Capture devices' }} />
       <Stack.Screen name="shortcut-setup" options={{ title: 'iOS Shortcut setup' }} />
       <Stack.Screen name="android-capture" options={{ title: 'Android capture' }} />
+      <Stack.Screen name="delete-account" options={{ title: 'Delete account' }} />
     </Stack>
   );
 }

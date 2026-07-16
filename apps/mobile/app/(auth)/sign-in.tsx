@@ -48,6 +48,9 @@ export default function SignIn() {
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Button label="Sign in" onPress={submit} busy={busy} disabled={!email || !password} />
+          <Link href="/(auth)/forgot-password" style={styles.link}>
+            Forgot password?
+          </Link>
           <Link href="/(auth)/sign-up" style={styles.link}>
             No account? Sign up
           </Link>

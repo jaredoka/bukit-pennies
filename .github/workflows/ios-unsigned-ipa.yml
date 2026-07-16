@@ -20,7 +20,9 @@ on:
 
 jobs:
   build-ipa:
-    runs-on: macos-15
+    # Expo SDK 57's codegen Swift package requires Swift tools 6.2 → Xcode 26;
+    # macos-15's default Xcode 16.4 ships Swift 6.1 and fails resolution.
+    runs-on: macos-26
     timeout-minutes: 60
     env:
       EXPO_PUBLIC_SUPABASE_URL: ${{ inputs.supabase_url }}

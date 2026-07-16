@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh pr create *)",
+      "Bash(gh pr merge *)",
+      "PowerShell(gh pr create *)",
+      "PowerShell(gh pr merge *)"
+    ]
+  }
+}

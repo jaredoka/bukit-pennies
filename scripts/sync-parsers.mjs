@@ -38,6 +38,12 @@ function sync() {
   console.log(`synced ${listFiles(SRC).length} files → ${relative(ROOT, DEST)}`);
 }
 
+// git autocrlf gives working-tree files CRLF on Windows; staleness is about
+// content, not line endings.
+function normalizeEol(s) {
+  return s.replace(/\r\n/g, '\n');
+}
+
 function check() {
   const srcFiles = listFiles(SRC);
   const problems = [];
@@ -53,7 +59,8 @@ function check() {
   for (const s of srcFiles) {
     const d = join(DEST, relative(SRC, s));
     if (!existsSync(d)) problems.push(`missing in copy: ${relative(ROOT, d)}`);
-    else if (readFileSync(d, 'utf8') !== expectedContent(s)) problems.push(`stale: ${relative(ROOT, d)}`);
+    else if (normalizeEol(readFileSync(d, 'utf8')) !== normalizeEol(expectedContent(s)))
+      problems.push(`stale: ${relative(ROOT, d)}`);
   }
   if (problems.length) {
     console.error('parser sync copy is stale:\n  ' + problems.join('\n  '));

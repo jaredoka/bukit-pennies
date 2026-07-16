@@ -1,0 +1,11 @@
+// Local `supabase start` defaults; override with EXPO_PUBLIC_* env vars when
+// pointing at a hosted project. The fallback anon key is the well-known
+// supabase-demo JWT every local stack ships with — not a secret.
+export const SUPABASE_URL =
+  process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321';
+
+export const SUPABASE_ANON_KEY =
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
+
+export const INGEST_URL = `${SUPABASE_URL}/functions/v1/ingest`;

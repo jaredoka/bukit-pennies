@@ -1,0 +1,8 @@
+{
+  "note": "The splitter does not classify — the OTP is returned too; parseBankMessage/the server rejects it downstream.",
+  "input": "Your OTP is 482913. Do not share this code with anyone.\n\nCard No.: 4x0213 Amount: BND 21.00 Merchant: GALORIES SMOOTHIES BSB BN Date: 10-07-2026 17:37:59 If suspicious, please call 2449666.",
+  "expected": [
+    "Your OTP is 482913. Do not share this code with anyone.",
+    "Card No.: 4x0213 Amount: BND 21.00 Merchant: GALORIES SMOOTHIES BSB BN Date: 10-07-2026 17:37:59 If suspicious, please call 2449666."
+  ]
+}

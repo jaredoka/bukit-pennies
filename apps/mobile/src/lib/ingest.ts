@@ -54,3 +54,42 @@ export async function postIngest(
   if (res.status === 401) return { status: 'error', error: 'invalid_token' };
   return body;
 }
+
+export interface BulkItemResult {
+  text: string;
+  response: IngestResponse;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Post many messages sequentially, spaced to stay under the server's
+ * 60 req/min/token rate limit. One retry after a pause on rate_limited;
+ * per-item errors don't abort the rest of the batch.
+ */
+export async function postIngestMany(
+  texts: string[],
+  source: TxSource,
+  onProgress?: (done: number, total: number, last: BulkItemResult) => void,
+  minIntervalMs = 1200,
+): Promise<BulkItemResult[]> {
+  const results: BulkItemResult[] = [];
+  for (let i = 0; i < texts.length; i++) {
+    if (i > 0) await sleep(minIntervalMs);
+    const text = texts[i]!;
+    let response: IngestResponse;
+    try {
+      response = await postIngest(text, source);
+      if (response.status === 'error' && response.error === 'rate_limited') {
+        await sleep(5000);
+        response = await postIngest(text, source);
+      }
+    } catch (e) {
+      response = { status: 'error', error: e instanceof Error ? e.message : String(e) };
+    }
+    const item = { text, response };
+    results.push(item);
+    onProgress?.(i + 1, texts.length, item);
+  }
+  return results;
+}

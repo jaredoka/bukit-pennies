@@ -1,0 +1,54 @@
+// Bulk-paste support: a blob copied out of a messages app (iMessage/SMS)
+// contains many bank messages plus UI artifacts (day separators, timestamps,
+// read receipts). Split it into individual candidate messages. No
+// transactional classification happens here — that stays with
+// parseBankMessage / the server, which reject OTPs and promos.
+
+const TIME = String.raw`\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?`;
+const DAY_WORD = String.raw`(?:today|yesterday|(?:mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)(?:day)?)`;
+const DATE_WORDS = String.raw`\d{1,2}\s+[A-Za-z]{3,9}\.?(?:\s+\d{4})?`;
+
+// A line is an artifact only when it is NOTHING BUT a separator/receipt —
+// full-sentence message lines can never match these anchored patterns.
+const ARTIFACT_LINES: RegExp[] = [
+  // "Today 5:03 PM" / "Yesterday at 9:41 AM" / "Wed, 9 Jul at 17:38" /
+  // "8 July 2026 at 12:01" / bare "17:38"
+  new RegExp(
+    String.raw`^\s*(?:${DAY_WORD}\s*,?\s*)?(?:${DATE_WORDS}\s*)?(?:at\s+)?${TIME}\s*$`,
+    'i',
+  ),
+  // Bare day / date separator without a time: "Today", "Wed, 9 Jul", "8 July 2026"
+  new RegExp(String.raw`^\s*(?:${DAY_WORD}\s*,?\s*)(?:${DATE_WORDS})?\s*$`, 'i'),
+  new RegExp(String.raw`^\s*${DATE_WORDS}\s*$`, 'i'),
+  // Delivery/read receipts: "Delivered", "Read 5:04 PM"
+  new RegExp(String.raw`^\s*delivered\s*$`, 'i'),
+  new RegExp(String.raw`^\s*read(?:\s+(?:at\s+)?${TIME})?\s*$`, 'i'),
+];
+
+function isArtifactLine(line: string): boolean {
+  return ARTIFACT_LINES.some((re) => re.test(line));
+}
+
+// Baiduri messages open with this label — the robust backstop when messages
+// are copied back-to-back with no separator at all.
+const BAIDURI_OPENER = /(?=Card\s*No\.?\s*:)/i;
+
+/** Split a pasted blob into individual candidate bank messages. */
+export function splitBankMessages(blob: string): string[] {
+  if (!blob || !blob.trim()) return [];
+
+  const kept = blob
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .filter((line) => !isArtifactLine(line))
+    .join('\n');
+
+  const out: string[] = [];
+  for (const block of kept.split(/\n\s*\n+/)) {
+    for (const piece of block.split(BAIDURI_OPENER)) {
+      const trimmed = piece.trim();
+      if (trimmed) out.push(trimmed);
+    }
+  }
+  return out;
+}

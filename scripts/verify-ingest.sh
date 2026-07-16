@@ -59,13 +59,14 @@ row=$(sql "select amount, merchant, occurred_at, bank, parse_status from transac
 check "psql row assertions (amount/merchant/occurred_at/bank/status)" "$row" "GALORIES SMOOTHIES BSB BN"
 
 # 7. RLS proof: as user B, user A's transactions are invisible
-# Output lines: set_config echo first, then the count — take the last line.
+# Output mixes command tags (BEGIN/SET/COMMIT) and rows — take the last
+# purely numeric line (the count).
 count=$(sql "begin;
   set local role authenticated;
   select set_config('request.jwt.claims',
     json_build_object('sub','$RLS_USER','role','authenticated')::text, true);
   select count(*) from transactions where user_id = '$DEMO_USER';
-  commit;" | tail -1)
+  commit;" | grep -Ex '[0-9]+' | tail -1)
 check "RLS: user B sees 0 of user A's rows" "$count" "0"
 
 echo

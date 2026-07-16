@@ -59,6 +59,7 @@ declare
   amt numeric(12, 2);
   m text;
   raw text;
+  cat uuid;
 begin
   for i in 0 .. 59 loop
     ts := date_trunc('hour', now()) - (i * interval '36 hours') - interval '2 hours';
@@ -69,11 +70,19 @@ begin
       to_char(amt, 'FM999990.00'), m,
       to_char(ts at time zone 'Asia/Brunei', 'DD-MM-YYYY HH24:MI:SS')
     );
+    -- Categorize by merchant so the dashboard's category donut has real data.
+    select id into cat from public.categories where user_id is null and name = case
+      when m like '%SUPA SAVE%' or m like '%HUA HO%' then 'Groceries'
+      when m like '%SHELL%' then 'Transport'
+      when m like '%CINEPLEX%' then 'Entertainment'
+      when m like '%GUARDIAN%' then 'Health'
+      else 'Food & Drink'
+    end;
     insert into public.transactions (
       user_id, occurred_at, amount, currency, merchant, merchant_normalized,
-      bank, card_last4, source, parse_status, confidence, raw_text, raw_hash
+      bank, card_last4, category_id, source, parse_status, confidence, raw_text, raw_hash
     ) values (
-      demo, ts, amt, 'BND', m, m, 'baiduri', '0213', 'paste', 'parsed', 1.0,
+      demo, ts, amt, 'BND', m, m, 'baiduri', '0213', cat, 'paste', 'parsed', 1.0,
       raw, encode(extensions.digest(demo::text || ':' || raw, 'sha256'), 'hex')
     );
   end loop;

@@ -34,6 +34,16 @@ export default function Settings() {
       </Card>
 
       <Card>
+        <Title>Help</Title>
+        <Row
+          href="/(tabs)/settings/guide"
+          icon="book"
+          label="How Bukit Pennies works"
+          note="Using the app, and where your data is stored"
+        />
+      </Card>
+
+      <Card>
         <Title>Capture</Title>
         <Row
           href="/(tabs)/settings/devices"

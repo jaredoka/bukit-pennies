@@ -191,7 +191,7 @@ app/
 - Config plugin injects the `BIND_NOTIFICATION_LISTENER_SERVICE` service into AndroidManifest — verifiable in-session via `expo prebuild --no-install` + grep.
 
 ### iOS — three paths
-1. **Share Extension** (`expo-share-extension` config plugin): shared text → parse preview → POST /ingest; token shared via App Group keychain.
+1. **Share Extension** (`expo-share-extension` config plugin): shared text → parse preview → POST /ingest; token shared via App Group keychain. *Excluded from free-signed sideload builds — first tested at the TestFlight stage (see §10).*
 2. **Paste screen** (pure JS, works day one).
 3. **Shortcuts automation** (documented + in-app guide): "When I get a message containing 'Merchant:' from [Baiduri]" → Get Contents of URL → POST /ingest with `Authorization: Bearer <token>`. Be honest in docs: may require a confirmation tap depending on iOS version/settings.
 
@@ -202,8 +202,17 @@ app/
 | **0** | pnpm workspace, tsconfig, CI; `packages/parsers` complete with golden tests green | ✅ fully |
 | **1** | Supabase migrations + seed + sync script + ingest function + handler unit tests; `supabase start`, `verify-ingest.sh` curl matrix | ✅ fully (Docker available) |
 | **2** | Expo app: auth, dashboard charts, transactions/notes, review inbox, paste flow, settings/tokens | ✅ via `expo start --web` + seeded data |
-| **3** | Kotlin listener module + config plugin, share extension, `eas.json`, EAS dev builds (Android APK first — sideloadable), hosted Supabase deploy; collect real BIBD/SCB samples → promote skeleton parsers | ⚠️ code + prebuild checks here; behavior needs user's devices |
+| **3** | Kotlin listener module + config plugin, share extension, `eas.json`, EAS dev builds (Android APK first — sideloadable), **iOS unsigned IPA via GitHub Actions → Sideloadly** (see below), hosted Supabase deploy; collect real BIBD/SCB samples → promote skeleton parsers | ⚠️ code + prebuild checks here; behavior needs user's devices |
 | **4** | Store submission via `docs/store-submission.md` | ❌ user-executed |
+
+### iOS device testing before the paid Apple Developer account (Sideloadly)
+
+**Decision (confirmed 2026-07-16):** the paid Apple Developer account ($99/yr) will only be purchased once the app is ready for production. Until then, iOS device testing uses **Sideloadly** (runs on the user's Windows machine) with a **free Apple ID**.
+
+- **Building the IPA:** EAS cannot produce iOS device builds without a paid account, so use a **GitHub Actions macOS runner**: `expo prebuild` → `xcodebuild archive` with `CODE_SIGNING_ALLOWED=NO` → zip the `.app` into `Payload/` → unsigned `.ipa` artifact. Sideloadly re-signs it with the free Apple ID and installs over USB. Add this as a workflow (e.g. `.github/workflows/ios-unsigned-ipa.yml`) in Phase 3, plus a `docs/ios-sideloadly.md` walkthrough.
+- **Free-signing limits to design around:** certificates expire every **7 days** (re-sideload weekly), max 3 sideloaded apps per device, 10 App IDs per 7 days.
+- **Auth during this phase:** the **Sign in with Apple entitlement is not available** with free signing → the app must work with **Supabase email/password auth alone**; add Sign in with Apple at the TestFlight/production stage (it is only an App Store requirement if social login is offered).
+- **Share Extension deferred to TestFlight:** extensions add App ID/signing friction under free signing, so sideload builds ship **without** the share extension. iOS capture during this phase = **paste screen + Shortcuts automation** (the Shortcut POSTs straight to the ingest API and doesn't depend on app signing at all). First real share-extension test happens once the paid account + TestFlight exist.
 
 Commit per phase; each phase on a feature branch off `main`, merged via pull request.
 
@@ -224,7 +233,7 @@ Commit per phase; each phase on a feature branch off `main`, merged via pull req
 
 - **Real BIBD and Standard Chartered notification samples** (redacted is fine) — needed to promote skeleton parsers. The review inbox is the in-product collection mechanism.
 - Exact **Android package names** of the three bank apps (confirmed from a real device in Phase 3).
-- **Supabase project** (hosted) credentials when moving past local dev; **Apple/Google developer accounts** for Phase 4.
+- **Supabase project** (hosted) credentials when moving past local dev; **Apple/Google developer accounts** for Phase 4 (Apple account deliberately deferred until production-ready — iOS testing runs on Sideloadly + free Apple ID, see §10).
 - Product naming/branding ("Bukit Pennies" is the working name from the repo).
 
 ## 13. Environment notes for the next session

@@ -161,7 +161,9 @@ New migration file (never edit an applied migration); keep RLS quartet +
 
 - Real BIBD / Standard Chartered notification samples (→ §7 promotion).
 - Exact Android package names for the three bank apps (Phase 3+, real device).
-- Hosted Supabase project credentials (needed for on-device iOS testing).
+- ~~Hosted Supabase project credentials~~ — received 2026-07-17; project
+  `pzjroqwllrzcbpiugpxl` linked, migrations 01–06 pushed, ingest deployed,
+  hosted curl matrix 5/5 (`scripts/verify-ingest-hosted.sh`).
 - Apple ($99, deferred) / Google ($25) developer accounts (Phase 4).
 - Product naming/branding decision ("Bukit Pennies" is the working name) —
   blocks Phase 3.5 branding + store listings.

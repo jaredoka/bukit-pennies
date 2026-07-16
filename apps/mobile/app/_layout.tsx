@@ -18,8 +18,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
     const inAuthGroup = segments[0] === '(auth)';
+    // Recovery links sign the user in and land on reset-password — let them
+    // finish choosing the new password before entering the app.
+    const onResetScreen = (segments as string[]).includes('reset-password');
     if (!session && !inAuthGroup) router.replace('/(auth)/sign-in');
-    if (session && inAuthGroup) router.replace('/(tabs)');
+    if (session && inAuthGroup && !onResetScreen) router.replace('/(tabs)');
   }, [session, loading, segments, router]);
 
   if (loading) {

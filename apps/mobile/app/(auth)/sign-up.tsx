@@ -1,7 +1,15 @@
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Linking as RNLinking,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { Button, Card, colors, Field, Muted, Title } from '@/components/ui';
+import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
 
 export default function SignUp() {
@@ -55,6 +63,17 @@ export default function SignUp() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {info ? <Text style={styles.info}>{info}</Text> : null}
           <Button label="Sign up" onPress={submit} busy={busy} disabled={!email || password.length < 8} />
+          <Text style={styles.legal}>
+            By signing up you agree to the{' '}
+            <Text style={styles.legalLink} onPress={() => RNLinking.openURL(TERMS_URL)}>
+              Terms of Service
+            </Text>{' '}
+            and{' '}
+            <Text style={styles.legalLink} onPress={() => RNLinking.openURL(PRIVACY_POLICY_URL)}>
+              Privacy Policy
+            </Text>
+            .
+          </Text>
           <Link href="/(auth)/sign-in" style={styles.link}>
             Have an account? Sign in
           </Link>
@@ -71,4 +90,6 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, marginBottom: 8 },
   info: { color: colors.primary, marginBottom: 8 },
   link: { color: colors.primary, textAlign: 'center', marginTop: 12 },
+  legal: { color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 10, lineHeight: 17 },
+  legalLink: { color: colors.primary, textDecorationLine: 'underline' },
 });

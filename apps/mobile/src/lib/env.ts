@@ -9,3 +9,8 @@ export const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 
 export const INGEST_URL = `${SUPABASE_URL}/functions/v1/ingest`;
+
+// Public policy pages (GitHub Pages, served from this repo's docs/).
+export const PRIVACY_POLICY_URL = 'https://jaredoka.github.io/bukit-pennies/privacy-policy';
+export const TERMS_URL = 'https://jaredoka.github.io/bukit-pennies/terms';
+export const SUPPORT_EMAIL = 'jaredoka@gmail.com';

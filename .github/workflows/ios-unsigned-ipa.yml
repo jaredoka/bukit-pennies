@@ -42,18 +42,30 @@ jobs:
         working-directory: apps/mobile
         run: npx expo prebuild --platform ios --no-install && pod install --project-directory=ios
 
+      # Raw output on purpose: resolution failures print their cause here,
+      # where xcbeautify can't swallow it.
+      - name: Resolve Swift package dependencies
+        working-directory: apps/mobile
+        run: |
+          WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "WORKSPACE=$WORKSPACE" >> "$GITHUB_ENV"
+          echo "SCHEME=$SCHEME" >> "$GITHUB_ENV"
+          xcodebuild -resolvePackageDependencies \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME"
+
+      # -destination, not -sdk: RN codegen's local Swift package fails to
+      # resolve under `-sdk iphoneos`.
       - name: Archive without code signing
         working-directory: apps/mobile
         run: |
           set -o pipefail
-          WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
-          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
-          echo "workspace=$WORKSPACE scheme=$SCHEME"
           xcodebuild archive \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
-            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -archivePath build/app.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \

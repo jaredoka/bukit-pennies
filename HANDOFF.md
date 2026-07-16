@@ -232,3 +232,5 @@ Commit per phase; push to `claude/card-spending-logger-bem2c9`.
 - Node v22, pnpm 10, Docker available (→ `supabase start` works). No iOS simulator; no `gh` CLI (use GitHub MCP tools).
 - Outbound HTTPS goes through a pre-configured proxy — do not disable TLS verification.
 - Develop on branch `claude/card-spending-logger-bem2c9`; push with `git push -u origin <branch>`; do NOT create a PR unless asked.
+- **Every new session should use GitHub Flow** (branch off, commit, push, open a pull request for changes).
+- **Every new session should use `/remote-control`.**

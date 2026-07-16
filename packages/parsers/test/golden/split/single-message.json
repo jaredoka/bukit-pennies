@@ -1,0 +1,7 @@
+{
+  "note": "A single clean message passes through unchanged (trimmed).",
+  "input": "Card No.: 4x0213 Amount: BND 21.00 Merchant: GALORIES SMOOTHIES BSB BN Date: 10-07-2026 17:37:59 If suspicious, please call 2449666.",
+  "expected": [
+    "Card No.: 4x0213 Amount: BND 21.00 Merchant: GALORIES SMOOTHIES BSB BN Date: 10-07-2026 17:37:59 If suspicious, please call 2449666."
+  ]
+}

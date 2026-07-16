@@ -1,0 +1,9 @@
+{
+  "note": "Messages-app copy: day/time separator lines and read receipts are stripped; the three messages survive intact (dates INSIDE a message are content, not artifacts).",
+  "input": "Today 5:03 PM\n\nCard No.: 4x0213 Amount: BND 21.00 Merchant: GALORIES SMOOTHIES BSB BN Date: 10-07-2026 17:37:59 If suspicious, please call 2449666.\n\nWed, 9 Jul at 17:38\n\nCard No.: 4x0213 Amount: BND 5.50 Merchant: KOPI PONY GADONG BN Date: 09-07-2026 17:38:01 If suspicious, please call 2449666.\nDelivered\n\n8 July 2026 at 12:01\n\nCard No.: 4x0213 Amount: BND 104.90 Merchant: SUPA SAVE MATA-MATA BN Date: 08-07-2026 12:00:44 If suspicious, please call 2449666.\nRead 12:02 PM",
+  "expected": [
+    "Card No.: 4x0213 Amount: BND 21.00 Merchant: GALORIES SMOOTHIES BSB BN Date: 10-07-2026 17:37:59 If suspicious, please call 2449666.",
+    "Card No.: 4x0213 Amount: BND 5.50 Merchant: KOPI PONY GADONG BN Date: 09-07-2026 17:38:01 If suspicious, please call 2449666.",
+    "Card No.: 4x0213 Amount: BND 104.90 Merchant: SUPA SAVE MATA-MATA BN Date: 08-07-2026 12:00:44 If suspicious, please call 2449666."
+  ]
+}

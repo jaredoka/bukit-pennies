@@ -9,6 +9,7 @@ export type {
   ParsedTransaction, ParseOptions, ParseResult,
 } from './types.ts';
 export { normalizeText, normalizeMerchant, parseAmount, normalizeCurrency, extractLast4 } from './normalize.ts';
+export { splitBankMessages } from './split.ts';
 export { buildBruneiIso, scanDate, BRUNEI_OFFSET } from './dates.ts';
 export { scoreConfidence, WEIGHTS, UNVERIFIED_CONFIDENCE_CAP } from './confidence.ts';
 export { baiduri, bibd, scb, generic };

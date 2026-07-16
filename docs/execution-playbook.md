@@ -58,7 +58,8 @@ for `supabase start`, `gh` CLI authenticated. On Windows, run POSIX scripts
 | 3.5 | `phase-3.5-store-blockers` | account deletion (RPC + screen), password reset, privacy policy + terms, real branding (HANDOFF §14) | merged + live-verified 2026-07-16 (PR #17); policies live at jaredoka.github.io/bukit-pennies |
 | 4 | — | store submission (user-executed checklist) | after real-device validation |
 | 4.5 | `phase-4.5-launch-ops` | Sentry integration (`@sentry/react-native`), structured ingest logging, hosted Supabase deploy guide, env template (HANDOFF §14); free tiers for both; TestFlight deferred until paid Apple account | code complete 2026-07-17 |
-| 5 | `phase-5-product-gaps` | manual entry, budgets, CSV export, recurring detection (HANDOFF §14) | code complete 2026-07-17 (this PR) |
+| 5 | `phase-5-product-gaps` | manual entry, budgets, CSV export, recurring detection (HANDOFF §14) | merged 2026-07-17 (PR #21) |
+| 6 | `phase-6-auto-capture` | hosted Supabase go-live (user's free project), bulk paste (`splitBankMessages` + capture UI), `verify-ingest-hosted.sh`, `docs/ios-shortcut-setup.md` | this PR |
 
 Per-phase implementation detail lives in `HANDOFF.md` §4–§10 — follow it
 literally (schema SQL in §5, ingest flow in §6, parser contract in §7, app
@@ -92,6 +93,12 @@ structure in §8, Sideloadly constraints in §10).
   (`source='manual'`, `parse_status='parsed'`, unique `manual:` raw_hash);
   `expo export --platform web` compiles with the new screens
   (`transactions/new`, `settings/budgets`) and dashboard cards.
+- **Phase 6:** `pnpm -r test` (incl. `golden/split` fixtures) and
+  `pnpm -r typecheck` green; `node scripts/sync-parsers.mjs --check` clean;
+  hosted curl matrix passes via `scripts/verify-ingest-hosted.sh` (bad token
+  401, Baiduri sample created+parsed, re-send duplicate, OTP ignored); bulk
+  paste of a 3-message blob through the hosted ingest on `expo start --web`
+  shows per-message results with correct statuses.
 
 ## 5. Design invariants (do not drift)
 
@@ -154,7 +161,9 @@ New migration file (never edit an applied migration); keep RLS quartet +
 
 - Real BIBD / Standard Chartered notification samples (→ §7 promotion).
 - Exact Android package names for the three bank apps (Phase 3+, real device).
-- Hosted Supabase project credentials (needed for on-device iOS testing).
+- ~~Hosted Supabase project credentials~~ — received 2026-07-17; project
+  `pzjroqwllrzcbpiugpxl` linked, migrations 01–06 pushed, ingest deployed,
+  hosted curl matrix 5/5 (`scripts/verify-ingest-hosted.sh`).
 - Apple ($99, deferred) / Google ($25) developer accounts (Phase 4).
 - Product naming/branding decision ("Bukit Pennies" is the working name) —
   blocks Phase 3.5 branding + store listings.

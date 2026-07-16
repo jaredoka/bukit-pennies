@@ -107,9 +107,23 @@ Deno.serve(async (req) => {
 
   try {
     const result = await handleIngest(req.headers.get('authorization'), body, store, rateLimiter);
+    if (result.body.status === 'created' && result.body.transaction?.parse_status === 'needs_review') {
+      console.warn(JSON.stringify({
+        level: 'warn',
+        msg: 'low_confidence_parse',
+        txn_id: result.body.transaction.id,
+        confidence: result.body.transaction.confidence,
+        bank: result.body.transaction.bank,
+      }));
+    }
     return Response.json(result.body, { status: result.status });
   } catch (err) {
-    console.error('ingest failed:', err);
+    console.error(JSON.stringify({
+      level: 'error',
+      msg: 'ingest_failed',
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    }));
     return Response.json({ status: 'error', error: 'internal_error' }, { status: 500 });
   }
 });

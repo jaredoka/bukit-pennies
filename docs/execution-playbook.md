@@ -57,7 +57,7 @@ for `supabase start`, `gh` CLI authenticated. On Windows, run POSIX scripts
 | deferred | — | Android Kotlin `NotificationListenerService` module + config plugin (HANDOFF §9) | after iOS testing |
 | 3.5 | `phase-3.5-store-blockers` | account deletion (RPC + screen), password reset, privacy policy + terms, real branding (HANDOFF §14) | merged + live-verified 2026-07-16 (PR #17); policies live at jaredoka.github.io/bukit-pennies |
 | 4 | — | store submission (user-executed checklist) | after real-device validation |
-| 4.5 | — | launch ops: paid Supabase, Sentry, TestFlight beta = BIBD/SCB sample funnel (HANDOFF §14) | pending |
+| 4.5 | `phase-4.5-launch-ops` | Sentry integration (`@sentry/react-native`), structured ingest logging, hosted Supabase deploy guide, env template (HANDOFF §14); free tiers for both; TestFlight deferred until paid Apple account | code complete 2026-07-17 |
 | 5 | `phase-5-product-gaps` | manual entry, budgets, CSV export, recurring detection (HANDOFF §14) | pending |
 
 Per-phase implementation detail lives in `HANDOFF.md` §4–§10 — follow it
@@ -79,6 +79,12 @@ structure in §8, Sideloadly constraints in §10).
 - **Phase 3:** workflow YAML valid; `expo prebuild --no-install` succeeds; app
   still green on web. Device behavior = user-executed checklist in
   `docs/ios-sideloadly.md`.
+- **Phase 4.5:** `pnpm -r typecheck` and `pnpm -r test` green;
+  `@sentry/react-native` installed and plugin in `app.json`; `initSentry()`
+  called in root layout; `Sentry.wrap()` around root component; ingest function
+  emits structured JSON logs; `.env.production.example` template present;
+  `docs/hosted-supabase-deploy.md` and `docs/sentry-setup.md` cover user-executed
+  setup steps.
 
 ## 5. Design invariants (do not drift)
 

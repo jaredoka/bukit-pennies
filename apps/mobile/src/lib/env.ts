@@ -10,6 +10,8 @@ export const SUPABASE_ANON_KEY =
 
 export const INGEST_URL = `${SUPABASE_URL}/functions/v1/ingest`;
 
+export const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? '';
+
 // Public policy pages (GitHub Pages, served from this repo's docs/).
 export const PRIVACY_POLICY_URL = 'https://jaredoka.github.io/bukit-pennies/privacy-policy';
 export const TERMS_URL = 'https://jaredoka.github.io/bukit-pennies/terms';

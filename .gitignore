@@ -7,5 +7,6 @@ coverage/
 .env
 .env.*
 !.env.example
+!.env.production.example
 supabase/.temp/
 supabase/.branches/

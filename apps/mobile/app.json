@@ -37,6 +37,13 @@
           "imageWidth": 200,
           "backgroundColor": "#FFFFFF"
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "bukit-pennies",
+          "project": "mobile"
+        }
       ]
     ]
   }

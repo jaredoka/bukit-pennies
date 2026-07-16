@@ -1,0 +1,16 @@
+{
+  "note": "Sender hint routes to the Baiduri parser even without the full body fingerprint; missing merchant lowers confidence below the auto-accept threshold.",
+  "input": "Card No.: 4x0213 Amount: BND 10.00 Date: 10-07-2026 12:00:00",
+  "sender": "Baiduri",
+  "expected": {
+    "isTransactional": true,
+    "tx": {
+      "bank": "baiduri",
+      "amount": 10.0,
+      "currency": "BND",
+      "merchant": null,
+      "cardLast4": "0213",
+      "confidenceAtMost": 0.75
+    }
+  }
+}

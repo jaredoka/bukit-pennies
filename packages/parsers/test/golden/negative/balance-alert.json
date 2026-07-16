@@ -1,0 +1,9 @@
+{
+  "note": "Balance alerts contain amounts but no purchase - reject.",
+  "input": "Your available balance is BND 1,024.55 as of 10-07-2026.",
+  "sender": "Baiduri",
+  "expected": {
+    "isTransactional": false,
+    "tx": null
+  }
+}

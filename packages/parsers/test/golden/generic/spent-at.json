@@ -1,0 +1,16 @@
+{
+  "note": "Unknown sender/format: 'at MERCHANT' phrasing, dd/mm/yy date, card ending. Generic output is capped so it always needs review.",
+  "input": "You spent BND 12.30 at THE COFFEE BEAN on 12/07/26 using card ending 4321.",
+  "expected": {
+    "isTransactional": true,
+    "tx": {
+      "bank": "unknown",
+      "amount": 12.3,
+      "currency": "BND",
+      "merchant": "THE COFFEE BEAN",
+      "occurredAt": "2026-07-12T00:00:00+08:00",
+      "cardLast4": "4321",
+      "confidenceAtMost": 0.7
+    }
+  }
+}

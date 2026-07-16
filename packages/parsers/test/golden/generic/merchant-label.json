@@ -1,0 +1,15 @@
+{
+  "note": "Merchant: label without the Baiduri four-label fingerprint; d MMM yyyy date.",
+  "input": "Transaction alert. Amount BND 45.00. Merchant: KFC GADONG. 15 Jun 2026 19:42.",
+  "expected": {
+    "isTransactional": true,
+    "tx": {
+      "bank": "unknown",
+      "amount": 45.0,
+      "currency": "BND",
+      "merchant": "KFC GADONG",
+      "occurredAt": "2026-06-15T19:42:00+08:00",
+      "confidenceAtMost": 0.7
+    }
+  }
+}

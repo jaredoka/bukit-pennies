@@ -1,0 +1,9 @@
+{
+  "note": "Promotional messages with amounts must be rejected.",
+  "input": "BIBD Promo: Enjoy 20% discount and spend BND 50.00 to win a voucher this weekend! T&C apply.",
+  "sender": "BIBD",
+  "expected": {
+    "isTransactional": false,
+    "tx": null
+  }
+}

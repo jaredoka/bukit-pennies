@@ -1,0 +1,16 @@
+{
+  "note": "B$ shorthand normalizes to BND; no date in the body so receivedAt is used as the heuristic fallback.",
+  "input": "Purchase of B$ 9.90 at HUA HO MANGGIS approved.",
+  "receivedAt": "2026-07-10T17:38:02+08:00",
+  "expected": {
+    "isTransactional": true,
+    "tx": {
+      "bank": "unknown",
+      "amount": 9.9,
+      "currency": "BND",
+      "merchant": "HUA HO MANGGIS",
+      "occurredAt": "2026-07-10T17:38:02+08:00",
+      "confidenceAtMost": 0.7
+    }
+  }
+}

@@ -1,0 +1,29 @@
+import type { BankParser, ParsedTransaction, ParseOptions } from '../types.ts';
+import { generic } from './generic.ts';
+import { UNVERIFIED_CONFIDENCE_CAP } from '../confidence.ts';
+
+// UNVERIFIED SKELETON — no real BIBD notification sample collected yet.
+// TODO(sample-needed): replace the guessed fingerprint/extraction with
+// label-anchored regexes once a real BIBD message lands in the review inbox,
+// add golden fixtures under test/golden/bibd/, then remove the confidence cap.
+// Guessed shape: "You have spent BND21.00 at MERCHANT on 10/07/26 using card ending 0213"
+const FINGERPRINT = /\bBIBD\b|you have spent\s+(?:BND|B\$)/i;
+
+export const bibd: BankParser = {
+  id: 'bibd',
+
+  matches(text: string): boolean {
+    return FINGERPRINT.test(text);
+  },
+
+  parse(text: string, opts?: ParseOptions): ParsedTransaction | null {
+    const tx = generic.parse(text, opts);
+    if (!tx) return null;
+    return {
+      ...tx,
+      bank: 'bibd',
+      // Unverified format: never allow auto-accept until real samples exist.
+      confidence: Math.min(tx.confidence, UNVERIFIED_CONFIDENCE_CAP),
+    };
+  },
+};

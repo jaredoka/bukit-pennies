@@ -1,0 +1,18 @@
+{
+  "note": "The real Baiduri SMS sample from HANDOFF.md - the anchor fixture for this parser.",
+  "input": "Card No.: 4x0213 Amount: BND 21.00 Merchant: GALORIES SMOOTHIES BSB BN Date: 10-07-2026 17:37:59 If suspicious, please call 2449666.",
+  "sender": "Baiduri",
+  "expected": {
+    "isTransactional": true,
+    "tx": {
+      "bank": "baiduri",
+      "amount": 21.0,
+      "currency": "BND",
+      "merchant": "GALORIES SMOOTHIES BSB BN",
+      "merchantNormalized": "GALORIES SMOOTHIES BSB BN",
+      "occurredAt": "2026-07-10T17:37:59+08:00",
+      "cardLast4": "0213",
+      "confidenceAtLeast": 0.95
+    }
+  }
+}

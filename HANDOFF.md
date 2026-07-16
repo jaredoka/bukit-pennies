@@ -242,4 +242,5 @@ Commit per phase; each phase on a feature branch off `main`, merged via pull req
 - Outbound HTTPS goes through a pre-configured proxy — do not disable TLS verification.
 - Develop on short-lived feature branches off `main`; push with `git push -u origin <branch>` and open a pull request.
 - **Every new session should use GitHub Flow** (branch off `main`, commit, push, open a pull request for changes).
+- PR workflow permissions are configured in `.claude/settings.json` (committed): allow rules for `gh pr create` and `gh pr merge`, so the GitHub Flow steps run without per-action permission prompts.
 - **Every new session should use `/remote-control`.**

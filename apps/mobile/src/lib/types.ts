@@ -41,6 +41,16 @@ export interface IngestDeviceRow {
   revoked_at: string | null;
 }
 
+export interface BudgetRow {
+  id: string;
+  user_id: string;
+  category_id: string;
+  amount: number;
+  currency: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface MonthlyTotalRow {
   user_id: string;
   month: string; // 'YYYY-MM-01'

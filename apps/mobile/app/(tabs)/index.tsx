@@ -10,11 +10,14 @@ import {
   formatMonthName,
 } from '@/lib/format';
 import {
+  useBudgets,
   useCategories,
   useMonthlyTotals,
+  useRecentMonthsTransactions,
   useThisMonthTransactions,
   useTopMerchants,
 } from '@/lib/queries';
+import { detectRecurring } from '@/lib/recurring';
 
 // Validated categorical palette (dataviz six-checks, light surface). Fixed
 // order; used when a category has no color of its own. "Other" is muted.
@@ -29,6 +32,8 @@ export default function Dashboard() {
   const thisMonthTx = useThisMonthTransactions();
   const topMerchants = useTopMerchants(8);
   const categories = useCategories();
+  const budgets = useBudgets();
+  const recentTx = useRecentMonthsTransactions(6);
 
   const thisMonthKey = bruneiMonthKey(Date.now());
   const lastMonthKey = bruneiMonthKey(bruneiMonthStartIso(1));
@@ -109,6 +114,30 @@ export default function Dashboard() {
     }
     return { slices: top, total };
   }, [thisMonthTx.data, categories.data]);
+
+  // Budget progress: this-month spend per budgeted category.
+  const budgetProgress = useMemo(() => {
+    if (!budgets.data?.length) return [];
+    const spentByCategory = new Map<string, number>();
+    for (const tx of thisMonthTx.data ?? []) {
+      if (!tx.category_id || tx.amount === null) continue;
+      spentByCategory.set(tx.category_id, (spentByCategory.get(tx.category_id) ?? 0) + Number(tx.amount));
+    }
+    return budgets.data
+      .map((b) => {
+        const cat = categories.data?.find((c) => c.id === b.category_id);
+        return {
+          id: b.id,
+          name: cat?.name ?? 'Unknown',
+          color: cat?.color ?? OTHER_COLOR,
+          spent: spentByCategory.get(b.category_id) ?? 0,
+          limit: Number(b.amount),
+        };
+      })
+      .sort((a, b) => b.spent / b.limit - a.spent / a.limit);
+  }, [budgets.data, thisMonthTx.data, categories.data]);
+
+  const recurring = useMemo(() => detectRecurring(recentTx.data ?? []).slice(0, 8), [recentTx.data]);
 
   // Monthly totals, oldest→newest, last 6 Brunei months.
   const monthlyBars = useMemo(
@@ -235,6 +264,43 @@ export default function Dashboard() {
         )}
       </Card>
 
+      {budgetProgress.length > 0 ? (
+        <Card>
+          <Title>Budgets — {formatMonthName(thisMonthKey)}</Title>
+          {budgetProgress.map((b) => {
+            const ratio = b.limit > 0 ? b.spent / b.limit : 0;
+            const over = ratio > 1;
+            return (
+              <View key={b.id} style={styles.budgetRow}>
+                <View style={styles.budgetHeader}>
+                  <View style={[styles.legendDot, { backgroundColor: b.color }]} />
+                  <Text style={styles.legendName} numberOfLines={1}>
+                    {b.name}
+                  </Text>
+                  <Text style={[styles.budgetAmounts, over && { color: colors.danger }]}>
+                    {formatMoney(b.spent)} / {formatMoney(b.limit)}
+                  </Text>
+                </View>
+                <View style={styles.budgetTrack}>
+                  <View
+                    style={[
+                      styles.budgetFill,
+                      {
+                        width: `${Math.min(ratio, 1) * 100}%`,
+                        backgroundColor: over ? colors.danger : ratio > 0.85 ? colors.warning : colors.primary,
+                      },
+                    ]}
+                  />
+                </View>
+                {over ? (
+                  <Muted>{`Over budget by ${formatMoney(b.spent - b.limit)}`}</Muted>
+                ) : null}
+              </View>
+            );
+          })}
+        </Card>
+      ) : null}
+
       <Card>
         <Title>Monthly totals</Title>
         {monthlyBars.length > 0 ? (
@@ -285,6 +351,26 @@ export default function Dashboard() {
           <Muted>No merchant data yet — capture a bank message to get started.</Muted>
         )}
       </Card>
+
+      {recurring.length > 0 ? (
+        <Card>
+          <Title>Likely recurring</Title>
+          <Muted>Same merchant, similar amount, seen in 3+ months.</Muted>
+          <View style={{ marginTop: 8 }}>
+            {recurring.map((r) => (
+              <View key={`${r.merchant}:${r.amount}`} style={styles.recurringRow}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={styles.legendName} numberOfLines={1}>
+                    {r.merchant}
+                  </Text>
+                  <Muted>{`${r.months.length} months · ~${formatMoney(r.amount, r.currency)}/month`}</Muted>
+                </View>
+                <Text style={styles.legendValue}>{formatMoney(r.total, r.currency)}</Text>
+              </View>
+            ))}
+          </View>
+        </Card>
+      ) : null}
     </ScrollView>
   );
 }
@@ -303,4 +389,21 @@ const styles = StyleSheet.create({
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendName: { flex: 1, color: colors.text, fontSize: 13 },
   legendValue: { color: colors.muted, fontSize: 13, fontVariant: ['tabular-nums'] },
+  budgetRow: { marginBottom: 12 },
+  budgetHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  budgetAmounts: { color: colors.text, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  budgetTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.border,
+    overflow: 'hidden',
+  },
+  budgetFill: { height: '100%', borderRadius: 4 },
+  recurringRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
 });

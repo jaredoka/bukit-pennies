@@ -58,7 +58,7 @@ for `supabase start`, `gh` CLI authenticated. On Windows, run POSIX scripts
 | 3.5 | `phase-3.5-store-blockers` | account deletion (RPC + screen), password reset, privacy policy + terms, real branding (HANDOFF §14) | merged + live-verified 2026-07-16 (PR #17); policies live at jaredoka.github.io/bukit-pennies |
 | 4 | — | store submission (user-executed checklist) | after real-device validation |
 | 4.5 | `phase-4.5-launch-ops` | Sentry integration (`@sentry/react-native`), structured ingest logging, hosted Supabase deploy guide, env template (HANDOFF §14); free tiers for both; TestFlight deferred until paid Apple account | code complete 2026-07-17 |
-| 5 | `phase-5-product-gaps` | manual entry, budgets, CSV export, recurring detection (HANDOFF §14) | pending |
+| 5 | `phase-5-product-gaps` | manual entry, budgets, CSV export, recurring detection (HANDOFF §14) | code complete 2026-07-17 (this PR) |
 
 Per-phase implementation detail lives in `HANDOFF.md` §4–§10 — follow it
 literally (schema SQL in §5, ingest flow in §6, parser contract in §7, app
@@ -85,6 +85,13 @@ structure in §8, Sideloadly constraints in §10).
   emits structured JSON logs; `.env.production.example` template present;
   `docs/hosted-supabase-deploy.md` and `docs/sentry-setup.md` cover user-executed
   setup steps.
+- **Phase 5:** `pnpm -r typecheck` and `pnpm -r test` green; `supabase db reset`
+  applies `06_budgets.sql` cleanly with the RLS quartet present
+  (`pg_policy` shows all four `budgets_*` policies); live psql inserts prove the
+  budget upsert path and a manual-entry-shaped transaction row
+  (`source='manual'`, `parse_status='parsed'`, unique `manual:` raw_hash);
+  `expo export --platform web` compiles with the new screens
+  (`transactions/new`, `settings/budgets`) and dashboard cards.
 
 ## 5. Design invariants (do not drift)
 

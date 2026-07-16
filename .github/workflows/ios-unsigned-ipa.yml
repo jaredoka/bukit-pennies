@@ -1,0 +1,76 @@
+# Builds an UNSIGNED iOS .ipa on a macOS runner (no Apple Developer account
+# needed). Sideloadly re-signs it with a free Apple ID and installs it over
+# USB — see docs/ios-sideloadly.md for the user-executed checklist.
+#
+# EAS cannot produce iOS device builds without a paid account, hence this
+# workflow (HANDOFF.md §10).
+name: iOS unsigned IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      supabase_url:
+        description: "EXPO_PUBLIC_SUPABASE_URL baked into the build (hosted Supabase project URL)"
+        required: true
+        type: string
+      supabase_anon_key:
+        description: "EXPO_PUBLIC_SUPABASE_ANON_KEY baked into the build (anon/publishable key — not a secret)"
+        required: true
+        type: string
+
+jobs:
+  build-ipa:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ inputs.supabase_url }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ inputs.supabase_anon_key }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Generates apps/mobile/ios (CocoaPods install included).
+      - name: Expo prebuild (iOS)
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform ios --no-install && pod install --project-directory=ios
+
+      - name: Archive without code signing
+        working-directory: apps/mobile
+        run: |
+          set -o pipefail
+          WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "workspace=$WORKSPACE scheme=$SCHEME"
+          xcodebuild archive \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/app.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | xcbeautify --renderer github-actions
+
+      - name: Package unsigned .ipa
+        working-directory: apps/mobile
+        run: |
+          APP=$(ls -d build/app.xcarchive/Products/Applications/*.app | head -1)
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/
+          (cd build && zip -qry bukit-pennies-unsigned.ipa Payload)
+          ls -lh build/bukit-pennies-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bukit-pennies-unsigned-ipa
+          path: apps/mobile/build/bukit-pennies-unsigned.ipa
+          retention-days: 14

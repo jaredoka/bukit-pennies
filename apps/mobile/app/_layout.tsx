@@ -1,0 +1,46 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator } from 'react-native';
+import { Centered } from '@/components/ui';
+import { SessionProvider, useSession } from '@/lib/session';
+
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, staleTime: 15_000 } },
+});
+
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { session, loading } = useSession();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+    const inAuthGroup = segments[0] === '(auth)';
+    if (!session && !inAuthGroup) router.replace('/(auth)/sign-in');
+    if (session && inAuthGroup) router.replace('/(tabs)');
+  }, [session, loading, segments, router]);
+
+  if (loading) {
+    return (
+      <Centered>
+        <ActivityIndicator size="large" />
+      </Centered>
+    );
+  }
+  return <>{children}</>;
+}
+
+export default function RootLayout() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <SessionProvider>
+        <AuthGate>
+          <StatusBar style="dark" />
+          <Stack screenOptions={{ headerShown: false }} />
+        </AuthGate>
+      </SessionProvider>
+    </QueryClientProvider>
+  );
+}

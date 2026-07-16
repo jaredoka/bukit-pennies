@@ -1,0 +1,8 @@
+{
+  "note": "Two Baiduri messages copied back-to-back with no separator split on the Card No.: label.",
+  "input": "Card No.: 4x0213 Amount: BND 21.00 Merchant: GALORIES SMOOTHIES BSB BN Date: 10-07-2026 17:37:59 If suspicious, please call 2449666.Card No.: 4x0213 Amount: BND 5.50 Merchant: KOPI PONY GADONG BN Date: 11-07-2026 08:12:03 If suspicious, please call 2449666.",
+  "expected": [
+    "Card No.: 4x0213 Amount: BND 21.00 Merchant: GALORIES SMOOTHIES BSB BN Date: 10-07-2026 17:37:59 If suspicious, please call 2449666.",
+    "Card No.: 4x0213 Amount: BND 5.50 Merchant: KOPI PONY GADONG BN Date: 11-07-2026 08:12:03 If suspicious, please call 2449666."
+  ]
+}

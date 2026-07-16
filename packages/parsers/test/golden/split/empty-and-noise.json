@@ -1,0 +1,5 @@
+{
+  "note": "Only Messages-app artifacts and whitespace — nothing to ingest.",
+  "input": "Today 5:03 PM\n\nDelivered\n\nRead 5:04 PM\n   \nYesterday 9:41 AM\n",
+  "expected": []
+}

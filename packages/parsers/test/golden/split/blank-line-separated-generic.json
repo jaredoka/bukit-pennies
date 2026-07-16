@@ -1,0 +1,8 @@
+{
+  "note": "Non-Baiduri messages have no Card No.: anchor — blank lines are the only boundary.",
+  "input": "You have spent BND 5.00 at KOPI PONY using card ending 0213 on 10/07/26.\n\nYou have spent BND 12.40 at SUPASAVE using card ending 0213 on 11/07/26.",
+  "expected": [
+    "You have spent BND 5.00 at KOPI PONY using card ending 0213 on 10/07/26.",
+    "You have spent BND 12.40 at SUPASAVE using card ending 0213 on 11/07/26."
+  ]
+}

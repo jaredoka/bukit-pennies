@@ -1,0 +1,16 @@
+{
+  "note": "Thousands separator in the amount; different card.",
+  "input": "Card No.: 4x9876 Amount: BND 1,234.56 Merchant: SUPA SAVE MATA-MATA Date: 01-01-2026 09:05:00 If suspicious, please call 2449666.",
+  "expected": {
+    "isTransactional": true,
+    "tx": {
+      "bank": "baiduri",
+      "amount": 1234.56,
+      "currency": "BND",
+      "merchant": "SUPA SAVE MATA-MATA",
+      "occurredAt": "2026-01-01T09:05:00+08:00",
+      "cardLast4": "9876",
+      "confidenceAtLeast": 0.95
+    }
+  }
+}

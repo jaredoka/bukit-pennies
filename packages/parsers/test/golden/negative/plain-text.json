@@ -1,0 +1,8 @@
+{
+  "note": "Ordinary text with no amount is not transactional.",
+  "input": "Hello, are we still meeting at the kedai tomorrow?",
+  "expected": {
+    "isTransactional": false,
+    "tx": null
+  }
+}

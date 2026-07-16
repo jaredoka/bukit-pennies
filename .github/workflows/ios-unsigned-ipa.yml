@@ -61,6 +61,7 @@ jobs:
         working-directory: apps/mobile
         run: |
           set -o pipefail
+          mkdir -p build
           xcodebuild archive \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \

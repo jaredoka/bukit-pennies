@@ -81,16 +81,17 @@ export function useTopMerchants(limit = 8) {
   });
 }
 
-/** Parsed transactions of the current Brunei month — daily-spend chart. */
+/** Parsed transactions of the current Brunei month — daily-spend chart,
+ *  category donut, and this-month stat tiles. */
 export function useThisMonthTransactions() {
   const since = bruneiMonthStartIso(0);
   return useQuery({
     queryKey: ['transactions', 'month', since],
     queryFn: () =>
-      unwrap<Pick<TransactionRow, 'occurred_at' | 'amount'>[]>(
+      unwrap<Pick<TransactionRow, 'occurred_at' | 'amount' | 'category_id' | 'merchant_normalized'>[]>(
         supabase
           .from('transactions')
-          .select('occurred_at, amount')
+          .select('occurred_at, amount, category_id, merchant_normalized')
           .eq('parse_status', 'parsed')
           .not('amount', 'is', null)
           .gte('occurred_at', since),

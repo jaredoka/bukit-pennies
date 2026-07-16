@@ -1,0 +1,16 @@
+{
+  "note": "Date without any time component defaults to midnight Brunei time.",
+  "input": "Card No.: 4x0213 Amount: BND 5.50 Merchant: KOPI HOUSE Date: 12-07-2026",
+  "expected": {
+    "isTransactional": true,
+    "tx": {
+      "bank": "baiduri",
+      "amount": 5.5,
+      "currency": "BND",
+      "merchant": "KOPI HOUSE",
+      "occurredAt": "2026-07-12T00:00:00+08:00",
+      "cardLast4": "0213",
+      "confidenceAtLeast": 0.95
+    }
+  }
+}

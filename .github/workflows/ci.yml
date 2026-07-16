@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm -r typecheck
+
+      - run: pnpm -r test
+
+      # The Supabase functions bundler cannot import outside supabase/functions/,
+      # so parsers are copied there by scripts/sync-parsers.mjs. Fail if stale.
+      - name: Check parser sync copy is not stale
+        run: |
+          if [ -f scripts/sync-parsers.mjs ]; then
+            node scripts/sync-parsers.mjs --check
+          else
+            echo "sync script not present yet (pre-Phase 1) - skipping"
+          fi

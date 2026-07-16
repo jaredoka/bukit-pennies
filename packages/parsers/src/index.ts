@@ -1,0 +1,69 @@
+import type { BankId, BankParser, ParseOptions, ParseResult } from './types.ts';
+import { baiduri } from './banks/baiduri.ts';
+import { bibd } from './banks/bibd.ts';
+import { scb } from './banks/scb.ts';
+import { generic } from './banks/generic.ts';
+
+export type {
+  BankId, BankParser, FieldName, FieldStatus,
+  ParsedTransaction, ParseOptions, ParseResult,
+} from './types.ts';
+export { normalizeText, normalizeMerchant, parseAmount, normalizeCurrency, extractLast4 } from './normalize.ts';
+export { buildBruneiIso, scanDate, BRUNEI_OFFSET } from './dates.ts';
+export { scoreConfidence, WEIGHTS, UNVERIFIED_CONFIDENCE_CAP } from './confidence.ts';
+export { baiduri, bibd, scb, generic };
+
+const BANK_PARSERS: Record<Exclude<BankId, 'unknown'>, BankParser> = { baiduri, bibd, scb };
+
+// SMS sender IDs (and later, Android package names) → bank. Checked before
+// body fingerprints because sender identity is the stronger signal.
+const SENDER_HINTS: Array<[RegExp, Exclude<BankId, 'unknown'>]> = [
+  [/baiduri/i, 'baiduri'],
+  [/bibd/i, 'bibd'],
+  [/stanchart|standard\s*chartered|\bscb?\b/i, 'scb'],
+];
+
+// Messages that must never become transactions, even when they contain amounts.
+const OTP = /\b(?:OTP|one[- ]?time\s+(?:password|pin|code)|verification\s+code|security\s+code|do\s+not\s+share)\b/i;
+const PROMO = /\b(?:promo(?:tion)?s?|discount|voucher|cashback\s+offer|offer\s+(?:ends?|valid)|win\s+a|t\s*&\s*c)\b/i;
+const BALANCE_ALERT = /\b(?:available|account|current|outstanding)\s+balance\b/i;
+
+export function isNonTransactional(text: string): boolean {
+  if (OTP.test(text)) return true;
+  if (PROMO.test(text) && !baiduri.matches(text)) return true;
+  // Balance alerts have no merchant; a real transaction message that happens
+  // to append a balance line still carries a merchant signal.
+  if (BALANCE_ALERT.test(text) && !/merchant\s*:|\bspent\b|\bat\s+[A-Z]/i.test(text)) return true;
+  return false;
+}
+
+export function detectBank(text: string, senderHint?: string): BankId {
+  if (senderHint) {
+    for (const [pattern, bank] of SENDER_HINTS) {
+      if (pattern.test(senderHint)) return bank;
+    }
+  }
+  for (const parser of [baiduri, bibd, scb]) {
+    if (parser.matches(text)) return parser.id;
+  }
+  return 'unknown';
+}
+
+export function parseBankMessage(text: string, opts?: ParseOptions): ParseResult {
+  if (!text || !text.trim()) return { tx: null, isTransactional: false };
+  if (isNonTransactional(text)) return { tx: null, isTransactional: false };
+
+  const bank = detectBank(text, opts?.senderHint);
+  const parser = bank === 'unknown' ? generic : BANK_PARSERS[bank];
+
+  let tx = parser.parse(text, opts);
+  if (!tx && parser !== generic) {
+    // Bank identified but its format didn't extract — degrade to the capped
+    // generic pass, keeping the bank attribution.
+    const fallback = generic.parse(text, opts);
+    tx = fallback ? { ...fallback, bank } : null;
+  }
+
+  if (!tx) return { tx: null, isTransactional: false };
+  return { tx, isTransactional: true };
+}

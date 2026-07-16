@@ -1,0 +1,16 @@
+{
+  "note": "Foreign-currency spend abroad; timestamp without seconds; merchant containing digits.",
+  "input": "Card No.: 4x0213 Amount: SGD 88.00 Merchant: 7 ELEVEN 123 SG Date: 05-03-2026 14:20 If suspicious, please call 2449666.",
+  "expected": {
+    "isTransactional": true,
+    "tx": {
+      "bank": "baiduri",
+      "amount": 88.0,
+      "currency": "SGD",
+      "merchant": "7 ELEVEN 123 SG",
+      "occurredAt": "2026-03-05T14:20:00+08:00",
+      "cardLast4": "0213",
+      "confidenceAtLeast": 0.95
+    }
+  }
+}

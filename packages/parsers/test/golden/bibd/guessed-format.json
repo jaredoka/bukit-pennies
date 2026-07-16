@@ -1,0 +1,16 @@
+{
+  "note": "UNVERIFIED guess at the BIBD format (no real sample yet). Asserts the skeleton path: bank attribution from sender hint + confidence cap. Replace with real redacted samples when available.",
+  "input": "You have spent BND21.00 at PIZZA HUT KIULAP on 10/07/26 using card ending 0213",
+  "sender": "BIBD",
+  "expected": {
+    "isTransactional": true,
+    "tx": {
+      "bank": "bibd",
+      "amount": 21.0,
+      "currency": "BND",
+      "merchant": "PIZZA HUT KIULAP",
+      "cardLast4": "0213",
+      "confidenceAtMost": 0.7
+    }
+  }
+}

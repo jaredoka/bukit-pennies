@@ -1,0 +1,16 @@
+{
+  "note": "UNVERIFIED guess at the Standard Chartered (Brunei) format (no real sample yet). Asserts the skeleton path: bank attribution from sender hint + confidence cap. Replace with real redacted samples when available.",
+  "input": "BND 33.50 was spent on your card ending 7788 at TIMES CINEPLEX on 09/07/26.",
+  "sender": "StanChart",
+  "expected": {
+    "isTransactional": true,
+    "tx": {
+      "bank": "scb",
+      "amount": 33.5,
+      "currency": "BND",
+      "merchant": "TIMES CINEPLEX",
+      "cardLast4": "7788",
+      "confidenceAtMost": 0.7
+    }
+  }
+}

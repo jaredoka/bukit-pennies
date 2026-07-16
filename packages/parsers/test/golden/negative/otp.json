@@ -1,0 +1,9 @@
+{
+  "note": "OTPs must never become transactions.",
+  "input": "Your Baiduri OTP is 123456. Do not share this code with anyone.",
+  "sender": "Baiduri",
+  "expected": {
+    "isTransactional": false,
+    "tx": null
+  }
+}

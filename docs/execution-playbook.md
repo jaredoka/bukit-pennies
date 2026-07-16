@@ -36,11 +36,13 @@ Environment notes: Node ≥22, pnpm 10 (`npm i -g pnpm@10` if missing), Docker
 for `supabase start`, `gh` CLI authenticated. On Windows, run POSIX scripts
 (e.g. `verify-ingest.sh`) through Git Bash.
 
-> **Known gap (2026-07-16):** Docker Desktop and the Supabase CLI are NOT
-> installed on the user's Windows machine, so the Phase 1 live matrix
-> (`supabase start` + `scripts/verify-ingest.sh`) has not been executed —
-> only the handler unit tests. Run the live matrix as soon as Docker (or a
-> hosted Supabase project) is available, before trusting Phase 2 e2e flows.
+> **Known gap (updated 2026-07-16):** Docker Desktop 4.82 and WSL are now
+> installed but need a **Windows reboot** to activate, and Docker Desktop's
+> first launch requires accepting its terms in the GUI. The Supabase CLI is a
+> root devDependency — invoke it as `pnpm exec supabase …`. The Phase 1 live
+> matrix (`supabase start` + `scripts/verify-ingest.sh`) has NOT run yet —
+> only the handler unit tests. Run it once Docker is up, before trusting
+> Phase 2 e2e flows.
 
 ## 3. Phase order and scope
 

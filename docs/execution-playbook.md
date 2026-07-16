@@ -55,7 +55,10 @@ for `supabase start`, `gh` CLI authenticated. On Windows, run POSIX scripts
 | 2 | `phase-2-mobile-app` | Expo app: email/password auth, dashboard, transactions+notes, review inbox, paste capture, settings/devices | live-verified 2026-07-16 (this PR) |
 | 3 | `phase-3-ios-testing` | unsigned-IPA GitHub Actions workflow, Sideloadly + Shortcuts docs, hosted-Supabase deploy doc, `eas.json` stub | merged 2026-07-16 (PRs #9–#13); IPA workflow verified green (run 29503884211, 10.8 MB artifact); device checklist = user-executed (`docs/ios-sideloadly.md`) |
 | deferred | — | Android Kotlin `NotificationListenerService` module + config plugin (HANDOFF §9) | after iOS testing |
+| 3.5 | `phase-3.5-store-blockers` | account deletion (RPC + screen), password reset, privacy policy + terms, real branding (HANDOFF §14) | pending |
 | 4 | — | store submission (user-executed checklist) | after real-device validation |
+| 4.5 | — | launch ops: paid Supabase, Sentry, TestFlight beta = BIBD/SCB sample funnel (HANDOFF §14) | pending |
+| 5 | `phase-5-product-gaps` | manual entry, budgets, CSV export, recurring detection (HANDOFF §14) | pending |
 
 Per-phase implementation detail lives in `HANDOFF.md` §4–§10 — follow it
 literally (schema SQL in §5, ingest flow in §6, parser contract in §7, app
@@ -140,4 +143,8 @@ New migration file (never edit an applied migration); keep RLS quartet +
 - Exact Android package names for the three bank apps (Phase 3+, real device).
 - Hosted Supabase project credentials (needed for on-device iOS testing).
 - Apple ($99, deferred) / Google ($25) developer accounts (Phase 4).
-- Product naming/branding decision ("Bukit Pennies" is the working name).
+- Product naming/branding decision ("Bukit Pennies" is the working name) —
+  blocks Phase 3.5 branding + store listings.
+- Public hosting choice for privacy policy/terms (GitHub Pages suggested) and a
+  support contact email (Phase 3.5).
+- Paid Supabase tier + Sentry account for launch ops (Phase 4.5).

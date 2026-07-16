@@ -203,7 +203,10 @@ app/
 | **1** | Supabase migrations + seed + sync script + ingest function + handler unit tests; `supabase start`, `verify-ingest.sh` curl matrix | ✅ fully (Docker available) |
 | **2** | Expo app: auth, dashboard charts, transactions/notes, review inbox, paste flow, settings/tokens | ✅ via `expo start --web` + seeded data |
 | **3** | Kotlin listener module + config plugin, share extension, `eas.json`, EAS dev builds (Android APK first — sideloadable), **iOS unsigned IPA via GitHub Actions → Sideloadly** (see below), hosted Supabase deploy; collect real BIBD/SCB samples → promote skeleton parsers | ⚠️ code + prebuild checks here; behavior needs user's devices |
+| **3.5** | **Store-blocking requirements** (added 2026-07-16, see §14): in-app account deletion, password reset, privacy policy + terms, real branding | ✅ mostly (branding needs user's name decision) |
 | **4** | Store submission via `docs/store-submission.md` | ❌ user-executed |
+| **4.5** | **Launch operations** (see §14): paid Supabase posture, crash/error reporting, TestFlight beta as the BIBD/SCB sample funnel | ⚠️ needs user accounts/spend |
+| **5** | **Competitive product gaps** (see §14): manual entry, budgets, CSV export, recurring detection | ✅ fully |
 
 ### iOS device testing before the paid Apple Developer account (Sideloadly)
 
@@ -244,3 +247,54 @@ Commit per phase; each phase on a feature branch off `main`, merged via pull req
 - **Every new session should use GitHub Flow** (branch off `main`, commit, push, open a pull request for changes).
 - PR workflow permissions are configured in `.claude/settings.json` (committed): allow rules for `gh pr create` and `gh pr merge`, so the GitHub Flow steps run without per-action permission prompts.
 - **Every new session should use `/remote-control`.**
+
+## 14. Launch-readiness roadmap (added 2026-07-16, after Phases 0–3 shipped)
+
+Assessment: the original phases end at "functional on iOS for testing + store
+submission mechanics" — a public launch additionally needs the following. Every
+existing invariant holds (notification-text only, RLS, golden-fixture parser
+discipline, GitHub Flow, stop-per-phase cadence).
+
+**Competitive positioning (why this app, recorded for the store listing):**
+mainstream trackers (Monarch, YNAB, Copilot, Buxfer…) rely on bank-aggregation
+APIs that do not cover Brunei; the local banks' own apps (Baiduri b.Digital,
+BIBD Mobile) show single-bank history with no cross-bank spending analytics.
+Notification-text parsing is the wedge (the approach Walnut/Axio proved in
+India), and no-bank-connection is both the trust story and the store-review
+story. BIBD is Brunei's largest bank — its parser must be promoted from
+skeleton before the app serves the majority of the market.
+
+### Phase 3.5 — store-blocking requirements (Apple/Google reject without these)
+1. **In-app account deletion** (Apple guideline 5.1.1(v)): settings screen +
+   `security definer` RPC in a new migration; deleting the auth user cascades
+   through existing FKs. Verify with a psql assertion that zero rows remain.
+2. **Password reset**: `supabase.auth.resetPasswordForEmail` + deep link (the
+   `bukitpennies://` scheme already in `app.json`) + update-password screen in
+   `(auth)/`.
+3. **Privacy policy + terms**: `docs/privacy-policy.md` + `docs/terms.md`
+   (content mirrors `docs/user-guide.md` §7), hosted at a public URL (GitHub
+   Pages), linked from sign-up and Settings.
+4. **Real branding**: replace create-expo-app template icons/splash in
+   `apps/mobile/assets/`; needs the product-name decision (§12).
+
+### Phase 4.5 — launch operations
+5. **Production Supabase posture**: paid tier (free tier pauses after ~1 week
+   of inactivity — fatal for a Shortcut posting SMS), point-in-time backups,
+   real email provider, signup abuse protection/rate limits.
+6. **Crash/error reporting**: `sentry-expo` in the app + log drain for the
+   ingest function; production parse failures must be visible.
+7. **TestFlight beta** (needs the paid Apple account): doubles as the BIBD/SCB
+   sample-collection funnel; promote skeleton parsers per playbook §7 as real
+   samples arrive.
+
+### Phase 5 — competitive product gaps (fast follows, not launch blockers)
+8. **Manual transaction entry** (schema already supports `source='manual'`).
+9. **Budgets**: per-category monthly limits (new `budgets` table + RLS quartet;
+   reuse `monthly_totals` bucketing) + dashboard progress.
+10. **CSV export** (expo-sharing) — data portability matches the trust promise.
+11. **Recurring-spend detection** (client-side same-merchant/amount monthly
+    heuristic first).
+
+Out of scope, unchanged: bank aggregation (violates the safety invariant),
+Sign in with Apple (only required if social login is offered), Android
+listener timing (deferred post-iOS-testing).

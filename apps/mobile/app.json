@@ -44,7 +44,8 @@
           "organization": "bukit-pennies",
           "project": "mobile"
         }
-      ]
+      ],
+      "expo-sharing"
     ]
   }
 }

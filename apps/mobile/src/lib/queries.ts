@@ -1,8 +1,10 @@
+import { normalizeMerchant } from '@bukit/parsers';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { bruneiMonthStartIso } from './format';
 import { supabase } from './supabase';
 import type {
+  BudgetRow,
   CategoryRow,
   IngestDeviceRow,
   MerchantTotalRow,
@@ -99,6 +101,32 @@ export function useThisMonthTransactions() {
   });
 }
 
+/** Parsed spends of the last `monthsBack` Brunei months — recurring detection. */
+export function useRecentMonthsTransactions(monthsBack = 6) {
+  const since = bruneiMonthStartIso(monthsBack - 1);
+  return useQuery({
+    queryKey: ['transactions', 'recent-months', since],
+    queryFn: () =>
+      unwrap<Pick<TransactionRow, 'occurred_at' | 'amount' | 'currency' | 'merchant_normalized'>[]>(
+        supabase
+          .from('transactions')
+          .select('occurred_at, amount, currency, merchant_normalized')
+          .eq('parse_status', 'parsed')
+          .not('amount', 'is', null)
+          .not('occurred_at', 'is', null)
+          .not('merchant_normalized', 'is', null)
+          .gte('occurred_at', since),
+      ),
+  });
+}
+
+export function useBudgets() {
+  return useQuery({
+    queryKey: ['budgets'],
+    queryFn: () => unwrap<BudgetRow[]>(supabase.from('budgets').select('*')),
+  });
+}
+
 export function useCategories() {
   return useQuery({
     queryKey: ['categories'],
@@ -156,6 +184,86 @@ export function useDeleteTransaction() {
     mutationFn: async (id: string) =>
       unwrap(supabase.from('transactions').delete().eq('id', id)),
     onSettled: invalidate,
+  });
+}
+
+export interface ManualTxInput {
+  merchant: string;
+  amount: number;
+  currency: string;
+  occurredAt: string; // ISO with +08:00 offset
+  categoryId: string | null;
+  cardLast4: string | null;
+  notes: string | null;
+}
+
+export function useCreateManualTransaction() {
+  const invalidate = useInvalidateTx();
+  return useMutation({
+    mutationFn: async (input: ManualTxInput) => {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) throw new Error('Not signed in');
+      // raw_text documents the entry (shown as "Original message"); raw_hash
+      // gets a per-entry unique suffix so two identical manual entries never
+      // trip the exact-dupe guard, which exists for captured messages.
+      const rawText = `Manual entry: ${input.currency} ${input.amount.toFixed(2)} at ${input.merchant} on ${input.occurredAt}`;
+      const rawHash = `manual:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 12)}`;
+      return unwrap<TransactionRow>(
+        supabase
+          .from('transactions')
+          .insert({
+            user_id: userId,
+            occurred_at: input.occurredAt,
+            amount: input.amount,
+            currency: input.currency,
+            merchant: input.merchant,
+            merchant_normalized: normalizeMerchant(input.merchant),
+            bank: 'unknown',
+            card_last4: input.cardLast4,
+            category_id: input.categoryId,
+            notes: input.notes,
+            source: 'manual',
+            parse_status: 'parsed',
+            confidence: 1,
+            raw_text: rawText,
+            raw_hash: rawHash,
+          })
+          .select()
+          .single(),
+      );
+    },
+    onSettled: invalidate,
+  });
+}
+
+export function useUpsertBudget() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ categoryId, amount }: { categoryId: string; amount: number }) => {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) throw new Error('Not signed in');
+      return unwrap<BudgetRow>(
+        supabase
+          .from('budgets')
+          .upsert(
+            { user_id: userId, category_id: categoryId, amount },
+            { onConflict: 'user_id,category_id' },
+          )
+          .select()
+          .single(),
+      );
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['budgets'] }),
+  });
+}
+
+export function useDeleteBudget() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => unwrap(supabase.from('budgets').delete().eq('id', id)),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['budgets'] }),
   });
 }
 

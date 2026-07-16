@@ -2,7 +2,7 @@
 
 **Status:** Planning complete and approved. **No code has been written yet** — the repo contains only this document. This file is the single source of truth for picking up implementation.
 
-**Branch:** `claude/card-spending-logger-bem2c9`
+**Branch:** `main` (GitHub Flow — feature branches off `main`, merged via pull request)
 **Date:** 2026-07-16
 
 ---
@@ -205,7 +205,7 @@ app/
 | **3** | Kotlin listener module + config plugin, share extension, `eas.json`, EAS dev builds (Android APK first — sideloadable), hosted Supabase deploy; collect real BIBD/SCB samples → promote skeleton parsers | ⚠️ code + prebuild checks here; behavior needs user's devices |
 | **4** | Store submission via `docs/store-submission.md` | ❌ user-executed |
 
-Commit per phase; push to `claude/card-spending-logger-bem2c9`.
+Commit per phase; each phase on a feature branch off `main`, merged via pull request.
 
 ### Phase 4 checklist highlights
 - **Apple:** dev account ($99/yr), App IDs for app + share extension, **Sign in with Apple** (required if social login offered), privacy nutrition labels ("data linked to you: financial info — user-initiated text only"), review notes explaining there is NO bank connectivity, TestFlight first.
@@ -231,6 +231,6 @@ Commit per phase; push to `claude/card-spending-logger-bem2c9`.
 
 - Node v22, pnpm 10, Docker available (→ `supabase start` works). No iOS simulator; no `gh` CLI (use GitHub MCP tools).
 - Outbound HTTPS goes through a pre-configured proxy — do not disable TLS verification.
-- Develop on branch `claude/card-spending-logger-bem2c9`; push with `git push -u origin <branch>`; do NOT create a PR unless asked.
-- **Every new session should use GitHub Flow** (branch off, commit, push, open a pull request for changes).
+- Develop on short-lived feature branches off `main`; push with `git push -u origin <branch>` and open a pull request.
+- **Every new session should use GitHub Flow** (branch off `main`, commit, push, open a pull request for changes).
 - **Every new session should use `/remote-control`.**

@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link, type Href } from 'expo-router';
+import { useState } from 'react';
 import {
   Linking as RNLinking,
   Pressable,
@@ -10,6 +11,7 @@ import {
 } from 'react-native';
 import { Button, Card, colors, Muted, Title } from '@/components/ui';
 import { PRIVACY_POLICY_URL, SUPPORT_EMAIL, TERMS_URL } from '@/lib/env';
+import { exportTransactionsCsv } from '@/lib/exportCsv';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
@@ -30,6 +32,21 @@ function Row({ href, icon, label, note }: { href: Href; icon: keyof typeof Ionic
 
 export default function Settings() {
   const { session } = useSession();
+  const [exporting, setExporting] = useState(false);
+  const [exportNote, setExportNote] = useState<string | null>(null);
+
+  async function exportCsv() {
+    setExporting(true);
+    setExportNote(null);
+    try {
+      const count = await exportTransactionsCsv();
+      setExportNote(`Exported ${count} transaction${count === 1 ? '' : 's'}.`);
+    } catch (e) {
+      setExportNote(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -55,6 +72,20 @@ export default function Settings() {
           label="How Bukit Pennies works"
           note="Using the app, and where your data is stored"
         />
+      </Card>
+
+      <Card>
+        <Title>Spending & data</Title>
+        <Row
+          href="/(tabs)/settings/budgets"
+          icon="pie-chart"
+          label="Monthly budgets"
+          note="Set per-category limits shown on the dashboard"
+        />
+        <View style={{ marginTop: 12 }}>
+          <Button label="Export transactions (CSV)" variant="secondary" onPress={exportCsv} busy={exporting} />
+          {exportNote ? <Muted>{exportNote}</Muted> : null}
+        </View>
       </Card>
 
       <Card>

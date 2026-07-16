@@ -36,20 +36,22 @@ Environment notes: Node ≥22, pnpm 10 (`npm i -g pnpm@10` if missing), Docker
 for `supabase start`, `gh` CLI authenticated. On Windows, run POSIX scripts
 (e.g. `verify-ingest.sh`) through Git Bash.
 
-> **Known gap (updated 2026-07-16):** Docker Desktop 4.82 and WSL are now
-> installed but need a **Windows reboot** to activate, and Docker Desktop's
-> first launch requires accepting its terms in the GUI. The Supabase CLI is a
-> root devDependency — invoke it as `pnpm exec supabase …`. The Phase 1 live
-> matrix (`supabase start` + `scripts/verify-ingest.sh`) has NOT run yet —
-> only the handler unit tests. Run it once Docker is up, before trusting
-> Phase 2 e2e flows.
+> **Environment note (updated 2026-07-16):** Docker Desktop is installed and
+> working. The Supabase CLI is a root devDependency — invoke it as
+> `pnpm exec supabase …`. The Phase 1 live matrix (`supabase start` +
+> `scripts/verify-ingest.sh`) has been run and passes 8/8 (required migration
+> `04_grants.sql`: newer Supabase images no longer auto-grant table DML to
+> anon/authenticated/service_role). `psql` is not installed on the host —
+> run the verify script with a shim that forwards to
+> `docker exec -i supabase_db_bukit-pennies psql` and
+> `DB_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres`.
 
 ## 3. Phase order and scope
 
 | Phase | Branch | Scope | Status |
 |---|---|---|---|
 | 0 | `phase-0-workspace-parsers` | pnpm workspace, tsconfig, CI, `@bukit/parsers` + golden tests, this playbook | this PR |
-| 1 | `phase-1-supabase-ingest` | migrations 01–03, seed, `sync-parsers.mjs`, ingest edge function + handler tests, `verify-ingest.sh` | pending |
+| 1 | `phase-1-supabase-ingest` | migrations 01–04, seed, `sync-parsers.mjs`, ingest edge function + handler tests, `verify-ingest.sh` | merged + live-verified 2026-07-16 |
 | 2 | `phase-2-mobile-app` | Expo app: email/password auth, dashboard, transactions+notes, review inbox, paste capture, settings/devices | pending |
 | 3 | `phase-3-ios-testing` | unsigned-IPA GitHub Actions workflow, Sideloadly + Shortcuts docs, hosted-Supabase deploy doc, `eas.json` stub | pending |
 | deferred | — | Android Kotlin `NotificationListenerService` module + config plugin (HANDOFF §9) | after iOS testing |

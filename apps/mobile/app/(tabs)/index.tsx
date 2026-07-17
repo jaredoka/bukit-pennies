@@ -1,5 +1,14 @@
-import { useMemo } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Link } from 'expo-router';
+import { useMemo, useState } from 'react';
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { BarChart, LineChart, PieChart } from 'react-native-gifted-charts';
 import { Card, Muted, Title } from '@/components/ui';
 import {
@@ -13,6 +22,7 @@ import {
   useBudgets,
   useCategories,
   useMonthlyTotals,
+  useProfile,
   useRecentMonthsTransactions,
   useThisMonthTransactions,
   useTopMerchants,
@@ -21,8 +31,15 @@ import {
 import { detectRecurring } from '@/lib/recurring';
 import { themedStyles, useTheme } from '@/lib/theme';
 
-// Categorical chart palette lives on the theme (light/dark variants);
-// used when a category has no color of its own. "Other" is muted.
+const REMAINING_KEY = '__remaining__';
+
+interface Slice {
+  key: string;
+  name: string;
+  value: number;
+  color: string;
+  isRemaining: boolean;
+}
 
 export default function Dashboard() {
   const styles = useStyles();
@@ -30,46 +47,89 @@ export default function Dashboard() {
   const { width } = useWindowDimensions();
   const chartWidth = Math.min(width, 720) - 88;
 
+  const profile = useProfile();
   const monthly = useMonthlyTotals();
   const thisMonthTx = useThisMonthTransactions();
-  const topMerchants = useTopMerchants(8);
+  const topMerchants = useTopMerchants(6);
   const categories = useCategories();
   const budgets = useBudgets();
   const recentTx = useRecentMonthsTransactions(6);
   const { refreshing, onRefresh } = usePullToRefresh();
 
+  const [selected, setSelected] = useState<string | null>(null);
+
   const thisMonthKey = bruneiMonthKey(Date.now());
   const lastMonthKey = bruneiMonthKey(bruneiMonthStartIso(1));
-
   const thisMonth = monthly.data?.find((r) => r.month.startsWith(thisMonthKey.slice(0, 7)));
   const lastMonth = monthly.data?.find((r) => r.month.startsWith(lastMonthKey.slice(0, 7)));
+  const income = profile.data?.monthly_income == null ? null : Number(profile.data.monthly_income);
 
+  // ---- Hero donut: category spend vs monthly income -----------------------
+  const donut = useMemo(() => {
+    const byCategory = new Map<string | null, number>();
+    let spent = 0;
+    for (const tx of thisMonthTx.data ?? []) {
+      if (tx.amount === null) continue;
+      byCategory.set(tx.category_id, (byCategory.get(tx.category_id) ?? 0) + Number(tx.amount));
+      spent += Number(tx.amount);
+    }
+    const named = Array.from(byCategory.entries())
+      .map(([id, value]) => {
+        const cat = categories.data?.find((c) => c.id === id);
+        return {
+          key: id ?? 'uncategorized',
+          name: id === null ? 'Uncategorized' : (cat?.name ?? 'Unknown'),
+          dbColor: id === null ? null : (cat?.color ?? null),
+          value,
+        };
+      })
+      .sort((a, b) => b.value - a.value);
+    const slices: Slice[] = named.slice(0, 5).map((c, i) => ({
+      key: c.key,
+      name: c.name,
+      value: c.value,
+      color: c.dbColor ?? colors.chartCategories[i % colors.chartCategories.length]!,
+      isRemaining: false,
+    }));
+    const rest = named.slice(5);
+    if (rest.length > 0) {
+      slices.push({
+        key: '__other__',
+        name: 'Other',
+        value: rest.reduce((s, c) => s + c.value, 0),
+        color: colors.chartOther,
+        isRemaining: false,
+      });
+    }
+    const remaining = income !== null ? income - spent : null;
+    if (remaining !== null && remaining > 0) {
+      slices.push({
+        key: REMAINING_KEY,
+        name: 'Left to spend',
+        value: remaining,
+        color: colors.border,
+        isRemaining: true,
+      });
+    }
+    return { slices, spent, remaining };
+  }, [thisMonthTx.data, categories.data, colors, income]);
+
+  const selectedSlice = donut.slices.find((s) => s.key === selected) ?? null;
+  // Percentage base: income when set, otherwise this month's spend.
+  const pctBase = income ?? donut.spent;
+
+  function toggleSelect(key: string) {
+    setSelected((cur) => (cur === key ? null : key));
+  }
+
+  // ---- Secondary stats ----------------------------------------------------
   const delta =
     thisMonth && lastMonth && Number(lastMonth.total) > 0
       ? ((Number(thisMonth.total) - Number(lastMonth.total)) / Number(lastMonth.total)) * 100
       : null;
-
   const dayOfMonth = Number(bruneiDayKey(Date.now()).slice(8));
   const avgPerDay = thisMonth ? Number(thisMonth.total) / dayOfMonth : 0;
 
-  // This month's biggest merchant by spend.
-  const topMerchantThisMonth = useMemo(() => {
-    const byMerchant = new Map<string, number>();
-    for (const tx of thisMonthTx.data ?? []) {
-      if (!tx.merchant_normalized || tx.amount === null) continue;
-      byMerchant.set(
-        tx.merchant_normalized,
-        (byMerchant.get(tx.merchant_normalized) ?? 0) + Number(tx.amount),
-      );
-    }
-    let best: { name: string; total: number } | null = null;
-    for (const [name, total] of byMerchant) {
-      if (!best || total > best.total) best = { name, total };
-    }
-    return best;
-  }, [thisMonthTx.data]);
-
-  // Sum parsed spends per Brunei day for the current month, day 1..today.
   const dailyData = useMemo(() => {
     const byDay = new Map<number, number>();
     for (const tx of thisMonthTx.data ?? []) {
@@ -83,42 +143,6 @@ export default function Dashboard() {
     }));
   }, [thisMonthTx.data, dayOfMonth]);
 
-  // Category breakdown, this month: top 5 categories + "Other" fold.
-  const categoryBreakdown = useMemo(() => {
-    const byCategory = new Map<string | null, number>();
-    let total = 0;
-    for (const tx of thisMonthTx.data ?? []) {
-      if (tx.amount === null) continue;
-      byCategory.set(tx.category_id, (byCategory.get(tx.category_id) ?? 0) + Number(tx.amount));
-      total += Number(tx.amount);
-    }
-    const named = Array.from(byCategory.entries())
-      .map(([id, value]) => {
-        const cat = categories.data?.find((c) => c.id === id);
-        return {
-          name: id === null ? 'Uncategorized' : (cat?.name ?? 'Unknown'),
-          dbColor: id === null ? null : (cat?.color ?? null),
-          value,
-        };
-      })
-      .sort((a, b) => b.value - a.value);
-    const top = named.slice(0, 5).map((c, i) => ({
-      ...c,
-      color: c.dbColor ?? colors.chartCategories[i % colors.chartCategories.length]!,
-    }));
-    const rest = named.slice(5);
-    if (rest.length > 0) {
-      top.push({
-        name: 'Other',
-        dbColor: null,
-        color: colors.chartOther,
-        value: rest.reduce((s, c) => s + c.value, 0),
-      });
-    }
-    return { slices: top, total };
-  }, [thisMonthTx.data, categories.data, colors]);
-
-  // Budget progress: this-month spend per budgeted category.
   const budgetProgress = useMemo(() => {
     if (!budgets.data?.length) return [];
     const spentByCategory = new Map<string, number>();
@@ -140,9 +164,8 @@ export default function Dashboard() {
       .sort((a, b) => b.spent / b.limit - a.spent / a.limit);
   }, [budgets.data, thisMonthTx.data, categories.data, colors]);
 
-  const recurring = useMemo(() => detectRecurring(recentTx.data ?? []).slice(0, 8), [recentTx.data]);
+  const recurring = useMemo(() => detectRecurring(recentTx.data ?? []).slice(0, 6), [recentTx.data]);
 
-  // Monthly totals, oldest→newest, last 6 Brunei months.
   const monthlyBars = useMemo(
     () =>
       (monthly.data ?? [])
@@ -155,14 +178,15 @@ export default function Dashboard() {
     [monthly.data],
   );
 
-  const merchantBars = useMemo(
-    () =>
-      (topMerchants.data ?? []).map((m) => ({
-        value: Number(m.total),
-        label: m.merchant_normalized.split(' ').slice(0, 2).join(' ').slice(0, 12),
-      })),
-    [topMerchants.data],
-  );
+  const merchantRanking = useMemo(() => {
+    const rows = (topMerchants.data ?? []).map((m) => ({
+      name: m.merchant_normalized,
+      total: Number(m.total),
+      count: m.tx_count,
+    }));
+    const max = rows.reduce((s, r) => Math.max(s, r.total), 0);
+    return { rows, max };
+  }, [topMerchants.data]);
 
   return (
     <ScrollView
@@ -170,16 +194,104 @@ export default function Dashboard() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
+      {/* ---- Hero: interactive donut ---- */}
+      <Card>
+        <Title>{formatMonthName(thisMonthKey)}</Title>
+        {donut.slices.length > 0 ? (
+          <View style={styles.heroWrap}>
+            <PieChart
+              data={donut.slices.map((s) => ({
+                value: s.value,
+                color: s.color,
+                focused: s.key === selected,
+                onPress: () => toggleSelect(s.key),
+              }))}
+              donut
+              sectionAutoFocus
+              radius={110}
+              innerRadius={78}
+              focusedPieIndex={selected === null ? -1 : donut.slices.findIndex((s) => s.key === selected)}
+              strokeWidth={3}
+              strokeColor={colors.card}
+              innerCircleColor={colors.card}
+              centerLabelComponent={() => (
+                <Pressable style={styles.center} onPress={() => setSelected(null)}>
+                  {selectedSlice ? (
+                    <>
+                      <Text style={styles.centerLabel} numberOfLines={1}>
+                        {selectedSlice.name}
+                      </Text>
+                      <Text style={styles.centerValue}>{formatMoney(selectedSlice.value)}</Text>
+                      <Muted>
+                        {pctBase > 0
+                          ? `${Math.round((selectedSlice.value / pctBase) * 100)}% of ${income !== null ? 'income' : 'spending'}`
+                          : ''}
+                      </Muted>
+                    </>
+                  ) : income !== null ? (
+                    <>
+                      <Text style={styles.centerLabel}>
+                        {donut.remaining !== null && donut.remaining < 0 ? 'Over income' : 'Left to spend'}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.centerValue,
+                          donut.remaining !== null && donut.remaining < 0 && { color: colors.danger },
+                        ]}
+                      >
+                        {formatMoney(Math.abs(donut.remaining ?? 0))}
+                      </Text>
+                      <Muted>{`of ${formatMoney(income)}`}</Muted>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.centerLabel}>Spent</Text>
+                      <Text style={styles.centerValue}>{formatMoney(donut.spent)}</Text>
+                      <Muted>this month</Muted>
+                    </>
+                  )}
+                </Pressable>
+              )}
+            />
+            <View style={styles.legend}>
+              {donut.slices.map((s) => (
+                <Pressable
+                  key={s.key}
+                  onPress={() => toggleSelect(s.key)}
+                  style={[styles.legendRow, selected === s.key && styles.legendRowActive]}
+                >
+                  <View style={[styles.legendDot, { backgroundColor: s.color }]} />
+                  <Text
+                    style={[styles.legendName, s.isRemaining && { color: colors.muted }]}
+                    numberOfLines={1}
+                  >
+                    {s.name}
+                  </Text>
+                  <Text style={styles.legendValue}>{formatMoney(s.value)}</Text>
+                </Pressable>
+              ))}
+            </View>
+            {income === null ? (
+              <Link href="/(tabs)/settings" asChild>
+                <Pressable>
+                  <Muted>Set your monthly income in Settings to see what’s left to spend →</Muted>
+                </Pressable>
+              </Link>
+            ) : null}
+          </View>
+        ) : (
+          <Muted>No spending this month yet — capture a bank message or add one manually.</Muted>
+        )}
+      </Card>
+
+      {/* ---- Compact stat strip ---- */}
       <View style={styles.statRow}>
         <Card style={styles.statCard}>
-          <Muted>{formatMonthName(thisMonthKey)}</Muted>
-          <Text style={styles.statValue}>
-            {formatMoney(thisMonth ? Number(thisMonth.total) : 0)}
-          </Text>
-          <Muted>{`${thisMonth?.tx_count ?? 0} transactions`}</Muted>
+          <Muted>Spent</Muted>
+          <Text style={styles.statValue}>{formatMoney(donut.spent)}</Text>
         </Card>
         <Card style={styles.statCard}>
-          <Muted>vs {formatMonthName(lastMonthKey)}</Muted>
+          <Muted>vs last month</Muted>
           <Text
             style={[
               styles.statValue,
@@ -188,92 +300,17 @@ export default function Dashboard() {
           >
             {delta === null ? '—' : `${delta > 0 ? '+' : ''}${delta.toFixed(0)}%`}
           </Text>
-          <Muted>{formatMoney(lastMonth ? Number(lastMonth.total) : 0)} last month</Muted>
         </Card>
-      </View>
-
-      <View style={styles.statRow}>
         <Card style={styles.statCard}>
-          <Muted>Average per day</Muted>
+          <Muted>Per day</Muted>
           <Text style={styles.statValue}>{formatMoney(avgPerDay)}</Text>
-          <Muted>{`over ${dayOfMonth} day${dayOfMonth === 1 ? '' : 's'}`}</Muted>
-        </Card>
-        <Card style={styles.statCard}>
-          <Muted>Top merchant this month</Muted>
-          <Text style={styles.statValueSmall} numberOfLines={2}>
-            {topMerchantThisMonth?.name ?? '—'}
-          </Text>
-          <Muted>{topMerchantThisMonth ? formatMoney(topMerchantThisMonth.total) : 'no spending yet'}</Muted>
         </Card>
       </View>
 
-      <Card>
-        <Title>Daily spend — {formatMonthName(thisMonthKey)}</Title>
-        {dailyData.length > 0 ? (
-          <LineChart
-            data={dailyData}
-            width={chartWidth}
-            height={180}
-            color={colors.primary}
-            thickness={2}
-            hideDataPoints
-            areaChart
-            startFillColor={colors.primary}
-            startOpacity={0.25}
-            endOpacity={0.02}
-            yAxisTextStyle={{ color: colors.muted, fontSize: 10 }}
-            xAxisLabelTextStyle={{ color: colors.muted, fontSize: 10 }}
-            rulesColor={colors.border}
-            yAxisColor={colors.border}
-            xAxisColor={colors.border}
-            noOfSections={4}
-          />
-        ) : (
-          <Muted>No spending recorded this month yet.</Muted>
-        )}
-      </Card>
-
-      <Card>
-        <Title>Where it went — {formatMonthName(thisMonthKey)}</Title>
-        {categoryBreakdown.slices.length > 0 ? (
-          <View style={styles.donutRow}>
-            <PieChart
-              data={categoryBreakdown.slices.map((s) => ({ value: s.value, color: s.color }))}
-              donut
-              radius={78}
-              innerRadius={52}
-              strokeWidth={2}
-              strokeColor={colors.card}
-              innerCircleColor={colors.card}
-              centerLabelComponent={() => (
-                <View style={{ alignItems: 'center' }}>
-                  <Text style={styles.donutCenterValue}>
-                    {formatMoney(categoryBreakdown.total)}
-                  </Text>
-                  <Muted>this month</Muted>
-                </View>
-              )}
-            />
-            <View style={styles.legend}>
-              {categoryBreakdown.slices.map((s) => (
-                <View key={s.name} style={styles.legendRow}>
-                  <View style={[styles.legendDot, { backgroundColor: s.color }]} />
-                  <Text style={styles.legendName} numberOfLines={1}>
-                    {s.name}
-                  </Text>
-                  <Text style={styles.legendValue}>{formatMoney(s.value)}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        ) : (
-          <Muted>No categorized spending this month yet.</Muted>
-        )}
-      </Card>
-
+      {/* ---- Budgets ---- */}
       {budgetProgress.length > 0 ? (
         <Card>
-          <Title>Budgets — {formatMonthName(thisMonthKey)}</Title>
+          <Title>Budgets</Title>
           {budgetProgress.map((b) => {
             const ratio = b.limit > 0 ? b.spent / b.limit : 0;
             const over = ratio > 1;
@@ -299,22 +336,48 @@ export default function Dashboard() {
                     ]}
                   />
                 </View>
-                {over ? (
-                  <Muted>{`Over budget by ${formatMoney(b.spent - b.limit)}`}</Muted>
-                ) : null}
+                {over ? <Muted>{`Over by ${formatMoney(b.spent - b.limit)}`}</Muted> : null}
               </View>
             );
           })}
         </Card>
       ) : null}
 
+      {/* ---- Trend ---- */}
       <Card>
-        <Title>Monthly totals</Title>
+        <Title>Daily spend</Title>
+        {dailyData.some((d) => d.value > 0) ? (
+          <LineChart
+            data={dailyData}
+            width={chartWidth}
+            height={160}
+            color={colors.primary}
+            thickness={2}
+            hideDataPoints
+            areaChart
+            startFillColor={colors.primary}
+            startOpacity={0.25}
+            endOpacity={0.02}
+            yAxisTextStyle={{ color: colors.muted, fontSize: 10 }}
+            xAxisLabelTextStyle={{ color: colors.muted, fontSize: 10 }}
+            rulesColor={colors.border}
+            yAxisColor={colors.border}
+            xAxisColor={colors.border}
+            noOfSections={4}
+          />
+        ) : (
+          <Muted>No spending recorded this month yet.</Muted>
+        )}
+      </Card>
+
+      {/* ---- Month history ---- */}
+      <Card>
+        <Title>Month by month</Title>
         {monthlyBars.length > 0 ? (
           <BarChart
             data={monthlyBars}
             width={chartWidth}
-            height={160}
+            height={150}
             barWidth={30}
             barBorderTopLeftRadius={4}
             barBorderTopRightRadius={4}
@@ -331,34 +394,36 @@ export default function Dashboard() {
         )}
       </Card>
 
+      {/* ---- Top merchants as a ranked list ---- */}
       <Card>
-        <Title>Top merchants — all time</Title>
-        {merchantBars.length > 0 ? (
-          <BarChart
-            data={merchantBars}
-            width={chartWidth}
-            height={200}
-            barWidth={22}
-            barBorderTopLeftRadius={4}
-            barBorderTopRightRadius={4}
-            frontColor={colors.primary}
-            yAxisTextStyle={{ color: colors.muted, fontSize: 10 }}
-            xAxisLabelTextStyle={{
-              color: colors.muted,
-              fontSize: 9,
-              transform: [{ rotate: '35deg' }],
-            }}
-            rulesColor={colors.border}
-            yAxisColor={colors.border}
-            xAxisColor={colors.border}
-            noOfSections={4}
-            labelWidth={56}
-          />
+        <Title>Top merchants</Title>
+        {merchantRanking.rows.length > 0 ? (
+          merchantRanking.rows.map((m) => (
+            <View key={m.name} style={styles.merchantRow}>
+              <View style={{ flex: 1 }}>
+                <View style={styles.merchantHeader}>
+                  <Text style={styles.legendName} numberOfLines={1}>
+                    {m.name}
+                  </Text>
+                  <Text style={styles.legendValue}>{formatMoney(m.total)}</Text>
+                </View>
+                <View style={styles.merchantTrack}>
+                  <View
+                    style={[
+                      styles.merchantFill,
+                      { width: `${merchantRanking.max > 0 ? (m.total / merchantRanking.max) * 100 : 0}%` },
+                    ]}
+                  />
+                </View>
+              </View>
+            </View>
+          ))
         ) : (
           <Muted>No merchant data yet — capture a bank message to get started.</Muted>
         )}
       </Card>
 
+      {/* ---- Recurring ---- */}
       {recurring.length > 0 ? (
         <Card>
           <Title>Likely recurring</Title>
@@ -385,27 +450,35 @@ export default function Dashboard() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
-  statRow: { flexDirection: 'row', gap: 12 },
-  statCard: { flex: 1 },
-  statValue: { fontSize: 24, fontWeight: '800', color: colors.text, marginVertical: 4 },
-  statValueSmall: { fontSize: 16, fontWeight: '700', color: colors.text, marginVertical: 4 },
-  donutRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 16 },
-  donutCenterValue: { fontSize: 16, fontWeight: '800', color: colors.text },
-  legend: { flex: 1, minWidth: 180, gap: 6 },
-  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heroWrap: { alignItems: 'center', gap: 16 },
+  center: { alignItems: 'center', paddingHorizontal: 8, maxWidth: 150 },
+  centerLabel: { color: colors.muted, fontSize: 13, fontWeight: '600' },
+  centerValue: { fontSize: 24, fontWeight: '800', color: colors.text, marginVertical: 2 },
+  legend: { alignSelf: 'stretch', gap: 2 },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  legendRowActive: { backgroundColor: colors.bg },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendName: { flex: 1, color: colors.text, fontSize: 13 },
   legendValue: { color: colors.muted, fontSize: 13, fontVariant: ['tabular-nums'] },
+  statRow: { flexDirection: 'row', gap: 10 },
+  statCard: { flex: 1, paddingVertical: 12, paddingHorizontal: 12 },
+  statValue: { fontSize: 17, fontWeight: '800', color: colors.text, marginTop: 2 },
   budgetRow: { marginBottom: 12 },
   budgetHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   budgetAmounts: { color: colors.text, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  budgetTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.border,
-    overflow: 'hidden',
-  },
+  budgetTrack: { height: 8, borderRadius: 4, backgroundColor: colors.border, overflow: 'hidden' },
   budgetFill: { height: '100%', borderRadius: 4 },
+  merchantRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
+  merchantHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  merchantTrack: { height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' },
+  merchantFill: { height: '100%', borderRadius: 3, backgroundColor: colors.primary },
   recurringRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -3,6 +3,13 @@ import type { BankId } from '@bukit/parsers';
 export type TxSource = 'android_listener' | 'ios_shortcut' | 'share' | 'paste' | 'manual';
 export type ParseStatus = 'parsed' | 'needs_review';
 
+export interface ProfileRow {
+  id: string;
+  display_name: string | null;
+  default_currency: string;
+  monthly_income: number | string | null;
+}
+
 export interface TransactionRow {
   id: string;
   user_id: string;

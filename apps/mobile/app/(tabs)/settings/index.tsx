@@ -9,7 +9,8 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Button, Card, Chip, Muted, Title } from '@/components/ui';
+import { Button, Card, Chip, Field, Muted, Title } from '@/components/ui';
+import { useProfile, useUpdateProfile } from '@/lib/queries';
 import { PRIVACY_POLICY_URL, SUPPORT_EMAIL, TERMS_URL } from '@/lib/env';
 import { exportTransactionsCsv } from '@/lib/exportCsv';
 import { useSession } from '@/lib/session';
@@ -100,6 +101,8 @@ export default function Settings() {
         />
       </Card>
 
+      <IncomeCard />
+
       <Card>
         <Title>Spending & data</Title>
         <Row
@@ -156,6 +159,44 @@ export default function Settings() {
         </View>
       </Card>
     </ScrollView>
+  );
+}
+
+function IncomeCard() {
+  const profile = useProfile();
+  const update = useUpdateProfile();
+  const [draft, setDraft] = useState<string | null>(null);
+  const saved = profile.data?.monthly_income == null ? '' : String(Number(profile.data.monthly_income));
+  const value = draft ?? saved;
+  const parsed = Number(value);
+  const valid = value.trim() !== '' && Number.isFinite(parsed) && parsed > 0;
+
+  return (
+    <Card>
+      <Title>Monthly income</Title>
+      <Muted>
+        The dashboard measures spending against this amount and shows what’s left each month.
+        One figure, applied every month — edit it anytime.
+      </Muted>
+      <View style={{ marginTop: 12 }}>
+        <Field
+          label="Amount (BND)"
+          value={value}
+          onChangeText={setDraft}
+          placeholder="e.g. 2500"
+          keyboardType="decimal-pad"
+        />
+        <Button
+          label={update.isSuccess && draft === null ? 'Saved ✓' : 'Save income'}
+          onPress={() => {
+            update.mutate({ monthly_income: parsed }, { onSuccess: () => setDraft(null) });
+          }}
+          disabled={!valid || value === saved}
+          busy={update.isPending}
+        />
+        {update.error ? <Muted>{update.error.message}</Muted> : null}
+      </View>
+    </Card>
   );
 }
 

@@ -10,8 +10,13 @@ import type {
   MerchantTotalRow,
   MonthlyTotalRow,
   ProfileRow,
+  SavingsGoalRow,
   TransactionRow,
 } from './types';
+
+/** SGD circulates 1:1 with BND in Brunei (Currency Interchangeability
+ *  Agreement) — SGD amounts count toward BND totals at par. */
+export const PAR_CURRENCIES = ['BND', 'SGD'];
 
 async function unwrap<T>(promise: PromiseLike<{ data: T | null; error: { message: string } | null }>): Promise<T> {
   const { data, error } = await promise;
@@ -91,12 +96,13 @@ export function useThisMonthTransactions() {
   return useQuery({
     queryKey: ['transactions', 'month', since],
     queryFn: () =>
-      unwrap<Pick<TransactionRow, 'occurred_at' | 'amount' | 'category_id' | 'merchant_normalized'>[]>(
+      unwrap<Pick<TransactionRow, 'occurred_at' | 'amount' | 'currency' | 'category_id' | 'merchant_normalized'>[]>(
         supabase
           .from('transactions')
-          .select('occurred_at, amount, category_id, merchant_normalized')
+          .select('occurred_at, amount, currency, category_id, merchant_normalized')
           .eq('parse_status', 'parsed')
           .not('amount', 'is', null)
+          .in('currency', PAR_CURRENCIES)
           .gte('occurred_at', since),
       ),
   });
@@ -143,6 +149,59 @@ export function useDevices() {
       unwrap<IngestDeviceRow[]>(
         supabase.from('ingest_devices').select('*').order('created_at', { ascending: false }),
       ),
+  });
+}
+
+export function useSavingsGoals() {
+  return useQuery({
+    queryKey: ['savings_goals'],
+    queryFn: () =>
+      unwrap<SavingsGoalRow[]>(
+        supabase.from('savings_goals').select('*').order('created_at', { ascending: true }),
+      ),
+  });
+}
+
+export function useCreateSavingsGoal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ name, target }: { name: string; target: number }) => {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) throw new Error('Not signed in');
+      return unwrap<SavingsGoalRow>(
+        supabase
+          .from('savings_goals')
+          .insert({ user_id: userId, name, target_amount: target })
+          .select()
+          .single(),
+      );
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['savings_goals'] }),
+  });
+}
+
+export function useAddToSavingsGoal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ goal, amount }: { goal: SavingsGoalRow; amount: number }) =>
+      unwrap<SavingsGoalRow>(
+        supabase
+          .from('savings_goals')
+          .update({ saved_amount: Number(goal.saved_amount) + amount })
+          .eq('id', goal.id)
+          .select()
+          .single(),
+      ),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['savings_goals'] }),
+  });
+}
+
+export function useDeleteSavingsGoal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => unwrap(supabase.from('savings_goals').delete().eq('id', id)),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['savings_goals'] }),
   });
 }
 

@@ -11,10 +11,11 @@ import {
   View,
 } from 'react-native';
 import { Badge, Centered, Field, Muted } from '@/components/ui';
-import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
+import { bruneiDayKey, formatDayHeading, formatTime } from '@/lib/format';
 import { usePullToRefresh, useTransactions } from '@/lib/queries';
 import type { TransactionRow } from '@/lib/types';
 import { themedStyles } from '@/lib/theme';
+import { usePrivacy } from '@/lib/privacy';
 
 /** 'all', 'bank:<bank>' or 'card:<last4>'. */
 type TxFilter = string;
@@ -34,6 +35,7 @@ function matchesFilter(tx: TransactionRow, filter: TxFilter): boolean {
 }
 
 export default function TransactionsList() {
+  const { money } = usePrivacy();
   const styles = useStyles();
   const { data, isLoading, error } = useTransactions();
   const [search, setSearch] = useState('');
@@ -126,7 +128,7 @@ export default function TransactionsList() {
         renderSectionHeader={({ section }) => (
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
-            <Muted>{formatMoney(section.total)}</Muted>
+            <Muted>{money(section.total)}</Muted>
           </View>
         )}
         renderItem={({ item }) => <TxRow tx={item} />}
@@ -142,6 +144,7 @@ export default function TransactionsList() {
 }
 
 function TxRow({ tx }: { tx: TransactionRow }) {
+  const { money } = usePrivacy();
   const styles = useStyles();
   return (
     <Link href={{ pathname: '/(tabs)/transactions/[id]', params: { id: tx.id } }} asChild>
@@ -159,7 +162,7 @@ function TxRow({ tx }: { tx: TransactionRow }) {
             {tx.notes ? <Badge label="note" /> : null}
           </View>
         </View>
-        <Text style={styles.amount}>{formatMoney(tx.amount === null ? null : Number(tx.amount), tx.currency)}</Text>
+        <Text style={styles.amount}>{money(tx.amount === null ? null : Number(tx.amount), tx.currency)}</Text>
       </Pressable>
     </Link>
   );

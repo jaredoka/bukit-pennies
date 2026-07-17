@@ -7,6 +7,7 @@ import { Centered } from '@/components/ui';
 import { initSentry, Sentry } from '@/lib/sentry';
 import { SessionProvider, useSession } from '@/lib/session';
 import { ThemeProvider, useTheme } from '@/lib/theme';
+import { PrivacyProvider } from '@/lib/privacy';
 
 initSentry();
 
@@ -56,7 +57,9 @@ function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
         <ThemeProvider>
-          <ThemedApp />
+          <PrivacyProvider>
+            <ThemedApp />
+          </PrivacyProvider>
         </ThemeProvider>
       </SessionProvider>
     </QueryClientProvider>

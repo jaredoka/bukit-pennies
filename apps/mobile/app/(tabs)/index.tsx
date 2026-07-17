@@ -1,5 +1,6 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -24,12 +25,26 @@ import {
   useMonthlyTotals,
   useProfile,
   useRecentMonthsTransactions,
+  useSavingsGoals,
   useThisMonthTransactions,
   useTopMerchants,
   usePullToRefresh,
 } from '@/lib/queries';
+import {
+  getReminderPrefs,
+  maybeOverspendAlert,
+  setReminderPref,
+  syncScheduledNotifications,
+  type ReminderDays,
+  type ReminderPrefs,
+} from '@/lib/notifications';
+import { usePrivacy } from '@/lib/privacy';
 import { detectRecurring } from '@/lib/recurring';
 import { themedStyles, useTheme } from '@/lib/theme';
+
+/** off → on due day → 1 day before → 3 days before → off */
+const REMINDER_CYCLE: (ReminderDays | null)[] = [null, 0, 1, 3];
+const reminderLabel = (d: ReminderDays) => (d === 0 ? 'due day' : `${d}d before`);
 
 const REMAINING_KEY = '__remaining__';
 
@@ -54,14 +69,27 @@ export default function Dashboard() {
   const categories = useCategories();
   const budgets = useBudgets();
   const recentTx = useRecentMonthsTransactions(6);
+  const goals = useSavingsGoals();
   const { refreshing, onRefresh } = usePullToRefresh();
+  const { hidden, toggle, money } = usePrivacy();
 
   const [selected, setSelected] = useState<string | null>(null);
+  const [reminderPrefs, setReminderPrefs] = useState<ReminderPrefs>({});
+
+  useEffect(() => {
+    getReminderPrefs().then(setReminderPrefs);
+  }, []);
 
   const thisMonthKey = bruneiMonthKey(Date.now());
   const lastMonthKey = bruneiMonthKey(bruneiMonthStartIso(1));
-  const thisMonth = monthly.data?.find((r) => r.month.startsWith(thisMonthKey.slice(0, 7)));
-  const lastMonth = monthly.data?.find((r) => r.month.startsWith(lastMonthKey.slice(0, 7)));
+  // The views fold SGD into the BND bucket (at-par); other currencies are
+  // separate rows — the headline numbers are the BND bucket.
+  const thisMonth = monthly.data?.find(
+    (r) => r.month.startsWith(thisMonthKey.slice(0, 7)) && r.currency === 'BND',
+  );
+  const lastMonth = monthly.data?.find(
+    (r) => r.month.startsWith(lastMonthKey.slice(0, 7)) && r.currency === 'BND',
+  );
   const income = profile.data?.monthly_income == null ? null : Number(profile.data.monthly_income);
 
   // ---- Hero donut: category spend vs monthly income -----------------------
@@ -166,6 +194,28 @@ export default function Dashboard() {
 
   const recurring = useMemo(() => detectRecurring(recentTx.data ?? []).slice(0, 6), [recentTx.data]);
 
+  // Local-notification sync: bill reminders + weekly digest content refresh.
+  useEffect(() => {
+    if (thisMonthTx.isLoading || recentTx.isLoading) return;
+    void syncScheduledNotifications({
+      recurring,
+      spentThisMonth: donut.spent,
+      income,
+    });
+  }, [recurring, donut.spent, income, thisMonthTx.isLoading, recentTx.isLoading]);
+
+  // Overspend alerts: fire once per budget per threshold per month.
+  useEffect(() => {
+    if (budgetProgress.length === 0) return;
+    void maybeOverspendAlert(budgetProgress);
+  }, [budgetProgress]);
+
+  async function cycleReminder(merchant: string) {
+    const current = reminderPrefs[merchant]?.daysBefore ?? null;
+    const next = REMINDER_CYCLE[(REMINDER_CYCLE.indexOf(current) + 1) % REMINDER_CYCLE.length]!;
+    setReminderPrefs(await setReminderPref(merchant, next));
+  }
+
   const monthlyBars = useMemo(
     () =>
       (monthly.data ?? [])
@@ -196,7 +246,20 @@ export default function Dashboard() {
     >
       {/* ---- Hero: interactive donut ---- */}
       <Card>
-        <Title>{formatMonthName(thisMonthKey)}</Title>
+        <View style={styles.heroHeader}>
+          <Title>{formatMonthName(thisMonthKey)}</Title>
+          <View style={styles.heroActions}>
+            <Pressable onPress={toggle} hitSlop={8} accessibilityLabel={hidden ? 'Show amounts' : 'Hide amounts'}>
+              <Ionicons name={hidden ? 'eye-off' : 'eye'} size={22} color={colors.muted} />
+            </Pressable>
+            <Link href="/(tabs)/transactions/new" asChild>
+              <Pressable style={styles.cashButton} accessibilityLabel="Add a cash spend">
+                <Ionicons name="cash-outline" size={16} color={colors.onPrimary} />
+                <Text style={styles.cashButtonText}>Cash</Text>
+              </Pressable>
+            </Link>
+          </View>
+        </View>
         {donut.slices.length > 0 ? (
           <View style={styles.heroWrap}>
             <PieChart
@@ -221,7 +284,7 @@ export default function Dashboard() {
                       <Text style={styles.centerLabel} numberOfLines={1}>
                         {selectedSlice.name}
                       </Text>
-                      <Text style={styles.centerValue}>{formatMoney(selectedSlice.value)}</Text>
+                      <Text style={styles.centerValue}>{money(selectedSlice.value)}</Text>
                       <Muted>
                         {pctBase > 0
                           ? `${Math.round((selectedSlice.value / pctBase) * 100)}% of ${income !== null ? 'income' : 'spending'}`
@@ -239,14 +302,14 @@ export default function Dashboard() {
                           donut.remaining !== null && donut.remaining < 0 && { color: colors.danger },
                         ]}
                       >
-                        {formatMoney(Math.abs(donut.remaining ?? 0))}
+                        {money(Math.abs(donut.remaining ?? 0))}
                       </Text>
-                      <Muted>{`of ${formatMoney(income)}`}</Muted>
+                      <Muted>{`of ${money(income)}`}</Muted>
                     </>
                   ) : (
                     <>
                       <Text style={styles.centerLabel}>Spent</Text>
-                      <Text style={styles.centerValue}>{formatMoney(donut.spent)}</Text>
+                      <Text style={styles.centerValue}>{money(donut.spent)}</Text>
                       <Muted>this month</Muted>
                     </>
                   )}
@@ -267,7 +330,7 @@ export default function Dashboard() {
                   >
                     {s.name}
                   </Text>
-                  <Text style={styles.legendValue}>{formatMoney(s.value)}</Text>
+                  <Text style={styles.legendValue}>{money(s.value)}</Text>
                 </Pressable>
               ))}
             </View>
@@ -288,7 +351,7 @@ export default function Dashboard() {
       <View style={styles.statRow}>
         <Card style={styles.statCard}>
           <Muted>Spent</Muted>
-          <Text style={styles.statValue}>{formatMoney(donut.spent)}</Text>
+          <Text style={styles.statValue}>{money(donut.spent)}</Text>
         </Card>
         <Card style={styles.statCard}>
           <Muted>vs last month</Muted>
@@ -303,7 +366,7 @@ export default function Dashboard() {
         </Card>
         <Card style={styles.statCard}>
           <Muted>Per day</Muted>
-          <Text style={styles.statValue}>{formatMoney(avgPerDay)}</Text>
+          <Text style={styles.statValue}>{money(avgPerDay)}</Text>
         </Card>
       </View>
 
@@ -322,7 +385,7 @@ export default function Dashboard() {
                     {b.name}
                   </Text>
                   <Text style={[styles.budgetAmounts, over && { color: colors.danger }]}>
-                    {formatMoney(b.spent)} / {formatMoney(b.limit)}
+                    {money(b.spent)} / {money(b.limit)}
                   </Text>
                 </View>
                 <View style={styles.budgetTrack}>
@@ -336,7 +399,7 @@ export default function Dashboard() {
                     ]}
                   />
                 </View>
-                {over ? <Muted>{`Over by ${formatMoney(b.spent - b.limit)}`}</Muted> : null}
+                {over ? <Muted>{`Over by ${money(b.spent - b.limit)}`}</Muted> : null}
               </View>
             );
           })}
@@ -405,7 +468,7 @@ export default function Dashboard() {
                   <Text style={styles.legendName} numberOfLines={1}>
                     {m.name}
                   </Text>
-                  <Text style={styles.legendValue}>{formatMoney(m.total)}</Text>
+                  <Text style={styles.legendValue}>{money(m.total)}</Text>
                 </View>
                 <View style={styles.merchantTrack}>
                   <View
@@ -423,23 +486,77 @@ export default function Dashboard() {
         )}
       </Card>
 
-      {/* ---- Recurring ---- */}
+      {/* ---- Savings goals ---- */}
+      {(goals.data ?? []).length > 0 ? (
+        <Card>
+          <View style={styles.heroHeader}>
+            <Title>Savings goals</Title>
+            <Link href="/(tabs)/settings/goals" asChild>
+              <Pressable hitSlop={8}>
+                <Text style={styles.manageLink}>Manage</Text>
+              </Pressable>
+            </Link>
+          </View>
+          {(goals.data ?? []).map((g) => {
+            const saved = Number(g.saved_amount);
+            const target = Number(g.target_amount);
+            const ratio = target > 0 ? Math.min(saved / target, 1) : 0;
+            return (
+              <View key={g.id} style={styles.budgetRow}>
+                <View style={styles.budgetHeader}>
+                  <Text style={styles.legendName} numberOfLines={1}>
+                    {g.name}
+                  </Text>
+                  <Text style={styles.budgetAmounts}>
+                    {money(saved)} / {money(target)}
+                  </Text>
+                </View>
+                <View style={styles.budgetTrack}>
+                  <View style={[styles.budgetFill, { width: `${ratio * 100}%`, backgroundColor: colors.primary }]} />
+                </View>
+                {ratio >= 1 ? <Muted>Goal reached 🎉</Muted> : null}
+              </View>
+            );
+          })}
+        </Card>
+      ) : null}
+
+      {/* ---- Recurring, with per-item bill reminders ---- */}
       {recurring.length > 0 ? (
         <Card>
           <Title>Likely recurring</Title>
-          <Muted>Same merchant, similar amount, seen in 3+ months.</Muted>
+          <Muted>
+            Same merchant, similar amount, seen in 3+ months. Tap the bell to be reminded before
+            the next expected charge.
+          </Muted>
           <View style={{ marginTop: 8 }}>
-            {recurring.map((r) => (
-              <View key={`${r.merchant}:${r.amount}`} style={styles.recurringRow}>
-                <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={styles.legendName} numberOfLines={1}>
-                    {r.merchant}
-                  </Text>
-                  <Muted>{`${r.months.length} months · ~${formatMoney(r.amount, r.currency)}/month`}</Muted>
+            {recurring.map((r) => {
+              const pref = reminderPrefs[r.merchant];
+              return (
+                <View key={`${r.merchant}:${r.amount}`} style={styles.recurringRow}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={styles.legendName} numberOfLines={1}>
+                      {r.merchant}
+                    </Text>
+                    <Muted>{`${r.months.length} months · ~${money(r.amount, r.currency)}/month`}</Muted>
+                  </View>
+                  <Text style={styles.legendValue}>{money(r.total, r.currency)}</Text>
+                  <Pressable
+                    onPress={() => cycleReminder(r.merchant)}
+                    hitSlop={8}
+                    style={styles.bellWrap}
+                    accessibilityLabel={`Reminder for ${r.merchant}`}
+                  >
+                    <Ionicons
+                      name={pref ? 'notifications' : 'notifications-off-outline'}
+                      size={18}
+                      color={pref ? colors.primary : colors.muted}
+                    />
+                    {pref ? <Text style={styles.bellLabel}>{reminderLabel(pref.daysBefore)}</Text> : null}
+                  </Pressable>
                 </View>
-                <Text style={styles.legendValue}>{formatMoney(r.total, r.currency)}</Text>
-              </View>
-            ))}
+              );
+            })}
           </View>
         </Card>
       ) : null}
@@ -450,6 +567,21 @@ export default function Dashboard() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
+  heroHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  heroActions: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 8 },
+  cashButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  cashButtonText: { color: colors.onPrimary, fontWeight: '600', fontSize: 13 },
+  manageLink: { color: colors.primary, fontWeight: '600', fontSize: 13 },
+  bellWrap: { alignItems: 'center', marginLeft: 10, minWidth: 44 },
+  bellLabel: { color: colors.primary, fontSize: 10, marginTop: 2 },
   heroWrap: { alignItems: 'center', gap: 16 },
   center: { alignItems: 'center', paddingHorizontal: 8, maxWidth: 150 },
   centerLabel: { color: colors.muted, fontSize: 13, fontWeight: '600' },

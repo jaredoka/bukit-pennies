@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, Centered, Field, Muted, Title } from '@/components/ui';
-import { formatMoney } from '@/lib/format';
+
 import { useBudgets, useCategories, useDeleteBudget, useUpsertBudget } from '@/lib/queries';
 import type { BudgetRow, CategoryRow } from '@/lib/types';
 import { themedStyles, useTheme } from '@/lib/theme';
+import { usePrivacy } from '@/lib/privacy';
 
 export default function Budgets() {
   const styles = useStyles();
@@ -40,6 +41,7 @@ export default function Budgets() {
 }
 
 function BudgetRowCard({ category, budget }: { category: CategoryRow; budget: BudgetRow | null }) {
+  const { money } = usePrivacy();
   const styles = useStyles();
   const { colors } = useTheme();
   const [value, setValue] = useState(budget ? Number(budget.amount).toFixed(2) : '');
@@ -47,7 +49,7 @@ function BudgetRowCard({ category, budget }: { category: CategoryRow; budget: Bu
   const upsert = useUpsertBudget();
   const del = useDeleteBudget();
 
-  const savedLabel = budget ? formatMoney(Number(budget.amount), budget.currency) : 'no limit';
+  const savedLabel = budget ? money(Number(budget.amount), budget.currency) : 'no limit';
   const dirty = value.trim() !== (budget ? Number(budget.amount).toFixed(2) : '');
 
   function save() {

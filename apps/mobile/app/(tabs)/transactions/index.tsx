@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   SectionList,
   StyleSheet,
   Text,
@@ -13,18 +14,52 @@ import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/f
 import { useTransactions } from '@/lib/queries';
 import type { TransactionRow } from '@/lib/types';
 
+/** 'all', 'bank:<bank>' or 'card:<last4>'. */
+type TxFilter = string;
+
+const BANK_LABELS: Record<string, string> = {
+  baiduri: 'Baiduri',
+  bibd: 'BIBD',
+  scb: 'StanChart',
+  unknown: 'Other',
+};
+
+function matchesFilter(tx: TransactionRow, filter: TxFilter): boolean {
+  if (filter === 'all') return true;
+  const [kind, value] = filter.split(':', 2);
+  if (kind === 'bank') return tx.bank === value;
+  return tx.card_last4 === value;
+}
+
 export default function TransactionsList() {
   const { data, isLoading, error } = useTransactions();
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<TxFilter>('all');
+
+  // Chips are derived from the data: every bank and card that appears.
+  const chips = useMemo(() => {
+    const banks = new Set<string>();
+    const cards = new Set<string>();
+    for (const tx of data ?? []) {
+      if (tx.bank && tx.bank !== 'unknown') banks.add(tx.bank);
+      if (tx.card_last4) cards.add(tx.card_last4);
+    }
+    return [
+      { key: 'all', label: 'All' },
+      ...Array.from(banks).sort().map((b) => ({ key: `bank:${b}`, label: BANK_LABELS[b] ?? b })),
+      ...Array.from(cards).sort().map((c) => ({ key: `card:${c}`, label: `•${c}` })),
+    ];
+  }, [data]);
 
   const sections = useMemo(() => {
     const q = search.trim().toUpperCase();
     const rows = (data ?? []).filter(
       (tx) =>
-        !q ||
-        tx.merchant_normalized?.includes(q) ||
-        tx.raw_text.toUpperCase().includes(q) ||
-        tx.notes?.toUpperCase().includes(q),
+        matchesFilter(tx, filter) &&
+        (!q ||
+          tx.merchant_normalized?.includes(q) ||
+          tx.raw_text.toUpperCase().includes(q) ||
+          tx.notes?.toUpperCase().includes(q)),
     );
     const byDay = new Map<string, TransactionRow[]>();
     for (const tx of rows) {
@@ -38,7 +73,7 @@ export default function TransactionsList() {
         total: items.reduce((s, t) => s + Number(t.amount ?? 0), 0),
         data: items,
       }));
-  }, [data, search]);
+  }, [data, search, filter]);
 
   if (isLoading) {
     return (
@@ -65,6 +100,19 @@ export default function TransactionsList() {
           autoCapitalize="none"
           style={{ marginBottom: 0 }}
         />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+          {chips.map((chip) => (
+            <Pressable
+              key={chip.key}
+              onPress={() => setFilter(chip.key)}
+              style={[styles.chip, filter === chip.key && styles.chipActive]}
+            >
+              <Text style={filter === chip.key ? styles.chipActiveText : styles.chipText}>
+                {chip.label}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
       </View>
       <SectionList
         sections={sections}
@@ -135,4 +183,17 @@ const styles = StyleSheet.create({
   },
   merchant: { fontWeight: '600', color: colors.text },
   amount: { fontWeight: '700', color: colors.text },
+  chipRow: { marginTop: 10, flexGrow: 0 },
+  chip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    backgroundColor: colors.card,
+    marginRight: 8,
+  },
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { color: colors.text, fontSize: 13 },
+  chipActiveText: { color: '#fff', fontWeight: '600', fontSize: 13 },
 });

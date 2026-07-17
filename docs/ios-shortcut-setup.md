@@ -27,16 +27,32 @@ changes.)
    **Download the Shortcut** (or open the URL above on the iPhone). Open the
    file; iOS adds "Bukit Pennies Capture". Open it once in the Shortcuts app
    and replace `PASTE-YOUR-TOKEN-HERE` with your token. That is the only edit.
-3. **Create the automation.** Shortcuts app → Automation tab → **+** →
-   **Message**. Leave **Sender** empty — bank sender IDs ("Baiduri", "BIBD")
-   are alphanumeric, not phone numbers, so iOS's contact-based Sender picker
-   cannot select them; the Message Contains filter does the work. Set
-   **Message Contains** to `Merchant:` (Baiduri), choose **Run Immediately**
-   if offered, and set the action to **Run Shortcut → Bukit Pennies Capture**.
+3. **Create the automation — one per card.** Shortcuts app → Automation tab →
+   **+** → **Message**. Leave **Sender** empty — bank sender IDs ("Baiduri",
+   "BIBD") are alphanumeric, not phone numbers, so iOS's contact-based Sender
+   picker cannot select them; the Message Contains filter does the work. Set
+   **Message Contains** from the per-card template below, choose **Run
+   Immediately** if offered, and set the action to **Run Shortcut → Bukit
+   Pennies Capture**.
 
-Repeat step 3 per bank: BIBD uses Message Contains `Purchase of` (verified
-format). StanChart's format is still uncollected — its messages land in the
-Review inbox, which is exactly how we collect samples.
+   | Bank | Message Contains template | Example |
+   |---|---|---|
+   | Baiduri | `Card No.: ` + masked card from a real SMS | `Card No.: 4x0213` |
+   | BIBD | `card ending with ` + last 4 digits | `card ending with 0298` |
+
+   Copy the card string from a real message — Message Contains is a literal
+   match, one wrong character and it never fires.
+
+   Notes:
+   - Add one automation per card you want tracked; cards you skip are simply
+     not captured.
+   - **Card replacements change the digits** (expiry/loss) — capture silently
+     stops until you update the automation.
+   - To capture *all* cards of a bank with a single automation, use the
+     template without digits (`Merchant:` for Baiduri, `card ending with` for
+     BIBD) — broader, still transaction-specific.
+   - StanChart's format is still uncollected — its messages land in the
+     Review inbox, which is exactly how we collect samples.
 
 ## Test it
 

@@ -1,14 +1,16 @@
-# BIBD golden fixtures — sample collection
+# BIBD golden fixtures
 
-The BIBD parser is an **UNVERIFIED skeleton**: no real BIBD notification text has
-been collected yet, so `guessed-format.json` only pins the skeleton behavior
-(generic extraction + confidence cap ⇒ always `needs_review`).
+The BIBD parser is **verified**: `real-sample.json` is a real BIBD SMS
+(collected 2026-07-17). Notes on the format:
 
-**How real samples arrive:** the app's review inbox is the collection loop —
-BIBD messages ingest as `needs_review`, the user fixes them in-app, and the raw
-text (redact card digits beyond the last 4 if desired) becomes a fixture here.
+- No date/time in the message — `occurredAt` uses the ingest receive time
+  (heuristic), so confidence tops out at 0.90 rather than Baiduri's 0.95+.
+- BIBD truncates merchant names ("HUA HO DEPARTME") — normalization keeps the
+  truncated string as the grouping key.
+- `guessed-format.json` predates the real sample; it now pins the *fallback*
+  path (sender hint + generic extraction + confidence cap) for BIBD messages
+  that don't match the verified "Purchase of" wording (e.g. a future format
+  change) — keep it.
 
-**To promote the parser** (see `docs/execution-playbook.md`):
-1. Add the real message as a fixture in this directory.
-2. Replace the guessed patterns in `src/banks/bibd.ts` with label-anchored regexes.
-3. Remove the `UNVERIFIED_CONFIDENCE_CAP` clamp; exact matches should score ≥ 0.95.
+New real variants (refunds, foreign currency, ATM withdrawals…) should be
+added here as fixtures as they land in the review inbox.

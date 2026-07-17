@@ -28,13 +28,15 @@ changes.)
    file; iOS adds "Bukit Pennies Capture". Open it once in the Shortcuts app
    and replace `PASTE-YOUR-TOKEN-HERE` with your token. That is the only edit.
 3. **Create the automation.** Shortcuts app → Automation tab → **+** →
-   **Message**. "Message Contains" `Merchant:`, "From" `Baiduri` (both values
-   are copy-tappable in the app), choose **Run Immediately** if offered, and
-   set the action to **Run Shortcut → Bukit Pennies Capture**.
+   **Message**. Leave **Sender** empty — bank sender IDs ("Baiduri", "BIBD")
+   are alphanumeric, not phone numbers, so iOS's contact-based Sender picker
+   cannot select them; the Message Contains filter does the work. Set
+   **Message Contains** to `Merchant:` (Baiduri), choose **Run Immediately**
+   if offered, and set the action to **Run Shortcut → Bukit Pennies Capture**.
 
-Repeat step 3 for each bank sender ID (Baiduri today; BIBD / StanChart once
-their real message formats are collected — until then their messages land in
-the Review inbox, which is exactly how we collect samples).
+Repeat step 3 per bank: BIBD uses Message Contains `Purchase of` (verified
+format). StanChart's format is still uncollected — its messages land in the
+Review inbox, which is exactly how we collect samples.
 
 ## Test it
 

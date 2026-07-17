@@ -1,0 +1,17 @@
+{
+  "note": "Real BIBD SMS collected 2026-07-17. No timestamp in the message — occurredAt comes from receivedAt (heuristic). BIBD truncates merchant names (HUA HO DEPARTME[NT STORE]).",
+  "input": "Dear Customer, Purchase of BND5.10 at HUA HO DEPARTME, has successfully been made on your card ending with 0298. Thank you for banking with BIBD.",
+  "receivedAt": "2026-07-17T12:00:00+08:00",
+  "expected": {
+    "isTransactional": true,
+    "tx": {
+      "bank": "bibd",
+      "amount": 5.1,
+      "currency": "BND",
+      "merchant": "HUA HO DEPARTME",
+      "occurredAt": "2026-07-17T12:00:00+08:00",
+      "cardLast4": "0298",
+      "confidenceAtLeast": 0.9
+    }
+  }
+}

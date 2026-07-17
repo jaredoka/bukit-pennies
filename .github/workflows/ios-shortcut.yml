@@ -1,0 +1,42 @@
+# Builds and signs the ready-made "Bukit Pennies Capture" iOS shortcut and
+# publishes it on the GitHub release tagged `shortcut`, giving the app a
+# stable download URL:
+#   https://github.com/jaredoka/bukit-pennies/releases/download/shortcut/Bukit-Pennies-Capture.shortcut
+#
+# Signing requires macOS (`shortcuts sign`); iOS refuses unsigned imports.
+name: iOS shortcut file
+
+on:
+  workflow_dispatch:
+    inputs:
+      ingest_url:
+        description: "Ingest endpoint baked into the shortcut"
+        required: true
+        type: string
+        default: "https://pzjroqwllrzcbpiugpxl.supabase.co/functions/v1/ingest"
+
+permissions:
+  contents: write
+
+jobs:
+  build-shortcut:
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate shortcut plist
+        run: node scripts/build-shortcut.mjs "${{ inputs.ingest_url }}" unsigned.shortcut
+
+      - name: Sign for distribution
+        run: shortcuts sign --mode anyone --input unsigned.shortcut --output Bukit-Pennies-Capture.shortcut
+
+      - name: Publish to `shortcut` release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view shortcut >/dev/null 2>&1 || \
+            gh release create shortcut --title "Bukit Pennies Capture shortcut" \
+              --notes "Ready-made iOS shortcut. Download on your iPhone, paste your capture token, done." \
+              --latest=false
+          gh release upload shortcut Bukit-Pennies-Capture.shortcut --clobber

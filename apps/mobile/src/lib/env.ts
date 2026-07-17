@@ -12,6 +12,10 @@ export const INGEST_URL = `${SUPABASE_URL}/functions/v1/ingest`;
 
 export const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? '';
 
+// Signed, ready-made iOS shortcut published by .github/workflows/ios-shortcut.yml.
+export const SHORTCUT_DOWNLOAD_URL =
+  'https://github.com/jaredoka/bukit-pennies/releases/download/shortcut/Bukit-Pennies-Capture.shortcut';
+
 // Public policy pages (GitHub Pages, served from this repo's docs/).
 export const PRIVACY_POLICY_URL = 'https://jaredoka.github.io/bukit-pennies/privacy-policy';
 export const TERMS_URL = 'https://jaredoka.github.io/bukit-pennies/terms';

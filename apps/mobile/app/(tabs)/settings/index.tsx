@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link, type Href } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Linking as RNLinking,
   Pressable,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Button, Card, Chip, Field, Muted, Title } from '@/components/ui';
 import { useProfile, useUpdateProfile } from '@/lib/queries';
+import { ensureNotificationPermission, getDigestEnabled, setDigestEnabled } from '@/lib/notifications';
 import { PRIVACY_POLICY_URL, SUPPORT_EMAIL, TERMS_URL } from '@/lib/env';
 import { exportTransactionsCsv } from '@/lib/exportCsv';
 import { useSession } from '@/lib/session';
@@ -111,6 +112,13 @@ export default function Settings() {
           label="Monthly budgets"
           note="Set per-category limits shown on the dashboard"
         />
+        <Row
+          href="/(tabs)/settings/goals"
+          icon="flag"
+          label="Savings goals"
+          note="Set targets and track what you've put aside"
+        />
+        <DigestToggle />
         <View style={{ marginTop: 12 }}>
           <Button label="Export transactions (CSV)" variant="secondary" onPress={exportCsv} busy={exporting} />
           {exportNote ? <Muted>{exportNote}</Muted> : null}
@@ -159,6 +167,38 @@ export default function Settings() {
         </View>
       </Card>
     </ScrollView>
+  );
+}
+
+function DigestToggle() {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const [on, setOn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    getDigestEnabled().then(setOn);
+  }, []);
+
+  async function flip() {
+    const next = !on;
+    setOn(next);
+    await setDigestEnabled(next);
+    if (next) await ensureNotificationPermission();
+  }
+
+  return (
+    <Pressable style={styles.row} onPress={flip} accessibilityLabel="Weekly summary notification">
+      <Ionicons name="notifications" size={22} color={colors.primary} style={{ marginRight: 12 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowLabel}>Weekly summary</Text>
+        <Muted>Monday notification: spend so far and % of income used</Muted>
+      </View>
+      <Ionicons
+        name={on ? 'checkmark-circle' : 'ellipse-outline'}
+        size={22}
+        color={on ? colors.primary : colors.muted}
+      />
+    </Pressable>
   );
 }
 

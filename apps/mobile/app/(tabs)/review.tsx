@@ -9,10 +9,11 @@ import {
   View,
 } from 'react-native';
 import { Badge, Button, Card, Centered, Field, Muted, Title } from '@/components/ui';
-import { formatMoney, formatTime, bruneiDayKey, formatDayHeading } from '@/lib/format';
+import { formatTime, bruneiDayKey, formatDayHeading } from '@/lib/format';
 import { useDeleteTransaction, usePullToRefresh, useReviewItems, useUpdateTransaction } from '@/lib/queries';
 import type { TransactionRow } from '@/lib/types';
 import { themedStyles } from '@/lib/theme';
+import { usePrivacy } from '@/lib/privacy';
 
 export default function ReviewInbox() {
   const styles = useStyles();
@@ -116,6 +117,7 @@ function FixItem({ tx }: { tx: TransactionRow }) {
 
 /** Row flagged as a possible near-duplicate: merge (drop this copy) or keep both. */
 function DuplicateItem({ tx }: { tx: TransactionRow }) {
+  const { money } = usePrivacy();
   const styles = useStyles();
   const update = useUpdateTransaction();
   const del = useDeleteTransaction();
@@ -127,7 +129,7 @@ function DuplicateItem({ tx }: { tx: TransactionRow }) {
         <Badge label={tx.source} />
       </View>
       <Title>
-        {formatMoney(tx.amount === null ? null : Number(tx.amount), tx.currency)} — {tx.merchant ?? 'unknown'}
+        {money(tx.amount === null ? null : Number(tx.amount), tx.currency)} — {tx.merchant ?? 'unknown'}
       </Title>
       <Muted>
         {tx.occurred_at

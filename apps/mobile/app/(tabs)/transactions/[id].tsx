@@ -12,8 +12,9 @@ import {
   View,
 } from 'react-native';
 import { Badge, Button, Card, Centered, Field, Muted, Title } from '@/components/ui';
-import { formatMoney, formatTime, bruneiDayKey, formatDayHeading } from '@/lib/format';
+import { formatTime, bruneiDayKey, formatDayHeading } from '@/lib/format';
 import { themedStyles } from '@/lib/theme';
+import { usePrivacy } from '@/lib/privacy';
 import {
   useCategories,
   useCreateCategory,
@@ -35,6 +36,7 @@ function confirmAsync(title: string, message: string): Promise<boolean> {
 }
 
 export default function TransactionDetail() {
+  const { money } = usePrivacy();
   const styles = useStyles();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: tx, isLoading } = useTransaction(id);
@@ -100,7 +102,7 @@ export default function TransactionDetail() {
               {`  ·  ${tx.bank}`}
             </Muted>
           </View>
-          <Text style={styles.amount}>{formatMoney(tx.amount === null ? null : Number(tx.amount), tx.currency)}</Text>
+          <Text style={styles.amount}>{money(tx.amount === null ? null : Number(tx.amount), tx.currency)}</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
           <Badge

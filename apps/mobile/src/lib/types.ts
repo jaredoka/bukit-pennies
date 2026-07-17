@@ -10,6 +10,15 @@ export interface ProfileRow {
   monthly_income: number | string | null;
 }
 
+export interface SavingsGoalRow {
+  id: string;
+  user_id: string;
+  name: string;
+  target_amount: number | string;
+  saved_amount: number | string;
+  created_at: string;
+}
+
 export interface TransactionRow {
   id: string;
   user_id: string;

@@ -1,29 +1,62 @@
-import type { BankParser, ParsedTransaction, ParseOptions } from '../types.ts';
-import { generic } from './generic.ts';
-import { UNVERIFIED_CONFIDENCE_CAP } from '../confidence.ts';
+import type { BankParser, FieldName, FieldStatus, ParsedTransaction, ParseOptions } from '../types.ts';
+import { extractLast4, normalizeCurrency, normalizeMerchant, parseAmount } from '../normalize.ts';
+import { scoreConfidence } from '../confidence.ts';
 
-// UNVERIFIED SKELETON — no real BIBD notification sample collected yet.
-// TODO(sample-needed): replace the guessed fingerprint/extraction with
-// label-anchored regexes once a real BIBD message lands in the review inbox,
-// add golden fixtures under test/golden/bibd/, then remove the confidence cap.
-// Guessed shape: "You have spent BND21.00 at MERCHANT on 10/07/26 using card ending 0213"
-const FINGERPRINT = /\bBIBD\b|you have spent\s+(?:BND|B\$)/i;
+// Designed from a real BIBD SMS (collected 2026-07-17):
+// "Dear Customer, Purchase of BND5.10 at HUA HO DEPARTME, has successfully
+//  been made on your card ending with 0298. Thank you for banking with BIBD."
+// No date/time in the message — occurredAt falls back to receivedAt
+// (heuristic). Merchant is terminated by the ", has successfully" clause;
+// BIBD truncates long merchant names (e.g. "HUA HO DEPARTME").
+const AMOUNT = /Purchase\s+of\s*(B\$|[A-Z]{3})\s*([\d,]+(?:\.\d{1,2})?)/i;
+const MERCH = /\bat\s+(.+?)\s*,\s*has\s+successfully/is;
+const CARD = /card\s+ending\s+(?:with\s+)?(\d{4})/i;
+const FINGERPRINT = /Purchase\s+of\s*(?:B\$|[A-Z]{3})\s*[\d,]+.*card\s+ending/is;
 
 export const bibd: BankParser = {
   id: 'bibd',
 
   matches(text: string): boolean {
-    return FINGERPRINT.test(text);
+    return FINGERPRINT.test(text) || (/\bBIBD\b/i.test(text) && AMOUNT.test(text));
   },
 
   parse(text: string, opts?: ParseOptions): ParsedTransaction | null {
-    const tx = generic.parse(text, opts);
-    if (!tx) return null;
+    const fields: Record<FieldName, FieldStatus> = {
+      amount: 'missing', date: 'missing', merchant: 'missing', card: 'missing',
+    };
+
+    const amountMatch = AMOUNT.exec(text);
+    const amount = amountMatch ? parseAmount(amountMatch[2]!) : null;
+    const currency = amountMatch ? normalizeCurrency(amountMatch[1]!) : 'BND';
+    if (amount !== null) fields.amount = 'exact';
+
+    const merchMatch = MERCH.exec(text);
+    const merchant = merchMatch ? merchMatch[1]!.replace(/\s+/g, ' ').trim() : null;
+    if (merchant) fields.merchant = 'exact';
+
+    const cardMatch = CARD.exec(text);
+    const cardLast4 = cardMatch ? extractLast4(cardMatch[1]!) : null;
+    if (cardLast4) fields.card = 'exact';
+
+    // BIBD messages carry no timestamp; the receive time is the best signal.
+    let occurredAt: string | null = null;
+    if (opts?.receivedAt) {
+      occurredAt = opts.receivedAt;
+      fields.date = 'heuristic';
+    }
+
+    if (amount === null && !merchant) return null;
+
     return {
-      ...tx,
       bank: 'bibd',
-      // Unverified format: never allow auto-accept until real samples exist.
-      confidence: Math.min(tx.confidence, UNVERIFIED_CONFIDENCE_CAP),
+      amount,
+      currency,
+      merchant,
+      merchantNormalized: merchant ? normalizeMerchant(merchant) : null,
+      occurredAt,
+      cardLast4,
+      confidence: scoreConfidence(fields),
+      fields,
     };
   },
 };

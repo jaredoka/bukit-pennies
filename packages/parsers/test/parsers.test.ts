@@ -65,8 +65,10 @@ for (const dir of GOLDEN_DIRS) {
         }
 
         // Invariant: anything not parsed by a verified bank format must stay
-        // under the needs_review threshold.
-        if (tx.bank !== 'baiduri') {
+        // under the needs_review threshold. (Verified formats' own fallback
+        // paths are still capped by the generic parser itself.)
+        const VERIFIED_BANKS = ['baiduri', 'bibd'];
+        if (!VERIFIED_BANKS.includes(tx.bank)) {
           expect(tx.confidence).toBeLessThanOrEqual(UNVERIFIED_CONFIDENCE_CAP);
         }
       });

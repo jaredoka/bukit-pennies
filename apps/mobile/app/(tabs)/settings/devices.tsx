@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Badge, Button, Card, Centered, colors, Field, Muted, Title } from '@/components/ui';
 import { useCreateIngestToken, useDevices, useRevokeDevice } from '@/lib/queries';
 import type { TxSource } from '@/lib/types';
@@ -22,6 +23,7 @@ export default function Devices() {
   const [name, setName] = useState('');
   const [kind, setKind] = useState<TxSource>('ios_shortcut');
   const [revealed, setRevealed] = useState<string | null>(null);
+  const [copiedToken, setCopiedToken] = useState(false);
 
   function createToken() {
     create.mutate(
@@ -29,6 +31,7 @@ export default function Devices() {
       {
         onSuccess: (token) => {
           setRevealed(token);
+          setCopiedToken(false);
           setName('');
         },
       },
@@ -78,6 +81,14 @@ export default function Devices() {
           <Text selectable style={styles.token}>
             {revealed}
           </Text>
+          <Button
+            label={copiedToken ? 'Copied ✓' : 'Copy token'}
+            onPress={async () => {
+              await Clipboard.setStringAsync(revealed);
+              setCopiedToken(true);
+            }}
+          />
+          <View style={{ height: 8 }} />
           <Button label="Done — I stored it" variant="secondary" onPress={() => setRevealed(null)} />
         </Card>
       ) : null}

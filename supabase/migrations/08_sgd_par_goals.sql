@@ -6,7 +6,10 @@
 -- currencies stay separate (their true BND cost isn't knowable — see the
 -- no-FX-conversion decision).
 
-create or replace view public.monthly_totals
+-- drop+recreate: the CASE changes the currency column's type (char(3) →
+-- text), which `create or replace view` refuses.
+drop view public.monthly_totals;
+create view public.monthly_totals
 with (security_invoker = true)
 as
 select
@@ -19,7 +22,8 @@ from public.transactions
 where parse_status = 'parsed' and amount is not null and occurred_at is not null
 group by user_id, 2, 3;
 
-create or replace view public.merchant_totals
+drop view public.merchant_totals;
+create view public.merchant_totals
 with (security_invoker = true)
 as
 select

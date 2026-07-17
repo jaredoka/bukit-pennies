@@ -60,12 +60,18 @@ export default function ShortcutSetup() {
         <Title>Step 3 — make it run on bank SMS</Title>
         <Text style={styles.step}>
           In the Shortcuts app: Automation tab → “+” → Message. Leave “Sender” empty (bank sender
-          IDs like Baiduri/BIBD are not phone numbers, so iOS cannot pick them), set “Message
-          Contains” to one value below (tap to copy), pick “Run Immediately” if offered, and set
-          the action to “Run Shortcut → Bukit Pennies Capture”. One automation per bank.
+          IDs like Baiduri/BIBD are not phone numbers, so iOS cannot pick them). Set “Message
+          Contains” using a template below with your card’s digits appended — this ties the
+          automation to one specific card. Pick “Run Immediately” if offered, and set the action
+          to “Run Shortcut → Bukit Pennies Capture”.
         </Text>
-        <CopyRow label="Baiduri — Message Contains" value="Merchant:" />
-        <CopyRow label="BIBD — Message Contains" value="Purchase of" />
+        <CopyRow label="Baiduri — Message Contains (add your card, e.g. 4x0213)" value="Card No.: " />
+        <CopyRow label="BIBD — Message Contains (add your last 4, e.g. 0298)" value="card ending with " />
+        <Text style={[styles.step, { marginTop: 10 }]}>
+          Add one automation per card you want tracked. Important: if a card is replaced (expiry,
+          loss), its digits change and capture silently stops — update the automation. To capture
+          every card of a bank with one automation instead, use the template without any digits.
+        </Text>
       </Card>
 
       <Card>

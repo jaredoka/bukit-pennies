@@ -9,13 +9,16 @@ import {
   View,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { Badge, Button, Card, Centered, colors, Field, Muted, Title } from '@/components/ui';
+import { Badge, Button, Card, Centered, Field, Muted, Title } from '@/components/ui';
 import { useCreateIngestToken, useDevices, useRevokeDevice } from '@/lib/queries';
 import type { TxSource } from '@/lib/types';
+import { themedStyles, useTheme } from '@/lib/theme';
 
 const KINDS: TxSource[] = ['ios_shortcut', 'paste', 'share', 'android_listener'];
 
 export default function Devices() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { data, isLoading } = useDevices();
   const create = useCreateIngestToken();
   const revoke = useRevokeDevice();
@@ -117,7 +120,7 @@ export default function Devices() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
   kindLabel: { color: colors.muted, fontSize: 13, marginBottom: 6 },
@@ -132,7 +135,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.text },
-  chipActiveText: { color: '#fff', fontWeight: '600' },
+  chipActiveText: { color: colors.onPrimary, fontWeight: '600' },
   token: {
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
     fontSize: 14,
@@ -152,4 +155,4 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   deviceName: { fontWeight: '600', color: colors.text },
-});
+}));

@@ -9,13 +9,16 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Button, Card, colors, Muted, Title } from '@/components/ui';
+import { Button, Card, Chip, Muted, Title } from '@/components/ui';
 import { PRIVACY_POLICY_URL, SUPPORT_EMAIL, TERMS_URL } from '@/lib/env';
 import { exportTransactionsCsv } from '@/lib/exportCsv';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
+import { themedStyles, useTheme } from '@/lib/theme';
 
 function Row({ href, icon, label, note }: { href: Href; icon: keyof typeof Ionicons.glyphMap; label: string; note: string }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   return (
     <Link href={href} asChild>
       <Pressable style={styles.row}>
@@ -30,8 +33,16 @@ function Row({ href, icon, label, note }: { href: Href; icon: keyof typeof Ionic
   );
 }
 
+const SCHEME_OPTIONS = [
+  { key: 'system', label: 'System' },
+  { key: 'light', label: 'Light' },
+  { key: 'dark', label: 'Dark' },
+] as const;
+
 export default function Settings() {
+  const styles = useStyles();
   const { session } = useSession();
+  const { preference, setPreference } = useTheme();
   const [exporting, setExporting] = useState(false);
   const [exportNote, setExportNote] = useState<string | null>(null);
 
@@ -62,6 +73,21 @@ export default function Settings() {
           label="Delete account"
           note="Permanently remove your account and all data"
         />
+      </Card>
+
+      <Card>
+        <Title>Appearance</Title>
+        <Muted>Choose a look, or follow your phone’s setting.</Muted>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+          {SCHEME_OPTIONS.map((opt) => (
+            <Chip
+              key={opt.key}
+              label={opt.label}
+              active={preference === opt.key}
+              onPress={() => setPreference(opt.key)}
+            />
+          ))}
+        </View>
       </Card>
 
       <Card>
@@ -133,7 +159,7 @@ export default function Settings() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
   row: {
@@ -146,4 +172,4 @@ const styles = StyleSheet.create({
   rowLabel: { fontWeight: '600', color: colors.text },
   aboutLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 12 },
   aboutLink: { color: colors.primary, textDecorationLine: 'underline', fontSize: 13 },
-});
+}));

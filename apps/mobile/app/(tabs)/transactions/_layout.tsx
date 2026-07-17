@@ -1,11 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link, Stack } from 'expo-router';
 import { Pressable } from 'react-native';
-import { colors } from '@/components/ui';
+import { useStackTheme, useTheme } from '@/lib/theme';
+// ui import removed by theme codemod
 
 export default function TransactionsLayout() {
+  const { colors } = useTheme();
   return (
-    <Stack>
+    <Stack screenOptions={useStackTheme()}>
       <Stack.Screen
         name="index"
         options={{

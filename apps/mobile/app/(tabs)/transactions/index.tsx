@@ -10,10 +10,11 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Badge, Centered, colors, Field, Muted } from '@/components/ui';
+import { Badge, Centered, Field, Muted } from '@/components/ui';
 import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
 import { usePullToRefresh, useTransactions } from '@/lib/queries';
 import type { TransactionRow } from '@/lib/types';
+import { themedStyles } from '@/lib/theme';
 
 /** 'all', 'bank:<bank>' or 'card:<last4>'. */
 type TxFilter = string;
@@ -33,6 +34,7 @@ function matchesFilter(tx: TransactionRow, filter: TxFilter): boolean {
 }
 
 export default function TransactionsList() {
+  const styles = useStyles();
   const { data, isLoading, error } = useTransactions();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<TxFilter>('all');
@@ -140,6 +142,7 @@ export default function TransactionsList() {
 }
 
 function TxRow({ tx }: { tx: TransactionRow }) {
+  const styles = useStyles();
   return (
     <Link href={{ pathname: '/(tabs)/transactions/[id]', params: { id: tx.id } }} asChild>
       <Pressable style={styles.row}>
@@ -162,7 +165,7 @@ function TxRow({ tx }: { tx: TransactionRow }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   searchWrap: { padding: 12, maxWidth: 720, width: '100%', alignSelf: 'center' },
   content: { paddingHorizontal: 12, paddingBottom: 24, maxWidth: 720, width: '100%', alignSelf: 'center' },
@@ -198,5 +201,5 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.text, fontSize: 13 },
-  chipActiveText: { color: '#fff', fontWeight: '600', fontSize: 13 },
-});
+  chipActiveText: { color: colors.onPrimary, fontWeight: '600', fontSize: 13 },
+}));

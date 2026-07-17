@@ -1,0 +1,16 @@
+{
+  "note": "Same real format ingested without a receive timestamp (e.g. bulk paste of old messages): occurredAt stays null, still parses above the review threshold.",
+  "input": "Dear Customer, Purchase of BND23.45 at SUPA SAVE GADONG, has successfully been made on your card ending with 0298. Thank you for banking with BIBD.",
+  "expected": {
+    "isTransactional": true,
+    "tx": {
+      "bank": "bibd",
+      "amount": 23.45,
+      "currency": "BND",
+      "merchant": "SUPA SAVE GADONG",
+      "occurredAt": null,
+      "cardLast4": "0298",
+      "confidenceAtLeast": 0.8
+    }
+  }
+}

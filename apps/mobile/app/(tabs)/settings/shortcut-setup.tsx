@@ -59,12 +59,13 @@ export default function ShortcutSetup() {
       <Card>
         <Title>Step 3 — make it run on bank SMS</Title>
         <Text style={styles.step}>
-          In the Shortcuts app: Automation tab → “+” → Message. Set “Message Contains” and “From”
-          to the values below (tap to copy), pick “Run Immediately” if offered, and set the action
-          to “Run Shortcut → Bukit Pennies Capture”.
+          In the Shortcuts app: Automation tab → “+” → Message. Leave “Sender” empty (bank sender
+          IDs like Baiduri/BIBD are not phone numbers, so iOS cannot pick them), set “Message
+          Contains” to one value below (tap to copy), pick “Run Immediately” if offered, and set
+          the action to “Run Shortcut → Bukit Pennies Capture”. One automation per bank.
         </Text>
-        <CopyRow label="Message Contains" value="Merchant:" />
-        <CopyRow label="From (sender ID)" value="Baiduri" />
+        <CopyRow label="Baiduri — Message Contains" value="Merchant:" />
+        <CopyRow label="BIBD — Message Contains" value="Purchase of" />
       </Card>
 
       <Card>

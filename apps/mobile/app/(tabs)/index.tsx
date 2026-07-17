@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { BarChart, LineChart, PieChart } from 'react-native-gifted-charts';
 import { Card, colors, Muted, Title } from '@/components/ui';
 import {
@@ -16,6 +16,7 @@ import {
   useRecentMonthsTransactions,
   useThisMonthTransactions,
   useTopMerchants,
+  usePullToRefresh,
 } from '@/lib/queries';
 import { detectRecurring } from '@/lib/recurring';
 
@@ -34,6 +35,7 @@ export default function Dashboard() {
   const categories = useCategories();
   const budgets = useBudgets();
   const recentTx = useRecentMonthsTransactions(6);
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   const thisMonthKey = bruneiMonthKey(Date.now());
   const lastMonthKey = bruneiMonthKey(bruneiMonthStartIso(1));
@@ -162,7 +164,11 @@ export default function Dashboard() {
   );
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    >
       <View style={styles.statRow}>
         <Card style={styles.statCard}>
           <Muted>{formatMonthName(thisMonthKey)}</Muted>

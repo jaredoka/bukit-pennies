@@ -1,6 +1,6 @@
 import { normalizeMerchant } from '@bukit/parsers';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { bruneiMonthStartIso } from './format';
 import { supabase } from './supabase';
 import type {
@@ -143,6 +143,21 @@ export function useDevices() {
         supabase.from('ingest_devices').select('*').order('created_at', { ascending: false }),
       ),
   });
+}
+
+/** Pull-to-refresh helper: refetches every active query on the screen. */
+export function usePullToRefresh() {
+  const qc = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await qc.refetchQueries({ type: 'active' });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [qc]);
+  return { refreshing, onRefresh };
 }
 
 // ---------------------------------------------------------------- mutations

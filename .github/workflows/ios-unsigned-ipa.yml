@@ -27,6 +27,9 @@ jobs:
     env:
       EXPO_PUBLIC_SUPABASE_URL: ${{ inputs.supabase_url }}
       EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ inputs.supabase_anon_key }}
+      # No Sentry auth token in CI — skip source-map upload or the Sentry
+      # build phase fails the archive.
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
     steps:
       - uses: actions/checkout@v4
 

@@ -8,12 +8,14 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Badge, Button, Card, Centered, colors, Field, Muted, Title } from '@/components/ui';
+import { Badge, Button, Card, Centered, Field, Muted, Title } from '@/components/ui';
 import { formatMoney, formatTime, bruneiDayKey, formatDayHeading } from '@/lib/format';
 import { useDeleteTransaction, usePullToRefresh, useReviewItems, useUpdateTransaction } from '@/lib/queries';
 import type { TransactionRow } from '@/lib/types';
+import { themedStyles } from '@/lib/theme';
 
 export default function ReviewInbox() {
+  const styles = useStyles();
   const { data, isLoading } = useReviewItems();
   const { refreshing, onRefresh } = usePullToRefresh();
 
@@ -48,6 +50,7 @@ export default function ReviewInbox() {
 
 /** needs_review row: fix fields inline → confirm as parsed, or discard. */
 function FixItem({ tx }: { tx: TransactionRow }) {
+  const styles = useStyles();
   const update = useUpdateTransaction();
   const del = useDeleteTransaction();
   const [amount, setAmount] = useState(tx.amount === null ? '' : String(tx.amount));
@@ -113,6 +116,7 @@ function FixItem({ tx }: { tx: TransactionRow }) {
 
 /** Row flagged as a possible near-duplicate: merge (drop this copy) or keep both. */
 function DuplicateItem({ tx }: { tx: TransactionRow }) {
+  const styles = useStyles();
   const update = useUpdateTransaction();
   const del = useDeleteTransaction();
 
@@ -167,7 +171,7 @@ function DuplicateItem({ tx }: { tx: TransactionRow }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center', flexGrow: 1 },
   raw: {
@@ -178,4 +182,4 @@ const styles = StyleSheet.create({
   },
   error: { color: colors.danger, marginBottom: 8 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 4 },
-});
+}));

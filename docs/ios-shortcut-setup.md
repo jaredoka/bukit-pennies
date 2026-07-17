@@ -54,6 +54,21 @@ changes.)
    - StanChart's format is still uncollected — its messages land in the
      Review inbox, which is exactly how we collect samples.
 
+## Optional — a "Logged …" confirmation notification
+
+Append after **Get Contents of URL** (the success reply contains the stored
+transaction as JSON):
+
+1. **Get Dictionary Value** — key `transaction`, from **Contents of URL**
+2. **Get Dictionary Value** — key `merchant`, from step 1's output
+3. **Get Dictionary Value** — key `amount`, from step 1's output
+4. **Show Notification** — title `Bukit Pennies`, body: `Logged`, the step-3
+   variable, `at`, the step-2 variable (inserted as variable chips, not typed)
+
+Rename the step-2/step-3 variables to "Merchant"/"Amount" (tap the chip →
+Rename) to keep them apart. On failure replies there is no `transaction` key,
+so the body is simply blank — harmless.
+
 ## Test it
 
 Text yourself the sample from another phone (or wait for a real spend):

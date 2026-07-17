@@ -1,5 +1,6 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Card, colors, Muted, Title } from '@/components/ui';
+import { Card, Muted, Title } from '@/components/ui';
+import { themedStyles } from '@/lib/theme';
 
 const SECTIONS: Array<{ title: string; body: string }> = [
   {
@@ -48,6 +49,7 @@ const SECTIONS: Array<{ title: string; body: string }> = [
 ];
 
 export default function Guide() {
+  const styles = useStyles();
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Card>
@@ -65,8 +67,8 @@ export default function Guide() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
   body: { color: colors.text, lineHeight: 20 },
-});
+}));

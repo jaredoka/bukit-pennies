@@ -1,8 +1,9 @@
 import { Stack } from 'expo-router';
+import { useStackTheme } from '@/lib/theme';
 
 export default function SettingsLayout() {
   return (
-    <Stack>
+    <Stack screenOptions={useStackTheme()}>
       <Stack.Screen name="index" options={{ title: 'Settings' }} />
       <Stack.Screen name="guide" options={{ title: 'How it works' }} />
       <Stack.Screen name="budgets" options={{ title: 'Monthly budgets' }} />

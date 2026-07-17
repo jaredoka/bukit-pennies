@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { Button, Card, colors, Muted, Title } from '@/components/ui';
+import { Button, Card, Muted, Title } from '@/components/ui';
 import { SHORTCUT_DOWNLOAD_URL } from '@/lib/env';
+import { themedStyles } from '@/lib/theme';
 
 function CopyRow({ label, value }: { label: string; value: string }) {
+  const styles = useStyles();
   const [copied, setCopied] = useState(false);
   return (
     <Pressable
@@ -25,6 +27,7 @@ function CopyRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function ShortcutSetup() {
+  const styles = useStyles();
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Card>
@@ -75,6 +78,29 @@ export default function ShortcutSetup() {
       </Card>
 
       <Card>
+        <Title>Optional — a “Logged …” confirmation</Title>
+        <Text style={styles.step}>
+          To get a notification like “Logged 5.10 at HUA HO DEPARTME” each time a spend is
+          captured, add these actions to the end of the shortcut (after Get Contents of URL):
+        </Text>
+        <Text style={styles.code}>
+          {'1. Get Dictionary Value — key: transaction\n' +
+            '   (from: Contents of URL)\n' +
+            '2. Get Dictionary Value — key: merchant\n' +
+            '   (from: the value from step 1)\n' +
+            '3. Get Dictionary Value — key: amount\n' +
+            '   (from: the value from step 1)\n' +
+            '4. Show Notification — title: Bukit Pennies\n' +
+            '   body: Logged [step 3] at [step 2]'}
+        </Text>
+        <Text style={styles.step}>
+          The [bracketed] parts are variable chips you insert from the bar above the keyboard —
+          not typed text. Tip: rename the step-2 and step-3 variables to “Merchant” and “Amount”
+          so they are easy to tell apart.
+        </Text>
+      </Card>
+
+      <Card>
         <Title>Test it</Title>
         <Text style={styles.step}>
           Run the shortcut manually on a copied bank message, or wait for a real spend — the
@@ -86,7 +112,7 @@ export default function ShortcutSetup() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
   step: { color: colors.text, lineHeight: 20 },
@@ -109,4 +135,16 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   copyHint: { color: colors.primary, fontWeight: '600' },
-});
+  code: {
+    color: colors.text,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+    fontSize: 12,
+    lineHeight: 18,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 10,
+  },
+}));

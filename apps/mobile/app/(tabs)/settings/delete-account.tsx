@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
-import { Button, Card, colors, Field, Muted, Title } from '@/components/ui';
+import { Button, Card, Field, Muted, Title } from '@/components/ui';
 import { clearStoredToken } from '@/lib/tokenStore';
 import { supabase } from '@/lib/supabase';
+import { themedStyles } from '@/lib/theme';
 
 export default function DeleteAccount() {
+  const styles = useStyles();
   const [confirmText, setConfirmText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -57,9 +59,9 @@ export default function DeleteAccount() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
   body: { color: colors.text, lineHeight: 20, marginBottom: 8 },
   error: { color: colors.danger, marginBottom: 8 },
-});
+}));

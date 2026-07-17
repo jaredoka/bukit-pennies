@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Button, Card, colors, Field, Muted, Title } from '@/components/ui';
+import { Button, Card, Field, Muted, Title } from '@/components/ui';
 import { bruneiParts } from '@/lib/format';
 import { useCategories, useCreateManualTransaction } from '@/lib/queries';
+import { themedStyles } from '@/lib/theme';
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_RE = /^(\d{1,2}):(\d{2})$/;
@@ -18,6 +19,7 @@ function nowBrunei() {
 }
 
 export default function NewTransaction() {
+  const styles = useStyles();
   const initial = nowBrunei();
   const [merchant, setMerchant] = useState('');
   const [amount, setAmount] = useState('');
@@ -120,7 +122,7 @@ export default function NewTransaction() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
   rowFields: { flexDirection: 'row', gap: 12 },
@@ -135,6 +137,6 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.text },
-  chipActiveText: { color: '#fff', fontWeight: '600' },
+  chipActiveText: { color: colors.onPrimary, fontWeight: '600' },
   error: { color: colors.danger, marginBottom: 8 },
-});
+}));

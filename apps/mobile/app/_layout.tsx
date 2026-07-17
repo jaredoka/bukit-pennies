@@ -6,6 +6,7 @@ import { ActivityIndicator } from 'react-native';
 import { Centered } from '@/components/ui';
 import { initSentry, Sentry } from '@/lib/sentry';
 import { SessionProvider, useSession } from '@/lib/session';
+import { ThemeProvider, useTheme } from '@/lib/theme';
 
 initSentry();
 
@@ -38,14 +39,25 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function ThemedApp() {
+  const { colors, resolved } = useTheme();
+  return (
+    <AuthGate>
+      <StatusBar style={resolved === 'dark' ? 'light' : 'dark'} />
+      <Stack
+        screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
+      />
+    </AuthGate>
+  );
+}
+
 function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
-        <AuthGate>
-          <StatusBar style="dark" />
-          <Stack screenOptions={{ headerShown: false }} />
-        </AuthGate>
+        <ThemeProvider>
+          <ThemedApp />
+        </ThemeProvider>
       </SessionProvider>
     </QueryClientProvider>
   );

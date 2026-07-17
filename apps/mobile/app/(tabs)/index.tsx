@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { BarChart, LineChart, PieChart } from 'react-native-gifted-charts';
-import { Card, colors, Muted, Title } from '@/components/ui';
+import { Card, Muted, Title } from '@/components/ui';
 import {
   bruneiDayKey,
   bruneiMonthKey,
@@ -19,13 +19,14 @@ import {
   usePullToRefresh,
 } from '@/lib/queries';
 import { detectRecurring } from '@/lib/recurring';
+import { themedStyles, useTheme } from '@/lib/theme';
 
-// Validated categorical palette (dataviz six-checks, light surface). Fixed
-// order; used when a category has no color of its own. "Other" is muted.
-const CATEGORY_PALETTE = ['#0A8F72', '#D9730D', '#4C6EF5', '#C2255C', '#9C36B5'];
-const OTHER_COLOR = '#6B7A8C';
+// Categorical chart palette lives on the theme (light/dark variants);
+// used when a category has no color of its own. "Other" is muted.
 
 export default function Dashboard() {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const { width } = useWindowDimensions();
   const chartWidth = Math.min(width, 720) - 88;
 
@@ -103,19 +104,19 @@ export default function Dashboard() {
       .sort((a, b) => b.value - a.value);
     const top = named.slice(0, 5).map((c, i) => ({
       ...c,
-      color: c.dbColor ?? CATEGORY_PALETTE[i % CATEGORY_PALETTE.length],
+      color: c.dbColor ?? colors.chartCategories[i % colors.chartCategories.length]!,
     }));
     const rest = named.slice(5);
     if (rest.length > 0) {
       top.push({
         name: 'Other',
         dbColor: null,
-        color: OTHER_COLOR,
+        color: colors.chartOther,
         value: rest.reduce((s, c) => s + c.value, 0),
       });
     }
     return { slices: top, total };
-  }, [thisMonthTx.data, categories.data]);
+  }, [thisMonthTx.data, categories.data, colors]);
 
   // Budget progress: this-month spend per budgeted category.
   const budgetProgress = useMemo(() => {
@@ -131,13 +132,13 @@ export default function Dashboard() {
         return {
           id: b.id,
           name: cat?.name ?? 'Unknown',
-          color: cat?.color ?? OTHER_COLOR,
+          color: cat?.color ?? colors.chartOther,
           spent: spentByCategory.get(b.category_id) ?? 0,
           limit: Number(b.amount),
         };
       })
       .sort((a, b) => b.spent / b.limit - a.spent / a.limit);
-  }, [budgets.data, thisMonthTx.data, categories.data]);
+  }, [budgets.data, thisMonthTx.data, categories.data, colors]);
 
   const recurring = useMemo(() => detectRecurring(recentTx.data ?? []).slice(0, 8), [recentTx.data]);
 
@@ -381,7 +382,7 @@ export default function Dashboard() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
   statRow: { flexDirection: 'row', gap: 12 },
@@ -412,4 +413,4 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-});
+}));

@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Button, Card, Centered, colors, Field, Muted, Title } from '@/components/ui';
+import { Button, Card, Centered, Field, Muted, Title } from '@/components/ui';
 import { formatMoney } from '@/lib/format';
 import { useBudgets, useCategories, useDeleteBudget, useUpsertBudget } from '@/lib/queries';
 import type { BudgetRow, CategoryRow } from '@/lib/types';
+import { themedStyles, useTheme } from '@/lib/theme';
 
 export default function Budgets() {
+  const styles = useStyles();
   const categories = useCategories();
   const budgets = useBudgets();
 
@@ -38,6 +40,8 @@ export default function Budgets() {
 }
 
 function BudgetRowCard({ category, budget }: { category: CategoryRow; budget: BudgetRow | null }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const [value, setValue] = useState(budget ? Number(budget.amount).toFixed(2) : '');
   const [error, setError] = useState<string | null>(null);
   const upsert = useUpsertBudget();
@@ -91,7 +95,7 @@ function BudgetRowCard({ category, budget }: { category: CategoryRow; budget: Bu
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
@@ -99,4 +103,4 @@ const styles = StyleSheet.create({
   name: { flex: 1, fontWeight: '600', color: colors.text },
   controls: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   error: { color: colors.danger, marginTop: 6 },
-});
+}));

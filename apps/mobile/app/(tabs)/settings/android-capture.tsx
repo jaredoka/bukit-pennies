@@ -1,7 +1,9 @@
 import { ScrollView, StyleSheet } from 'react-native';
-import { Card, Muted, Title, colors } from '@/components/ui';
+import { Card, Muted, Title } from '@/components/ui';
+import { themedStyles } from '@/lib/theme';
 
 export default function AndroidCapture() {
+  const styles = useStyles();
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Card>
@@ -25,7 +27,7 @@ export default function AndroidCapture() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
-});
+}));

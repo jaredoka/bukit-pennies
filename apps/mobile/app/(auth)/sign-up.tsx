@@ -8,11 +8,13 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Button, Card, colors, Field, Muted, Title } from '@/components/ui';
+import { Button, Card, Field, Muted, Title } from '@/components/ui';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
+import { themedStyles } from '@/lib/theme';
 
 export default function SignUp() {
+  const styles = useStyles();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -83,7 +85,7 @@ export default function SignUp() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
   brand: { fontSize: 28, fontWeight: '800', color: colors.primary },
@@ -92,4 +94,4 @@ const styles = StyleSheet.create({
   link: { color: colors.primary, textAlign: 'center', marginTop: 12 },
   legal: { color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 10, lineHeight: 17 },
   legalLink: { color: colors.primary, textDecorationLine: 'underline' },
-});
+}));

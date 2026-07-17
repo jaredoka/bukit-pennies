@@ -1,16 +1,22 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
-import { colors } from '@/components/ui';
+// ui import removed by theme codemod
 import { useRealtimeTransactions } from '@/lib/queries';
+import { useTheme } from '@/lib/theme';
 
 export default function TabsLayout() {
+  const { colors } = useTheme();
   useRealtimeTransactions();
 
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
-        headerTitleStyle: { fontWeight: '700' },
+        tabBarInactiveTintColor: colors.muted,
+        tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
+        headerStyle: { backgroundColor: colors.card },
+        headerTitleStyle: { fontWeight: '700', color: colors.text },
+        sceneStyle: { backgroundColor: colors.bg },
       }}
     >
       <Tabs.Screen

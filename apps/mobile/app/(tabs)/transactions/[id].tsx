@@ -11,8 +11,9 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Badge, Button, Card, Centered, colors, Field, Muted, Title } from '@/components/ui';
+import { Badge, Button, Card, Centered, Field, Muted, Title } from '@/components/ui';
 import { formatMoney, formatTime, bruneiDayKey, formatDayHeading } from '@/lib/format';
+import { themedStyles } from '@/lib/theme';
 import {
   useCategories,
   useCreateCategory,
@@ -34,6 +35,7 @@ function confirmAsync(title: string, message: string): Promise<boolean> {
 }
 
 export default function TransactionDetail() {
+  const styles = useStyles();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: tx, isLoading } = useTransaction(id);
   const categories = useCategories();
@@ -179,7 +181,7 @@ export default function TransactionDetail() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
   amount: { fontSize: 22, fontWeight: '800', color: colors.text },
@@ -194,11 +196,11 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.text },
-  chipActiveText: { color: '#fff', fontWeight: '600' },
+  chipActiveText: { color: colors.onPrimary, fontWeight: '600' },
   raw: {
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
     fontSize: 12,
     color: colors.muted,
     marginBottom: 12,
   },
-});
+}));

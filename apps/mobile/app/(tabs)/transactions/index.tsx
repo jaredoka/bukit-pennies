@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   SectionList,
   StyleSheet,
@@ -11,7 +12,7 @@ import {
 } from 'react-native';
 import { Badge, Centered, colors, Field, Muted } from '@/components/ui';
 import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
-import { useTransactions } from '@/lib/queries';
+import { usePullToRefresh, useTransactions } from '@/lib/queries';
 import type { TransactionRow } from '@/lib/types';
 
 /** 'all', 'bank:<bank>' or 'card:<last4>'. */
@@ -35,6 +36,7 @@ export default function TransactionsList() {
   const { data, isLoading, error } = useTransactions();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<TxFilter>('all');
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   // Chips are derived from the data: every bank and card that appears.
   const chips = useMemo(() => {
@@ -115,6 +117,7 @@ export default function TransactionsList() {
         </ScrollView>
       </View>
       <SectionList
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         sections={sections}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.content}

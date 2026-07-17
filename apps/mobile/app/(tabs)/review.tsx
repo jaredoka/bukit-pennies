@@ -3,17 +3,19 @@ import {
   ActivityIndicator,
   FlatList,
   Platform,
+  RefreshControl,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { Badge, Button, Card, Centered, colors, Field, Muted, Title } from '@/components/ui';
 import { formatMoney, formatTime, bruneiDayKey, formatDayHeading } from '@/lib/format';
-import { useDeleteTransaction, useReviewItems, useUpdateTransaction } from '@/lib/queries';
+import { useDeleteTransaction, usePullToRefresh, useReviewItems, useUpdateTransaction } from '@/lib/queries';
 import type { TransactionRow } from '@/lib/types';
 
 export default function ReviewInbox() {
   const { data, isLoading } = useReviewItems();
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   if (isLoading) {
     return (
@@ -26,6 +28,7 @@ export default function ReviewInbox() {
   const items = data ?? [];
   return (
     <FlatList
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       style={styles.screen}
       contentContainerStyle={styles.content}
       data={items}

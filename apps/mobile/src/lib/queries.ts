@@ -9,6 +9,7 @@ import type {
   IngestDeviceRow,
   MerchantTotalRow,
   MonthlyTotalRow,
+  ProfileRow,
   TransactionRow,
 } from './types';
 
@@ -142,6 +143,28 @@ export function useDevices() {
       unwrap<IngestDeviceRow[]>(
         supabase.from('ingest_devices').select('*').order('created_at', { ascending: false }),
       ),
+  });
+}
+
+export function useProfile() {
+  return useQuery({
+    queryKey: ['profile'],
+    queryFn: () => unwrap<ProfileRow>(supabase.from('profiles').select('*').single()),
+  });
+}
+
+export function useUpdateProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (patch: Partial<Pick<ProfileRow, 'display_name' | 'monthly_income'>>) => {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) throw new Error('Not signed in');
+      return unwrap<ProfileRow>(
+        supabase.from('profiles').update(patch).eq('id', userId).select().single(),
+      );
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['profile'] }),
   });
 }
 

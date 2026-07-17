@@ -2,8 +2,9 @@ import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
-import { Button, Card, colors, Field, Muted, Title } from '@/components/ui';
+import { Button, Card, Field, Muted, Title } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { themedStyles } from '@/lib/theme';
 
 /**
  * Landing screen for the password-recovery email link. On web the supabase
@@ -11,6 +12,7 @@ import { supabase } from '@/lib/supabase';
  * the code from the deep-link URL and exchange it here.
  */
 export default function ResetPassword() {
+  const styles = useStyles();
   const url = Linking.useURL();
   const [ready, setReady] = useState(Platform.OS === 'web');
   const [password, setPassword] = useState('');
@@ -75,9 +77,9 @@ export default function ResetPassword() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
   brand: { fontSize: 28, fontWeight: '800', color: colors.primary },
   error: { color: colors.danger, marginTop: 8 },
-});
+}));

@@ -298,3 +298,42 @@ skeleton before the app serves the majority of the market.
 Out of scope, unchanged: bank aggregation (violates the safety invariant),
 Sign in with Apple (only required if social login is offered), Android
 listener timing (deferred post-iOS-testing).
+
+## 15. Field-testing addendum (2026-07-17, real-device testing with the owner)
+
+**Design north star (recorded from the user):** personal finance should feel
+**visual, modular, and approachable** — a dashboard you shape around how you
+think about your money, not a spreadsheet or rigid budgeting tool. Apply this
+lens to all future UI work.
+
+State reached during on-device testing:
+
+- **BIBD parser is verified** (first real SMS collected; golden fixtures in
+  `packages/parsers/test/golden/bibd/`). Format quirks: no timestamp (falls
+  back to receive time, heuristic) and truncated merchant names. SCB remains
+  a skeleton.
+- **Capture strategy: per-card iOS automations.** One Message automation per
+  card, filtering on the card string (Baiduri `Card No.: 4x0213`, BIBD
+  `card ending with 0298`); Sender must stay empty because alphanumeric
+  sender IDs can't be picked in iOS. Templates are copy-tappable in-app.
+- **Shortcut distribution:** `shortcuts sign` requires an iCloud login on all
+  GitHub macOS runners, so CI cannot sign shortcut files. Distribution is a
+  once-shared **iCloud link** from the owner's iPhone, wired into
+  `SHORTCUT_DOWNLOAD_URL` (`apps/mobile/src/lib/env.ts`) — still pending.
+  `scripts/build-shortcut.mjs` + the `ios-shortcut.yml` workflow remain for
+  reference/if Apple ever unblocks CI signing.
+- **Theming:** full light/dark theme system (`src/lib/theme.tsx`; palettes +
+  `themedStyles` hook + persisted System/Light/Dark toggle in Settings). The
+  static `colors` export from `components/ui.tsx` is gone — never reintroduce
+  module-level color constants.
+- **App niceties shipped:** pull-to-refresh on all data screens; All/Bank/Card
+  filter chips on Transactions; one-tap token copy; shortcut guide includes a
+  confirmation-notification recipe.
+- **Foreign-currency decision:** store and display original currency (views
+  already group by currency); **no automatic FX conversion** — the SMS amount
+  is merchant-currency and the true BND charge (rate+fees) isn't knowable from
+  the message. A clearly-labeled "≈ BND" estimate is acceptable future work.
+- **Ops notes:** hosted project `pzjroqwllrzcbpiugpxl`; email confirmation
+  disabled for testing (re-enable with real SMTP pre-launch); unsigned-IPA
+  workflow needs `SENTRY_DISABLE_AUTO_UPLOAD=true` (no Sentry token in CI);
+  IPA sideloaded via Sideloadly, 7-day free-ID expiry.

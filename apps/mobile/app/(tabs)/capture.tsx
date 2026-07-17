@@ -2,13 +2,15 @@ import { parseBankMessage, splitBankMessages } from '@bukit/parsers';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Badge, Button, Card, colors, Field, Muted, Title } from '@/components/ui';
+import { Badge, Button, Card, Field, Muted, Title } from '@/components/ui';
 import { formatMoney } from '@/lib/format';
 import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
+import { themedStyles, useTheme } from '@/lib/theme';
 
 const MAX_TEXT_BYTES = 4096; // server-side limit per message
 
 export default function Capture() {
+  const styles = useStyles();
   const [text, setText] = useState('');
   const [result, setResult] = useState<IngestResponse | null>(null);
   const [bulkResults, setBulkResults] = useState<BulkItemResult[] | null>(null);
@@ -227,6 +229,7 @@ function BulkSummary({ results }: { results: BulkItemResult[] }) {
 }
 
 function BulkRow({ index, text, outcome }: { index: number; text: string; outcome: Outcome }) {
+  const styles = useStyles();
   const tone =
     outcome === 'created'
       ? 'success'
@@ -247,6 +250,7 @@ function BulkRow({ index, text, outcome }: { index: number; text: string; outcom
 }
 
 function PreviewRow({ label, value }: { label: string; value: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.previewRow}>
       <Text style={styles.previewLabel}>{label}</Text>
@@ -256,6 +260,8 @@ function PreviewRow({ label, value }: { label: string; value: string }) {
 }
 
 function ResultBanner({ result }: { result: IngestResponse }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const text =
     result.status === 'created'
       ? '✓ Transaction saved.'
@@ -269,7 +275,7 @@ function ResultBanner({ result }: { result: IngestResponse }) {
   return <Text style={[styles.banner, { color: tone }]}>{text}</Text>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
   error: { color: colors.danger, marginTop: 8 },
@@ -292,4 +298,4 @@ const styles = StyleSheet.create({
   },
   bulkIndex: { width: 24, color: colors.muted, fontVariant: ['tabular-nums'] },
   bulkText: { color: colors.text, fontSize: 13 },
-});
+}));

@@ -111,7 +111,6 @@ export default function ShortcutSetup() {
             onPress={() => Linking.openURL(SHORTCUT_DOWNLOAD_URL)}
           />
         </View>
-        <Tip>If the link is not live yet, it will be published soon — check back after the next app update.</Tip>
       </Card>
 
       {/* Step 3 */}

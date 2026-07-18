@@ -319,7 +319,8 @@ State reached during on-device testing:
 - **Shortcut distribution:** `shortcuts sign` requires an iCloud login on all
   GitHub macOS runners, so CI cannot sign shortcut files. Distribution is a
   once-shared **iCloud link** from the owner's iPhone, wired into
-  `SHORTCUT_DOWNLOAD_URL` (`apps/mobile/src/lib/env.ts`) — still pending.
+  `SHORTCUT_DOWNLOAD_URL` (`apps/mobile/src/lib/env.ts`) —
+  `https://www.icloud.com/shortcuts/9a70cda0b1b84feca11991213011a95a`.
   `scripts/build-shortcut.mjs` + the `ios-shortcut.yml` workflow remain for
   reference/if Apple ever unblocks CI signing.
 - **Theming:** full light/dark theme system (`src/lib/theme.tsx`; palettes +
@@ -366,7 +367,7 @@ Beyond the original §8 design, the shipped app includes:
   SMS); SCB still a skeleton. Recurring detection, CSV export, manual entry
   shipped in Phase 5.
 - **Capture:** per-card iOS Shortcuts automations (§15); shortcut distributed
-  via the owner's iCloud link (`SHORTCUT_DOWNLOAD_URL` — still pending);
+  via the owner's iCloud link (`SHORTCUT_DOWNLOAD_URL` — live);
   Android listener module still deferred.
 
 ### 16.2 Market review (2026-07-19)
@@ -423,9 +424,8 @@ trend/insight screens, no widgets, no shared/household budgets.
 5. **Apple Developer account → TestFlight → App Store launch** *(pending
    owner action)* — enrol at developer.apple.com (US$99/yr, owner's Apple
    ID); once enrolled: EAS build/submit config, TestFlight distribution,
-   share extension (§10). Shortcut download link (`SHORTCUT_DOWNLOAD_URL`
-   in `apps/mobile/src/lib/env.ts`) is a placeholder — owner to supply
-   the final iCloud or hosted link.
+   share extension (§10). Shortcut download link live:
+   `https://www.icloud.com/shortcuts/9a70cda0b1b84feca11991213011a95a`.
 
 **Stage B — Android (starts only once Stage A ships on the App Store):**
 

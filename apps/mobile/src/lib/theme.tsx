@@ -8,9 +8,42 @@ import {
 } from 'react';
 import { Platform, StyleSheet, useColorScheme } from 'react-native';
 
-// Two tone sets sharing the same brand hue (penny-teal). Light is the
-// original palette; dark lifts chroma slightly so primary/danger stay
-// legible on dark surfaces.
+// Default category colours per theme. User-chosen colours stored in the DB
+// override these entirely and are never affected by theme switching.
+export const CATEGORY_COLORS: Record<'light' | 'dark', string[]> = {
+  // Rich, saturated hues that pop on white backgrounds — hues spread far apart
+  light: [
+    '#D6336C', // Pink
+    '#1971C2', // Blue
+    '#2F9E44', // Green
+    '#F76707', // Orange
+    '#7048E8', // Violet
+    '#0C8599', // Teal
+    '#E8B004', // Golden yellow
+    '#A61E4D', // Wine
+    '#5C940D', // Olive
+    '#3B5BDB', // Indigo
+  ],
+  // Bright, luminous hues that glow on dark backgrounds — hues spread far apart
+  dark: [
+    '#FF6B6B', // Coral red
+    '#4DABF7', // Sky blue
+    '#69DB7C', // Mint green
+    '#FFD43B', // Yellow
+    '#DA77F2', // Orchid
+    '#3BC9DB', // Cyan
+    '#FFA94D', // Peach
+    '#B197FC', // Periwinkle
+    '#A9E34B', // Chartreuse
+    '#F783AC', // Rose
+  ],
+};
+export const CATEGORY_COLOR_OTHER: Record<'light' | 'dark', string> = {
+  light: '#868E96',
+  dark: '#ADB5BD',
+};
+
+// Two tone sets. Light: white + bright yellow. Dark: navy + neon blue.
 export interface Palette {
   bg: string;
   card: string;
@@ -27,31 +60,30 @@ export interface Palette {
 
 export const palettes: Record<'light' | 'dark', Palette> = {
   light: {
-    bg: '#F4F6F8',
-    card: '#FFFFFF',
+    bg: '#FFFFFF',
+    card: '#FAFAFA',
     text: '#1A2430',
     muted: '#6B7A8C',
-    primary: '#0E7C66',
-    onPrimary: '#FFFFFF',
+    primary: '#E6AC00',       // bright yellow
+    onPrimary: '#1A1200',     // near-black for legibility on yellow
     danger: '#C0392B',
     warning: '#B7791F',
-    border: '#E1E7ED',
-    // Categorical chart palette validated for light surfaces.
-    chartCategories: ['#0A8F72', '#D9730D', '#4C6EF5', '#C2255C', '#9C36B5'],
-    chartOther: '#6B7A8C',
+    border: '#E8E8E8',
+    chartCategories: CATEGORY_COLORS.light,
+    chartOther: CATEGORY_COLOR_OTHER.light,
   },
   dark: {
     bg: '#0C1219',
     card: '#161F2A',
     text: '#E6EBF1',
     muted: '#8B9AAB',
-    primary: '#27A98B',
-    onPrimary: '#08110D',
+    primary: '#00B4FF',
+    onPrimary: '#001A2E',
     danger: '#E2604F',
     warning: '#D99C42',
     border: '#263240',
-    chartCategories: ['#2FB392', '#E8913D', '#7B94F7', '#DB5C8C', '#B566CE'],
-    chartOther: '#8B9AAB',
+    chartCategories: CATEGORY_COLORS.dark,
+    chartOther: CATEGORY_COLOR_OTHER.dark,
   },
 };
 

@@ -14,7 +14,10 @@ import { useCreateIngestToken, useDevices, useRevokeDevice } from '@/lib/queries
 import type { TxSource } from '@/lib/types';
 import { themedStyles, useTheme } from '@/lib/theme';
 
-const KINDS: TxSource[] = ['ios_shortcut', 'paste', 'share', 'android_listener'];
+const KINDS: { value: TxSource; label: string }[] = [
+  { value: 'ios_shortcut', label: 'iOS Shortcut' },
+  { value: 'android_listener', label: 'Android Listener' },
+];
 
 export default function Devices() {
   const styles = useStyles();
@@ -54,9 +57,8 @@ export default function Devices() {
       <Card>
         <Title>New capture device</Title>
         <Muted>
-          Each capture path (iPhone Shortcut, this app's paste screen, …) gets its own token. The
-          token is shown once — store it in the Shortcut, then it can only be revoked, never read
-          again.
+          Each capture path gets its own token. The token is shown once — store it in the Shortcut
+          or listener config, then it can only be revoked, never read again.
         </Muted>
         <View style={{ marginTop: 12 }}>
           <Field label="Device name" value={name} onChangeText={setName} placeholder="e.g. Jared's iPhone Shortcut" />
@@ -64,11 +66,11 @@ export default function Devices() {
           <View style={styles.chips}>
             {KINDS.map((k) => (
               <Pressable
-                key={k}
-                onPress={() => setKind(k)}
-                style={[styles.chip, kind === k && styles.chipActive]}
+                key={k.value}
+                onPress={() => setKind(k.value)}
+                style={[styles.chip, kind === k.value && styles.chipActive]}
               >
-                <Text style={kind === k ? styles.chipActiveText : styles.chipText}>{k}</Text>
+                <Text style={kind === k.value ? styles.chipActiveText : styles.chipText}>{k.label}</Text>
               </Pressable>
             ))}
           </View>

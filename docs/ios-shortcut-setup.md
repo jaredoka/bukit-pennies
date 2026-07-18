@@ -108,6 +108,10 @@ Then create the Message automation exactly as in step 3 above.
 - Automations only fire for **incoming** messages from that sender ID; old
   messages must go through bulk paste.
 
+## Duplicate messages
+
+If the same SMS arrives twice (e.g. the bank resends it), only the **first** is stored. The server deduplicates by a hash of the raw message text — identical text always maps to the same hash, so the second run is silently ignored. The notification still fires but the transaction is not double-counted. This is intentional: use **bulk paste** in the Capture tab if you need to re-ingest a corrected or re-sent message after editing it.
+
 ## Troubleshooting
 
 - **401 / invalid_token**: token revoked or mistyped — create a new capture

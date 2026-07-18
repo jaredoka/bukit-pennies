@@ -1,9 +1,9 @@
 # Bukit Pennies — Project Handoff Document
 
-**Status:** Planning complete and approved. **No code has been written yet** — the repo contains only this document. This file is the single source of truth for picking up implementation.
+**Status:** Phases 0–6 built and merged; app is live against hosted Supabase and field-tested on the owner's iPhone. §1–§14 are the original approved design (kept for reference); §15–§16 record what exists now and the adoption roadmap. **§16 is the current source of truth for what to build next.**
 
 **Branch:** `main` (GitHub Flow — feature branches off `main`, merged via pull request)
-**Date:** 2026-07-16
+**Date:** 2026-07-16 (original) · last updated 2026-07-19
 
 ---
 
@@ -337,3 +337,79 @@ State reached during on-device testing:
   disabled for testing (re-enable with real SMTP pre-launch); unsigned-IPA
   workflow needs `SENTRY_DISABLE_AUTO_UPLOAD=true` (no Sentry token in CI);
   IPA sideloaded via Sideloadly, 7-day free-ID expiry.
+
+## 16. Current app state + mass-adoption roadmap (added 2026-07-19)
+
+### 16.1 What the app is now (Phases 0–6 + post-phase work, all merged or on `ui-filters-donut-polish`)
+
+Beyond the original §8 design, the shipped app includes:
+
+- **Tabs:** Dashboard (interactive income **donut as the hero**, dynamic font
+  fit, wheel picker), Transactions (day-sectioned list, per-filter sheets:
+  Direction/Currency/Date-range calendar/Recipient/Bank/Category/Card,
+  swipeable filter bar), **Goals** (savings goals: create/add/delete), Capture
+  (paste + bulk paste), Settings. Review inbox is reachable but hidden from
+  the tab bar.
+- **Settings restructure:** index → account, appearance (System/Light/Dark),
+  budget + budgets (accordion, 20 swatches, per-category colors, RESET-BUDGET
+  confirmation), spending, weekly-summary (day/time picker), capture,
+  devices (tokens), shortcut-setup, guide, about, delete-account.
+- **Brunei essentials (PR #31):** SGD accepted at par with BND; bill
+  reminders; weekly digest; overspend alerts (local notifications,
+  `src/lib/notifications.ts`); cash quick-add; amount cloaking (privacy mode,
+  `src/lib/privacy.tsx`).
+- **Money formatting:** `formatMoney` with thousand-separator commas
+  everywhere (`src/lib/format.ts`).
+- **Reusable UI:** `WheelPicker`, `PickerSheet`, calendar range sheet in
+  `src/components/ui.tsx`; full theme system per §15.
+- **Parsers:** Baiduri verified + **BIBD verified** (golden fixtures from real
+  SMS); SCB still a skeleton. Recurring detection, CSV export, manual entry
+  shipped in Phase 5.
+- **Capture:** per-card iOS Shortcuts automations (§15); shortcut distributed
+  via the owner's iCloud link (`SHORTCUT_DOWNLOAD_URL` — still pending);
+  Android listener module still deferred.
+
+### 16.2 Market review (2026-07-19)
+
+Feature parity with Money Lover / Spendee / PocketGuard is already largely
+reached (budgets, goals, recurring, export, dark mode, privacy). The
+aggregation moat behind Mint/Monarch/Copilot does not exist in Brunei (no
+Plaid/open banking), so notification-text parsing is the only viable
+automatic capture — the wedge stands. Remaining gaps vs. leaders are not
+features but **distribution, capture friction, and insights depth**:
+no store presence, multi-step iOS Shortcut onboarding, no month-over-month
+trend/insight screens, no widgets, no shared/household budgets.
+
+### 16.3 Decisions recorded (from the owner, 2026-07-19)
+
+- **Distribution: both stores** (Play US$25 + Apple US$99), Android first
+  within that — `NotificationListenerService` gives zero-setup capture.
+- **Bank priority: BIBD** — parser verified; hosted deploy of it is the
+  top item.
+- **Localization: English-only UI is fine.** Skip Bahasa Melayu for now.
+- **Differentiator: local merchant intelligence** — curated Brunei
+  merchant → category mapping applied at parse time so transactions arrive
+  pre-categorized (Supa Save, Hua Ho, petrol, kopitiams, delivery…). Every
+  golden fixture doubles as mapping data.
+- **Business model: free, personal project.** No freemium plumbing; watch
+  Supabase free-tier limits as users grow.
+
+### 16.4 Adoption roadmap (sequenced)
+
+1. **BIBD hosted go-live** — sync + deploy the verified parser; highest
+   leverage, lowest effort.
+2. **Play Store + Android capture phase** — the deferred Kotlin
+   `NotificationListenerService` module (§9), Play Console closed testing
+   (12 testers/14 days), prominent-disclosure declaration.
+3. **Merchant → category mapping at parse time** (new parser-adjacent table
+   or module; keep `@bukit/parsers` zero-dep).
+4. **Onboarding overhaul** — Sign in with Apple/Google, "paste your last
+   bank SMS" first-run moment, empty-state preview; target < 60 s to first
+   transaction.
+5. **Monthly insights screen** — month-over-month totals, category trends;
+   the largest pure-feature gap vs. every leader.
+6. **Apple Developer account → TestFlight → App Store** (also unlocks the
+   share extension per §10).
+
+Deliberately deferred: shared/household budgets, investment tracking,
+widgets, freemium.

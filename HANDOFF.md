@@ -422,10 +422,23 @@ trend/insight screens, no widgets, no shared/household budgets.
    6 months, per-category deltas vs last month, merchant movers (top 8
    shifts vs last month).
 5. **Apple Developer account → TestFlight → App Store launch** *(pending
-   owner action)* — enrol at developer.apple.com (US$99/yr, owner's Apple
-   ID); once enrolled: EAS build/submit config, TestFlight distribution,
-   share extension (§10). Shortcut download link live:
+   owner action: enrolment)* — enrol at developer.apple.com (US$99/yr,
+   owner's Apple ID, ~1–2 days approval). **Everything else is prepped
+   (2026-07-19):** `apps/mobile/eas.json` has the production profile
+   (hosted Supabase env baked in; three `FILL-ME` placeholders — anon
+   key, Apple Team ID, ASC App ID) and **`docs/testflight-deploy.md` is
+   the step-by-step runbook** (build → TestFlight → on-device test
+   checklist → App Store review notes → share extension later).
+   Shortcut download link live:
    `https://www.icloud.com/shortcuts/9a70cda0b1b84feca11991213011a95a`.
+
+   **iOS build facts (recorded 2026-07-19):** IPAs cannot be built on
+   Windows (Xcode/macOS only). Path of record is **EAS cloud builds**
+   (run from Windows, built on Expo's Macs, free ~30 builds/mo; device
+   builds require the paid Apple account for signing).
+   `ios-unsigned-ipa.yml` (GitHub macOS runner → Sideloadly) is the
+   obsolete pre-enrolment stopgap — macOS runners bill at 10× minutes,
+   ~300 min per build, so avoid it once enrolled.
 
 **Stage B — Android (starts only once Stage A ships on the App Store):**
 
@@ -459,3 +472,11 @@ Apple's US$99/yr until genuinely popular; at Pro-tier scale, optional
 support only (GitHub Sponsors / Ko-fi, "server costs ~$25/mo" framing) —
 never monetization. Cheap deferrals if needed before upgrading: reduce
 the 500-row transaction fetch, trim dashboard query columns.
+
+**GitHub note (2026-07-19):** repo is **private** (policy pages moved to
+the public `bukit-pennies-legal` repo). Private-repo Actions draws from
+the account's 2,000 free min/mo, shared with the owner's other projects —
+exhausted for July, so **CI is verified locally (tests + typecheck +
+sync-parsers --check) before every merge until the monthly reset**.
+Billed amount stays $0 with the $0 budget (GitHub blocks instead of
+charging). The launched app never depends on GitHub Actions.

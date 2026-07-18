@@ -12,6 +12,7 @@ export { normalizeText, normalizeMerchant, parseAmount, normalizeCurrency, extra
 export { splitBankMessages } from './split.ts';
 export { buildBruneiIso, scanDate, BRUNEI_OFFSET } from './dates.ts';
 export { scoreConfidence, WEIGHTS, UNVERIFIED_CONFIDENCE_CAP } from './confidence.ts';
+export { categorizeMerchant, type CategoryName } from './merchants.ts';
 export { baiduri, bibd, scb, generic };
 
 const BANK_PARSERS: Record<Exclude<BankId, 'unknown'>, BankParser> = { baiduri, bibd, scb };

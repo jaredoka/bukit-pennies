@@ -57,8 +57,23 @@ function makeFakeStore(): IngestStore & { rows: TransactionRow[]; lastSeenTouche
       const row = rows.find((r) => r.id === txId);
       if (row) row.possible_duplicate_of = duplicateOfId;
     },
+    async findGlobalCategoryIdByName(name: string) {
+      return GLOBAL_CATEGORY_IDS[name] ?? null;
+    },
   };
 }
+
+// Mirrors the global defaults seeded in migrations/01_schema.sql.
+const GLOBAL_CATEGORY_IDS: Record<string, string> = {
+  'Food & Drink': 'cat-food',
+  Groceries: 'cat-groceries',
+  Transport: 'cat-transport',
+  Shopping: 'cat-shopping',
+  Bills: 'cat-bills',
+  Entertainment: 'cat-entertainment',
+  Health: 'cat-health',
+  Other: 'cat-other',
+};
 
 const allowAll: RateLimiter = { allow: () => true };
 const auth = `Bearer ${TOKEN}`;
@@ -140,7 +155,29 @@ describe('handleIngest', () => {
     expect(tx.bank).toBe('baiduri');
     expect(tx.card_last4).toBe('0213');
     expect(tx.parse_status).toBe('parsed');
+    expect(tx.category_id).toBe('cat-food'); // GALORIES → Food & Drink via merchant mapping
     expect(store.lastSeenTouches).toEqual(['device-1']);
+  });
+
+  it('pre-categorizes known Brunei merchants and leaves unknowns null', async () => {
+    const store = makeFakeStore();
+    const bibd = await handleIngest(
+      auth,
+      body(
+        'Dear Customer, Purchase of BND5.10 at HUA HO DEPARTME, has successfully been made on your card ending with 0298. Thank you for banking with BIBD.',
+      ),
+      store,
+      allowAll,
+    );
+    expect((bibd.body.transaction as TransactionRow).category_id).toBe('cat-groceries');
+
+    const unknown = await handleIngest(
+      auth,
+      body(BAIDURI_SAMPLE.replace('GALORIES SMOOTHIES BSB BN', 'ZYX TRADING')),
+      store,
+      allowAll,
+    );
+    expect((unknown.body.transaction as TransactionRow).category_id).toBeNull();
   });
 
   it('returns duplicate on exact re-ingest (same normalized text)', async () => {

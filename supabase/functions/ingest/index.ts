@@ -83,7 +83,26 @@ const store: IngestStore = {
       .eq('id', txId);
     if (error) throw error;
   },
+
+  async findGlobalCategoryIdByName(name) {
+    const cached = categoryIdCache.get(name);
+    if (cached !== undefined) return cached;
+    const { data, error } = await supabase
+      .from('categories')
+      .select('id')
+      .is('user_id', null)
+      .eq('name', name)
+      .maybeSingle();
+    if (error) throw error;
+    const id = data?.id ?? null;
+    categoryIdCache.set(name, id);
+    return id;
+  },
 };
+
+// Global default categories are seeded by migration and never change at
+// runtime; cache per function instance.
+const categoryIdCache = new Map<string, string | null>();
 
 // Postgres numeric comes back as a string; the API contract promises a number.
 function normalizeRow(data: Record<string, unknown>): TransactionRow {

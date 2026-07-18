@@ -1,7 +1,7 @@
 // Pure ingest handler (HANDOFF.md §6) — no Deno/Supabase imports so it unit
 // tests under vitest and runs unchanged in the edge runtime. All I/O goes
 // through the injected IngestStore.
-import { isNonTransactional, normalizeText, parseBankMessage } from './parsers/index.ts';
+import { categorizeMerchant, isNonTransactional, normalizeText, parseBankMessage } from './parsers/index.ts';
 import type { BankId } from './parsers/index.ts';
 import { extractBearerToken, sha256Hex } from './auth.ts';
 
@@ -21,6 +21,7 @@ export interface TransactionInsert {
   merchant_normalized: string | null;
   bank: BankId;
   card_last4: string | null;
+  category_id: string | null;
   source: IngestSource;
   parse_status: 'parsed' | 'needs_review';
   confidence: number | null;
@@ -53,6 +54,8 @@ export interface IngestStore {
     excludeId: string;
   }): Promise<string | null>;
   setPossibleDuplicate(txId: string, duplicateOfId: string): Promise<void>;
+  /** Global default category (user_id IS NULL) id by exact name, or null. */
+  findGlobalCategoryIdByName(name: string): Promise<string | null>;
 }
 
 export interface RateLimiter {
@@ -132,6 +135,19 @@ export async function handleIngest(
   // review inbox can fix it and the text can become a parser fixture.
   const needsReview = !tx || tx.amount === null || tx.confidence < REVIEW_CONFIDENCE_THRESHOLD;
 
+  // Brunei merchant intelligence: pre-categorize from the curated mapping.
+  // Lookup failures leave the transaction uncategorized rather than failing
+  // the ingest.
+  let categoryId: string | null = null;
+  const categoryName = categorizeMerchant(tx?.merchantNormalized);
+  if (categoryName) {
+    try {
+      categoryId = await store.findGlobalCategoryIdByName(categoryName);
+    } catch {
+      categoryId = null;
+    }
+  }
+
   const insert: TransactionInsert = {
     user_id: device.user_id,
     occurred_at: tx?.occurredAt ?? body.received_at ?? null,
@@ -141,6 +157,7 @@ export async function handleIngest(
     merchant_normalized: tx?.merchantNormalized ?? null,
     bank: tx?.bank ?? 'unknown',
     card_last4: tx?.cardLast4 ?? null,
+    category_id: categoryId,
     source: body.source,
     parse_status: needsReview ? 'needs_review' : 'parsed',
     confidence: tx?.confidence ?? 0,

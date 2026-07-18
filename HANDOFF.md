@@ -400,18 +400,32 @@ trend/insight screens, no widgets, no shared/household budgets.
 
 **Stage A — iOS to App Store (everything here precedes any Android work):**
 
-1. **BIBD hosted go-live** — sync + deploy the verified parser; highest
-   leverage, lowest effort.
-2. **Merchant → category mapping at parse time** (new parser-adjacent table
-   or module; keep `@bukit/parsers` zero-dep).
-3. **Onboarding overhaul** — Sign in with Apple/Google, "paste your last
-   bank SMS" first-run moment, empty-state preview; target < 60 s to first
-   transaction.
-4. **Monthly insights screen** — month-over-month totals, category trends;
-   the largest pure-feature gap vs. every leader.
-5. **Apple Developer account → TestFlight → App Store launch** (also
-   unlocks the share extension per §10) — iOS app tested on the owner's
-   iPhone and deployed to the App Store.
+1. ✅ **BIBD hosted go-live** *(merged 2026-07-19, PR #35)* — ingest
+   function deployed to hosted Supabase; BIBD and Baiduri parsers both
+   live; end-to-end smoke tested with a real token.
+2. ✅ **Merchant → category mapping at parse time** *(merged 2026-07-19,
+   PR #35)* — zero-dep `merchants.ts` module in `@bukit/parsers`; ~50
+   curated Brunei rules (Supa Save, Hua Ho, KFC, Shell, DST, Guardian,
+   Shopee…); category resolved at ingest and stamped on `category_id`.
+   Seed list in `packages/parsers/src/merchants.ts` — review and extend
+   as real transactions arrive.
+3. ✅ **Onboarding overhaul** *(merged 2026-07-19, PR #36)* — two-step
+   first-run flow: (a) paste-your-SMS hero (instant offline parse preview,
+   saves as first transaction, skippable); (b) iOS Shortcut nudge with
+   estimated setup time (~5 min) and direct link to the setup guide.
+   Shown once per user (device flag); returning users bypass it.
+   Social login deliberately deferred to the Apple Developer account step.
+4. ✅ **Monthly insights screen** *(merged 2026-07-19, PR #37)* — new
+   Insights tab (trending-up icon) with: headline month-over-month tiles
+   (this month / last month / % change), stacked category bar chart over
+   6 months, per-category deltas vs last month, merchant movers (top 8
+   shifts vs last month).
+5. **Apple Developer account → TestFlight → App Store launch** *(pending
+   owner action)* — enrol at developer.apple.com (US$99/yr, owner's Apple
+   ID); once enrolled: EAS build/submit config, TestFlight distribution,
+   share extension (§10). Shortcut download link (`SHORTCUT_DOWNLOAD_URL`
+   in `apps/mobile/src/lib/env.ts`) is a placeholder — owner to supply
+   the final iCloud or hosted link.
 
 **Stage B — Android (starts only once Stage A ships on the App Store):**
 

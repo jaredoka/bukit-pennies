@@ -108,6 +108,31 @@ export function useThisMonthTransactions() {
   });
 }
 
+/** Transactions for a specific Brunei year (month=null) or month (1-indexed). */
+export function useTransactionsForPeriod(year: number, month: number | null) {
+  const BNT = 8 * 60 * 60 * 1000;
+  const start = month !== null
+    ? new Date(Date.UTC(year, month - 1, 1) - BNT).toISOString()
+    : new Date(Date.UTC(year, 0, 1) - BNT).toISOString();
+  const end = month !== null
+    ? new Date(Date.UTC(year, month, 1) - BNT).toISOString()
+    : new Date(Date.UTC(year + 1, 0, 1) - BNT).toISOString();
+  return useQuery({
+    queryKey: ['transactions', 'period', year, month],
+    queryFn: () =>
+      unwrap<Pick<TransactionRow, 'occurred_at' | 'amount' | 'currency' | 'category_id' | 'merchant_normalized'>[]>(
+        supabase
+          .from('transactions')
+          .select('occurred_at, amount, currency, category_id, merchant_normalized')
+          .eq('parse_status', 'parsed')
+          .not('amount', 'is', null)
+          .in('currency', PAR_CURRENCIES)
+          .gte('occurred_at', start)
+          .lt('occurred_at', end),
+      ),
+  });
+}
+
 /** Parsed spends of the last `monthsBack` Brunei months — recurring detection. */
 export function useRecentMonthsTransactions(monthsBack = 6) {
   const since = bruneiMonthStartIso(monthsBack - 1);
@@ -378,6 +403,39 @@ export function useCreateCategory() {
       );
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ['categories'] }),
+  });
+}
+
+export function useUpdateCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, color }: { id: string; color: string }) =>
+      unwrap<CategoryRow>(
+        supabase.from('categories').update({ color }).eq('id', id).select().single(),
+      ),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['categories'] }),
+  });
+}
+
+export function useDeleteCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      unwrap(supabase.from('categories').delete().eq('id', id)),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['categories'] }),
+  });
+}
+
+export function useDeleteAllBudgets() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) throw new Error('Not signed in');
+      return unwrap(supabase.from('budgets').delete().eq('user_id', userId));
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['budgets'] }),
   });
 }
 

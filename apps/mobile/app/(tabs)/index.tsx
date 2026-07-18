@@ -11,12 +11,10 @@ import {
   View,
 } from 'react-native';
 import { BarChart, LineChart, PieChart } from 'react-native-gifted-charts';
-import { Card, Muted, Title } from '@/components/ui';
+import { Card, Muted, PickerSheet, Title, WheelPicker } from '@/components/ui';
 import {
   bruneiDayKey,
   bruneiMonthKey,
-  bruneiMonthStartIso,
-  formatMoney,
   formatMonthName,
 } from '@/lib/format';
 import {
@@ -25,9 +23,9 @@ import {
   useMonthlyTotals,
   useProfile,
   useRecentMonthsTransactions,
-  useSavingsGoals,
   useThisMonthTransactions,
   useTopMerchants,
+  useTransactionsForPeriod,
   usePullToRefresh,
 } from '@/lib/queries';
 import {
@@ -47,6 +45,26 @@ const REMINDER_CYCLE: (ReminderDays | null)[] = [null, 0, 1, 3];
 const reminderLabel = (d: ReminderDays) => (d === 0 ? 'due day' : `${d}d before`);
 
 const REMAINING_KEY = '__remaining__';
+
+// Month wheel: index 0 = full year, indices 1–12 = specific month
+const MONTH_ITEMS = [
+  'All year',
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+const YEAR_COUNT = 6;
+
+/**
+ * Fits the amount string on one line inside the donut's inner circle.
+ * innerRadius=78 → usable text width ≈ 130px. SF Pro / Roboto Bold
+ * tabular-nums chars are ~0.61× the font size wide.
+ */
+function donutFontSize(str: string): number {
+  const usableWidth = 130;
+  const charWidthRatio = 0.61;
+  return Math.max(11, Math.min(22, Math.floor(usableWidth / (str.length * charWidthRatio))));
+}
 
 interface Slice {
   key: string;
@@ -69,10 +87,33 @@ export default function Dashboard() {
   const categories = useCategories();
   const budgets = useBudgets();
   const recentTx = useRecentMonthsTransactions(6);
-  const goals = useSavingsGoals();
   const { refreshing, onRefresh } = usePullToRefresh();
   const { hidden, toggle, money } = usePrivacy();
 
+  // ---- Period filter -------------------------------------------------------
+  const thisMonthKey = bruneiMonthKey(Date.now());
+  const nowYear = Number(thisMonthKey.slice(0, 4));
+  const nowMonth = Number(thisMonthKey.slice(5, 7));
+
+  // Year wheel: YEAR_COUNT years ending at nowYear
+  const yearItems = useMemo(
+    () => Array.from({ length: YEAR_COUNT }, (_, i) => String(nowYear - (YEAR_COUNT - 1) + i)),
+    [nowYear],
+  );
+  const [periodYearIdx, setPeriodYearIdx] = useState(YEAR_COUNT - 1); // current year
+  const [periodMonthIdx, setPeriodMonthIdx] = useState(nowMonth);     // 1–12, or 0 = all year
+
+  const isYearMode = periodMonthIdx === 0;
+  const selectedYear = Number(yearItems[periodYearIdx]);
+
+  const periodTx = useTransactionsForPeriod(selectedYear, isYearMode ? null : periodMonthIdx);
+
+  const periodTitle = isYearMode
+    ? yearItems[periodYearIdx]
+    : formatMonthName(`${selectedYear}-${String(periodMonthIdx).padStart(2, '0')}-01`);
+
+  // ---- Data queries -------------------------------------------------------
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [reminderPrefs, setReminderPrefs] = useState<ReminderPrefs>({});
 
@@ -80,23 +121,16 @@ export default function Dashboard() {
     getReminderPrefs().then(setReminderPrefs);
   }, []);
 
-  const thisMonthKey = bruneiMonthKey(Date.now());
-  const lastMonthKey = bruneiMonthKey(bruneiMonthStartIso(1));
-  // The views fold SGD into the BND bucket (at-par); other currencies are
-  // separate rows — the headline numbers are the BND bucket.
-  const thisMonth = monthly.data?.find(
+  const thisMonthData = monthly.data?.find(
     (r) => r.month.startsWith(thisMonthKey.slice(0, 7)) && r.currency === 'BND',
-  );
-  const lastMonth = monthly.data?.find(
-    (r) => r.month.startsWith(lastMonthKey.slice(0, 7)) && r.currency === 'BND',
   );
   const income = profile.data?.monthly_income == null ? null : Number(profile.data.monthly_income);
 
-  // ---- Hero donut: category spend vs monthly income -----------------------
+  // ---- Hero donut: category spend vs income / period ----------------------
   const donut = useMemo(() => {
     const byCategory = new Map<string | null, number>();
     let spent = 0;
-    for (const tx of thisMonthTx.data ?? []) {
+    for (const tx of periodTx.data ?? []) {
       if (tx.amount === null) continue;
       byCategory.set(tx.category_id, (byCategory.get(tx.category_id) ?? 0) + Number(tx.amount));
       spent += Number(tx.amount);
@@ -129,38 +163,32 @@ export default function Dashboard() {
         isRemaining: false,
       });
     }
-    const remaining = income !== null ? income - spent : null;
+    const remaining = income !== null && !isYearMode ? income - spent : null;
     if (remaining !== null && remaining > 0) {
       slices.push({
         key: REMAINING_KEY,
-        name: 'Left to spend',
+        name: 'Remaining',
         value: remaining,
         color: colors.border,
         isRemaining: true,
       });
     }
     return { slices, spent, remaining };
-  }, [thisMonthTx.data, categories.data, colors, income]);
+  }, [periodTx.data, categories.data, colors, income, isYearMode]);
 
   const selectedSlice = donut.slices.find((s) => s.key === selected) ?? null;
-  // Percentage base: income when set, otherwise this month's spend.
-  const pctBase = income ?? donut.spent;
+  const pctBase = income !== null && !isYearMode ? income : donut.spent;
 
   function toggleSelect(key: string) {
     setSelected((cur) => (cur === key ? null : key));
   }
 
-  // ---- Secondary stats ----------------------------------------------------
-  const delta =
-    thisMonth && lastMonth && Number(lastMonth.total) > 0
-      ? ((Number(thisMonth.total) - Number(lastMonth.total)) / Number(lastMonth.total)) * 100
-      : null;
+  // ---- Daily spend (month view only) --------------------------------------
   const dayOfMonth = Number(bruneiDayKey(Date.now()).slice(8));
-  const avgPerDay = thisMonth ? Number(thisMonth.total) / dayOfMonth : 0;
-
   const dailyData = useMemo(() => {
+    if (isYearMode) return [];
     const byDay = new Map<number, number>();
-    for (const tx of thisMonthTx.data ?? []) {
+    for (const tx of periodTx.data ?? []) {
       if (!tx.occurred_at || tx.amount === null) continue;
       const day = Number(bruneiDayKey(tx.occurred_at).slice(8));
       byDay.set(day, (byDay.get(day) ?? 0) + Number(tx.amount));
@@ -169,8 +197,9 @@ export default function Dashboard() {
       value: Math.round((byDay.get(i + 1) ?? 0) * 100) / 100,
       label: (i + 1) % 5 === 0 || i === 0 ? String(i + 1) : '',
     }));
-  }, [thisMonthTx.data, dayOfMonth]);
+  }, [periodTx.data, dayOfMonth, isYearMode]);
 
+  // ---- Budget progress (always current month) -----------------------------
   const budgetProgress = useMemo(() => {
     if (!budgets.data?.length) return [];
     const spentByCategory = new Map<string, number>();
@@ -194,17 +223,15 @@ export default function Dashboard() {
 
   const recurring = useMemo(() => detectRecurring(recentTx.data ?? []).slice(0, 6), [recentTx.data]);
 
-  // Local-notification sync: bill reminders + weekly digest content refresh.
   useEffect(() => {
     if (thisMonthTx.isLoading || recentTx.isLoading) return;
     void syncScheduledNotifications({
       recurring,
-      spentThisMonth: donut.spent,
+      spentThisMonth: thisMonthData ? Number(thisMonthData.total) : 0,
       income,
     });
-  }, [recurring, donut.spent, income, thisMonthTx.isLoading, recentTx.isLoading]);
+  }, [recurring, thisMonthData, income, thisMonthTx.isLoading, recentTx.isLoading]);
 
-  // Overspend alerts: fire once per budget per threshold per month.
   useEffect(() => {
     if (budgetProgress.length === 0) return;
     void maybeOverspendAlert(budgetProgress);
@@ -238,16 +265,23 @@ export default function Dashboard() {
     return { rows, max };
   }, [topMerchants.data]);
 
+  const periodLabel = isYearMode ? 'this year' : 'this month';
+  const saved = income !== null && !isYearMode ? income - donut.spent : null;
+
   return (
+    <>
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      {/* ---- Hero: interactive donut ---- */}
+      {/* ---- Hero: interactive donut + period wheels ---- */}
       <Card>
         <View style={styles.heroHeader}>
-          <Title>{formatMonthName(thisMonthKey)}</Title>
+          <Pressable onPress={() => setPickerOpen(true)} style={styles.periodPill} hitSlop={8}>
+            <Text style={styles.periodPillText}>{periodTitle}</Text>
+            <Ionicons name="chevron-down" size={14} color={colors.muted} />
+          </Pressable>
           <View style={styles.heroActions}>
             <Pressable onPress={toggle} hitSlop={8} accessibilityLabel={hidden ? 'Show amounts' : 'Hide amounts'}>
               <Ionicons name={hidden ? 'eye-off' : 'eye'} size={22} color={colors.muted} />
@@ -260,6 +294,7 @@ export default function Dashboard() {
             </Link>
           </View>
         </View>
+
         {donut.slices.length > 0 ? (
           <View style={styles.heroWrap}>
             <PieChart
@@ -284,33 +319,26 @@ export default function Dashboard() {
                       <Text style={styles.centerLabel} numberOfLines={1}>
                         {selectedSlice.name}
                       </Text>
-                      <Text style={styles.centerValue}>{money(selectedSlice.value)}</Text>
+                      {(() => { const s = money(selectedSlice.value); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }]}>{s}</Text>; })()}
                       <Muted>
                         {pctBase > 0
-                          ? `${Math.round((selectedSlice.value / pctBase) * 100)}% of ${income !== null ? 'income' : 'spending'}`
+                          ? `${Math.round((selectedSlice.value / pctBase) * 100)}% of ${income !== null && !isYearMode ? 'income' : 'spending'}`
                           : ''}
                       </Muted>
                     </>
-                  ) : income !== null ? (
+                  ) : income !== null && !isYearMode ? (
                     <>
                       <Text style={styles.centerLabel}>
-                        {donut.remaining !== null && donut.remaining < 0 ? 'Over income' : 'Left to spend'}
+                        {donut.remaining !== null && donut.remaining < 0 ? 'Over income' : 'Remaining'}
                       </Text>
-                      <Text
-                        style={[
-                          styles.centerValue,
-                          donut.remaining !== null && donut.remaining < 0 && { color: colors.danger },
-                        ]}
-                      >
-                        {money(Math.abs(donut.remaining ?? 0))}
-                      </Text>
+                      {(() => { const s = money(Math.abs(donut.remaining ?? 0)); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }, donut.remaining !== null && donut.remaining < 0 && { color: colors.danger }]}>{s}</Text>; })()}
                       <Muted>{`of ${money(income)}`}</Muted>
                     </>
                   ) : (
                     <>
                       <Text style={styles.centerLabel}>Spent</Text>
-                      <Text style={styles.centerValue}>{money(donut.spent)}</Text>
-                      <Muted>this month</Muted>
+                      {(() => { const s = money(donut.spent); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }]}>{s}</Text>; })()}
+                      <Muted>{periodLabel}</Muted>
                     </>
                   )}
                 </Pressable>
@@ -334,43 +362,35 @@ export default function Dashboard() {
                 </Pressable>
               ))}
             </View>
-            {income === null ? (
+            {income === null && !isYearMode ? (
               <Link href="/(tabs)/settings" asChild>
                 <Pressable>
-                  <Muted>Set your monthly income in Settings to see what’s left to spend →</Muted>
+                  <Muted>Set your monthly income in Settings to see what's remaining →</Muted>
                 </Pressable>
               </Link>
             ) : null}
           </View>
         ) : (
-          <Muted>No spending this month yet — capture a bank message or add one manually.</Muted>
+          <Muted>No spending this {isYearMode ? 'year' : 'month'} yet — capture a bank message or add one manually.</Muted>
         )}
       </Card>
 
-      {/* ---- Compact stat strip ---- */}
+      {/* ---- 2-stat strip ---- */}
       <View style={styles.statRow}>
         <Card style={styles.statCard}>
-          <Muted>Spent</Muted>
-          <Text style={styles.statValue}>{money(donut.spent)}</Text>
-        </Card>
-        <Card style={styles.statCard}>
-          <Muted>vs last month</Muted>
-          <Text
-            style={[
-              styles.statValue,
-              delta !== null && { color: delta > 0 ? colors.danger : colors.primary },
-            ]}
-          >
-            {delta === null ? '—' : `${delta > 0 ? '+' : ''}${delta.toFixed(0)}%`}
+          <Muted>{`Saved ${periodLabel}`}</Muted>
+          <Text style={[styles.statValue, saved !== null && saved < 0 && { color: colors.danger }]}>
+            {saved !== null ? money(Math.abs(saved)) : '—'}
           </Text>
+          {saved !== null && saved < 0 ? <Muted>over budget</Muted> : null}
         </Card>
         <Card style={styles.statCard}>
-          <Muted>Per day</Muted>
-          <Text style={styles.statValue}>{money(avgPerDay)}</Text>
+          <Muted>{`Spent ${periodLabel}`}</Muted>
+          <Text style={styles.statValue}>{money(donut.spent)}</Text>
         </Card>
       </View>
 
-      {/* ---- Budgets ---- */}
+      {/* ---- Budgets (always current month) ---- */}
       {budgetProgress.length > 0 ? (
         <Card>
           <Title>Budgets</Title>
@@ -406,32 +426,34 @@ export default function Dashboard() {
         </Card>
       ) : null}
 
-      {/* ---- Trend ---- */}
-      <Card>
-        <Title>Daily spend</Title>
-        {dailyData.some((d) => d.value > 0) ? (
-          <LineChart
-            data={dailyData}
-            width={chartWidth}
-            height={160}
-            color={colors.primary}
-            thickness={2}
-            hideDataPoints
-            areaChart
-            startFillColor={colors.primary}
-            startOpacity={0.25}
-            endOpacity={0.02}
-            yAxisTextStyle={{ color: colors.muted, fontSize: 10 }}
-            xAxisLabelTextStyle={{ color: colors.muted, fontSize: 10 }}
-            rulesColor={colors.border}
-            yAxisColor={colors.border}
-            xAxisColor={colors.border}
-            noOfSections={4}
-          />
-        ) : (
-          <Muted>No spending recorded this month yet.</Muted>
-        )}
-      </Card>
+      {/* ---- Daily spend (month view only) ---- */}
+      {!isYearMode ? (
+        <Card>
+          <Title>Daily spend</Title>
+          {dailyData.some((d) => d.value > 0) ? (
+            <LineChart
+              data={dailyData}
+              width={chartWidth}
+              height={160}
+              color={colors.primary}
+              thickness={2}
+              hideDataPoints
+              areaChart
+              startFillColor={colors.primary}
+              startOpacity={0.25}
+              endOpacity={0.02}
+              yAxisTextStyle={{ color: colors.muted, fontSize: 10 }}
+              xAxisLabelTextStyle={{ color: colors.muted, fontSize: 10 }}
+              rulesColor={colors.border}
+              yAxisColor={colors.border}
+              xAxisColor={colors.border}
+              noOfSections={4}
+            />
+          ) : (
+            <Muted>No spending recorded this month yet.</Muted>
+          )}
+        </Card>
+      ) : null}
 
       {/* ---- Month history ---- */}
       <Card>
@@ -486,41 +508,6 @@ export default function Dashboard() {
         )}
       </Card>
 
-      {/* ---- Savings goals ---- */}
-      {(goals.data ?? []).length > 0 ? (
-        <Card>
-          <View style={styles.heroHeader}>
-            <Title>Savings goals</Title>
-            <Link href="/(tabs)/settings/goals" asChild>
-              <Pressable hitSlop={8}>
-                <Text style={styles.manageLink}>Manage</Text>
-              </Pressable>
-            </Link>
-          </View>
-          {(goals.data ?? []).map((g) => {
-            const saved = Number(g.saved_amount);
-            const target = Number(g.target_amount);
-            const ratio = target > 0 ? Math.min(saved / target, 1) : 0;
-            return (
-              <View key={g.id} style={styles.budgetRow}>
-                <View style={styles.budgetHeader}>
-                  <Text style={styles.legendName} numberOfLines={1}>
-                    {g.name}
-                  </Text>
-                  <Text style={styles.budgetAmounts}>
-                    {money(saved)} / {money(target)}
-                  </Text>
-                </View>
-                <View style={styles.budgetTrack}>
-                  <View style={[styles.budgetFill, { width: `${ratio * 100}%`, backgroundColor: colors.primary }]} />
-                </View>
-                {ratio >= 1 ? <Muted>Goal reached 🎉</Muted> : null}
-              </View>
-            );
-          })}
-        </Card>
-      ) : null}
-
       {/* ---- Recurring, with per-item bill reminders ---- */}
       {recurring.length > 0 ? (
         <Card>
@@ -561,14 +548,44 @@ export default function Dashboard() {
         </Card>
       ) : null}
     </ScrollView>
+
+    {/* Period picker sheet */}
+    <PickerSheet visible={pickerOpen} onClose={() => setPickerOpen(false)} title="Select period">
+      <View key={pickerOpen ? 'open' : 'closed'} style={styles.wheelsRow}>
+        <View style={styles.wheelCol}>
+          <WheelPicker
+            items={MONTH_ITEMS}
+            selectedIndex={periodMonthIdx}
+            onSelect={setPeriodMonthIdx}
+          />
+        </View>
+        <View style={styles.wheelDivider} />
+        <View style={styles.wheelColNarrow}>
+          <WheelPicker
+            items={yearItems}
+            selectedIndex={periodYearIdx}
+            onSelect={setPeriodYearIdx}
+          />
+        </View>
+      </View>
+    </PickerSheet>
+    </>
   );
 }
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
-  heroHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  heroActions: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 8 },
+  heroHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  heroActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  periodPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  periodPillText: { fontSize: 18, fontWeight: '700', color: colors.text },
   cashButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -579,13 +596,14 @@ const useStyles = themedStyles((colors) => ({
     paddingVertical: 6,
   },
   cashButtonText: { color: colors.onPrimary, fontWeight: '600', fontSize: 13 },
-  manageLink: { color: colors.primary, fontWeight: '600', fontSize: 13 },
-  bellWrap: { alignItems: 'center', marginLeft: 10, minWidth: 44 },
-  bellLabel: { color: colors.primary, fontSize: 10, marginTop: 2 },
+  wheelsRow: { flexDirection: 'row', alignItems: 'stretch', marginVertical: 8 },
+  wheelCol: { flex: 3 },
+  wheelColNarrow: { flex: 2 },
+  wheelDivider: { width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 8 },
   heroWrap: { alignItems: 'center', gap: 16 },
-  center: { alignItems: 'center', paddingHorizontal: 8, maxWidth: 150 },
-  centerLabel: { color: colors.muted, fontSize: 13, fontWeight: '600' },
-  centerValue: { fontSize: 24, fontWeight: '800', color: colors.text, marginVertical: 2 },
+  center: { alignItems: 'center', width: 148 },
+  centerLabel: { color: colors.muted, fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  centerValue: { fontSize: 15, fontWeight: '800', color: colors.text, marginVertical: 2, textAlign: 'center', width: 140, fontVariant: ['tabular-nums'] as const },
   legend: { alignSelf: 'stretch', gap: 2 },
   legendRow: {
     flexDirection: 'row',
@@ -611,6 +629,8 @@ const useStyles = themedStyles((colors) => ({
   merchantHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   merchantTrack: { height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' },
   merchantFill: { height: '100%', borderRadius: 3, backgroundColor: colors.primary },
+  bellWrap: { alignItems: 'center', marginLeft: 10, minWidth: 44 },
+  bellLabel: { color: colors.primary, fontSize: 10, marginTop: 2 },
   recurringRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,14 +1,24 @@
-import type { ReactNode } from 'react';
+import React, { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
   type TextInputProps,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { themedStyles, useTheme } from '@/lib/theme';
+
+function hexToRgba(hex: string, alpha: number): string {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
+const WHEEL_ITEM_H = 44;
 
 // Compatibility export removed: colors are themed now — use useTheme() or
 // themedStyles() from '@/lib/theme'.
@@ -117,6 +127,156 @@ export function Chip({
   );
 }
 
+function snapScroll(
+  ref: RefObject<ScrollView | null>,
+  y: number,
+  count: number,
+  lastIdx: React.MutableRefObject<number>,
+  onSelect: (i: number) => void,
+) {
+  const idx = Math.max(0, Math.min(Math.round(y / WHEEL_ITEM_H), count - 1));
+  ref.current?.scrollTo({ y: idx * WHEEL_ITEM_H, animated: true });
+  lastIdx.current = idx;
+  onSelect(idx);
+}
+
+/**
+ * Scroll-snap wheel picker. `visibleCount` rows are shown (default 5, must be
+ * odd); the middle row is the selected item.
+ *
+ * Snapping is handled entirely in JS (no snapToInterval) so it works reliably
+ * inside Modals on both iOS and Android.
+ */
+export function WheelPicker({
+  items,
+  selectedIndex,
+  onSelect,
+  visibleCount = 5,
+}: {
+  items: string[];
+  selectedIndex: number;
+  onSelect: (index: number) => void;
+  visibleCount?: number;
+}) {
+  const { colors } = useTheme();
+  const ref = useRef<ScrollView>(null);
+  const lastIdx = useRef(selectedIndex);
+  // Debounce timer — fires 120ms after the last scroll event on any platform.
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pad = WHEEL_ITEM_H * Math.floor(visibleCount / 2);
+
+  // Initial scroll — delay exceeds the Modal slide animation (~300ms).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      ref.current?.scrollTo({ y: selectedIndex * WHEEL_ITEM_H, animated: false });
+      lastIdx.current = selectedIndex;
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync when selectedIndex changes externally (e.g. reset).
+  useEffect(() => {
+    if (lastIdx.current !== selectedIndex) {
+      ref.current?.scrollTo({ y: selectedIndex * WHEEL_ITEM_H, animated: true });
+      lastIdx.current = selectedIndex;
+    }
+  }, [selectedIndex]);
+
+  const opaque = hexToRgba(colors.card, 1);
+  const clear = hexToRgba(colors.card, 0);
+
+  return (
+    <View style={{ height: WHEEL_ITEM_H * visibleCount, overflow: 'hidden' }}>
+      {/* Selection band */}
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: pad,
+          left: 0,
+          right: 0,
+          height: WHEEL_ITEM_H,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.border,
+          zIndex: 2,
+        }}
+      />
+      <ScrollView
+        ref={ref}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        contentContainerStyle={{ paddingTop: pad, paddingBottom: pad }}
+        // Universal: debounce every scroll event. Works on web (no
+        // onMomentumScrollEnd) and on native iOS/Android alike.
+        onScroll={(e) => {
+          const y = e.nativeEvent.contentOffset.y;
+          if (debounce.current) clearTimeout(debounce.current);
+          debounce.current = setTimeout(
+            () => snapScroll(ref, y, items.length, lastIdx, onSelect),
+            120,
+          );
+        }}
+      >
+        {items.map((label, i) => (
+          <Pressable
+            key={i}
+            onPress={() => snapScroll(ref, i * WHEEL_ITEM_H, items.length, lastIdx, onSelect)}
+            style={{ height: WHEEL_ITEM_H, justifyContent: 'center', alignItems: 'center' }}
+          >
+            <Text
+              style={{
+                fontSize: 16,
+                color: i === selectedIndex ? colors.text : colors.muted,
+                fontWeight: (i === selectedIndex ? '600' : '400') as '600' | '400',
+              }}
+            >
+              {label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+      {/* Fade overlays */}
+      <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: pad, zIndex: 1 }}>
+        <LinearGradient colors={[opaque, clear]} style={StyleSheet.absoluteFill} />
+      </View>
+      <View pointerEvents="none" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: pad, zIndex: 1 }}>
+        <LinearGradient colors={[clear, opaque]} style={StyleSheet.absoluteFill} />
+      </View>
+    </View>
+  );
+}
+
+/** Bottom-sheet modal wrapper for wheel pickers and other compact dialogs. */
+export function PickerSheet({
+  visible,
+  onClose,
+  title,
+  children,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  title?: string;
+  children: ReactNode;
+}) {
+  const styles = useStyles();
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      {/* Outer Pressable = dim overlay that dismisses on tap */}
+      <Pressable style={styles.sheetOverlay} onPress={onClose}>
+        {/* Inner Pressable absorbs touches so tapping the sheet itself doesn't dismiss */}
+        <Pressable style={styles.sheet} onPress={() => {}}>
+          <View style={styles.sheetHandle} />
+          {title ? <Text style={styles.sheetTitle}>{title}</Text> : null}
+          {children}
+          <Button label="Done" onPress={onClose} />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 const useStyles = themedStyles((colors) => ({
   card: {
     backgroundColor: colors.card,
@@ -172,4 +332,33 @@ const useStyles = themedStyles((colors) => ({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.text, fontSize: 13 },
   chipActiveText: { color: colors.onPrimary, fontWeight: '600' as const, fontSize: 13 },
+  // PickerSheet
+  sheetOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end' as const,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  sheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 36,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    alignSelf: 'center' as const,
+    marginBottom: 16,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: colors.text,
+    textAlign: 'center' as const,
+    marginBottom: 4,
+  },
 }));

@@ -12,6 +12,14 @@ const REMINDERS_KEY = 'bukit.reminders';
 const DIGEST_KEY = 'bukit.digest';
 const ALERTED_KEY = 'bukit.alerted';
 
+export interface DigestPrefs {
+  on: boolean;
+  /** 0 = Sunday … 6 = Saturday. Default: 1 (Monday). */
+  dayOfWeek: number;
+  /** 0–23 Brunei time. Default: 9. */
+  hour: number;
+}
+
 export type ReminderDays = 0 | 1 | 3;
 export interface ReminderPrefs {
   [merchant: string]: { daysBefore: ReminderDays };
@@ -43,12 +51,18 @@ export async function setReminderPref(merchant: string, daysBefore: ReminderDays
   return prefs;
 }
 
-export async function getDigestEnabled(): Promise<boolean> {
-  return (await kvGetJson<{ on: boolean }>(DIGEST_KEY, { on: false })).on;
+const DIGEST_DEFAULTS: DigestPrefs = { on: false, dayOfWeek: 1, hour: 9 };
+
+export async function getDigestPrefs(): Promise<DigestPrefs> {
+  const stored = await kvGetJson<Partial<DigestPrefs>>(DIGEST_KEY, {});
+  return { ...DIGEST_DEFAULTS, ...stored };
 }
 
-export async function setDigestEnabled(on: boolean): Promise<void> {
-  await kvSetJson(DIGEST_KEY, { on });
+export async function setDigestPrefs(prefs: Partial<DigestPrefs>): Promise<DigestPrefs> {
+  const current = await getDigestPrefs();
+  const next = { ...current, ...prefs };
+  await kvSetJson(DIGEST_KEY, next);
+  return next;
 }
 
 /** Next occurrence of `day` (Brunei day-of-month) at 09:00 Brunei, minus
@@ -64,6 +78,17 @@ function nextBillTrigger(day: number, daysBefore: number): Date {
   return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 }
 
+/** Next occurrence of `dayOfWeek` (0=Sun) at `hour`:00 Brunei time, always
+ *  at least one day from now so we don't fire immediately on every app open. */
+function nextWeeklyTrigger(dayOfWeek: number, hour: number): Date {
+  const now = new Date(Date.now() + BRUNEI_OFFSET_MS);
+  const daysUntil = ((dayOfWeek - now.getUTCDay() + 7) % 7) || 7;
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntil, hour, 0, 0) -
+      BRUNEI_OFFSET_MS,
+  );
+}
+
 /** Re-sync every scheduled local notification from current data. Called on
  *  dashboard mount. Cancels and re-schedules under stable identifiers. */
 export async function syncScheduledNotifications(opts: {
@@ -74,8 +99,8 @@ export async function syncScheduledNotifications(opts: {
   const N = notifications();
   if (!N) return;
   const prefs = await getReminderPrefs();
-  const digestOn = await getDigestEnabled();
-  if (Object.keys(prefs).length === 0 && !digestOn) {
+  const digest = await getDigestPrefs();
+  if (Object.keys(prefs).length === 0 && !digest.on) {
     await N.cancelAllScheduledNotificationsAsync();
     return;
   }
@@ -99,24 +124,19 @@ export async function syncScheduledNotifications(opts: {
     });
   }
 
-  // Weekly digest: next Monday 09:00 Brunei, body computed from current data
-  // (refreshed on every app open, so it stays roughly current).
-  if (digestOn) {
-    const now = new Date(Date.now() + BRUNEI_OFFSET_MS);
-    const daysToMonday = ((8 - now.getUTCDay()) % 7) || 7;
-    const fire = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysToMonday, 9, 0, 0) -
-        BRUNEI_OFFSET_MS,
-    );
+  // Weekly digest: next chosen day/time in Brunei time, body computed from
+  // current data (refreshed on every app open, so it stays roughly current).
+  if (digest.on) {
+    const fire = nextWeeklyTrigger(digest.dayOfWeek, digest.hour);
     const pct =
       opts.income && opts.income > 0 ? Math.round((opts.spentThisMonth / opts.income) * 100) : null;
     await N.scheduleNotificationAsync({
       content: {
-        title: 'Bukit Pennies — weekly summary',
+        title: 'Bukit Pennies — weekly update',
         body:
           pct !== null
-            ? `You've spent ${formatMoney(opts.spentThisMonth)} this month — ${pct}% of your income.`
-            : `You've spent ${formatMoney(opts.spentThisMonth)} this month. Set your income in Settings to see the percentage.`,
+            ? `You've spent ${formatMoney(opts.spentThisMonth)} this month — ${pct}% of your income used so far.`
+            : `You've spent ${formatMoney(opts.spentThisMonth)} this month. Set your income in Settings to track the percentage used.`,
       },
       trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: fire },
     });

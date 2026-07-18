@@ -39,7 +39,11 @@ export function bruneiMonthStartIso(monthsAgo = 0): string {
 
 export function formatMoney(amount: number | null, currency = 'BND'): string {
   if (amount === null || Number.isNaN(amount)) return '—';
-  return `${currency} ${amount.toFixed(2)}`;
+  const abs = Math.abs(amount);
+  const [intPart, decPart] = abs.toFixed(2).split('.');
+  const intWithCommas = intPart!.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const sign = amount < 0 ? '-' : '';
+  return `${sign}${currency} ${intWithCommas}.${decPart}`;
 }
 
 export function formatDayHeading(dayKey: string): string {

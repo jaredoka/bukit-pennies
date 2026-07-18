@@ -35,17 +35,22 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="goals"
+        options={{
+          title: 'Goals',
+          tabBarIcon: ({ color, size }) => <Ionicons name="flag" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
         name="review"
         options={{
-          title: 'Review',
-          tabBarIcon: ({ color, size }) => <Ionicons name="alert-circle" color={color} size={size} />,
+          href: null,
         }}
       />
       <Tabs.Screen
         name="capture"
         options={{
-          title: 'Capture',
-          tabBarIcon: ({ color, size }) => <Ionicons name="clipboard" color={color} size={size} />,
+          href: null,
         }}
       />
       <Tabs.Screen

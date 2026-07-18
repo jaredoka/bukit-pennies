@@ -16,7 +16,8 @@ export const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? '';
 export const SHORTCUT_DOWNLOAD_URL =
   'https://www.icloud.com/shortcuts/9a70cda0b1b84feca11991213011a95a';
 
-// Public policy pages (GitHub Pages, served from this repo's docs/).
-export const PRIVACY_POLICY_URL = 'https://jaredoka.github.io/bukit-pennies/privacy-policy';
-export const TERMS_URL = 'https://jaredoka.github.io/bukit-pennies/terms';
+// Public policy pages (GitHub Pages, served from the public
+// jaredoka/bukit-pennies-legal repo — this repo is private).
+export const PRIVACY_POLICY_URL = 'https://jaredoka.github.io/bukit-pennies-legal/privacy-policy';
+export const TERMS_URL = 'https://jaredoka.github.io/bukit-pennies-legal/terms';
 export const SUPPORT_EMAIL = 'jaredoka@gmail.com';

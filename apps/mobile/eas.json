@@ -14,11 +14,21 @@
         "buildType": "apk"
       }
     },
-"production": {
-      "autoIncrement": true
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://pzjroqwllrzcbpiugpxl.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "FILL-ME-anon-key-from-supabase-dashboard-settings-api"
+      }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "jaredoka@gmail.com",
+        "ascAppId": "FILL-ME-after-creating-app-in-app-store-connect",
+        "appleTeamId": "FILL-ME-from-developer.apple.com-membership"
+      }
+    }
   }
 }

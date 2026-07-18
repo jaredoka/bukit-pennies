@@ -11,6 +11,7 @@ export default function SettingsLayout() {
       <Stack.Screen name="spending" options={{ title: 'Spending & data' }} />
       <Stack.Screen name="capture" options={{ title: 'Capture' }} />
       <Stack.Screen name="about" options={{ title: 'About' }} />
+      <Stack.Screen name="coffee" options={{ title: 'Buy me a coffee!' }} />
       <Stack.Screen name="guide" options={{ title: 'How it works' }} />
       <Stack.Screen name="budgets" options={{ title: 'Monthly budgets' }} />
       <Stack.Screen name="weekly-summary" options={{ title: 'Weekly summary' }} />

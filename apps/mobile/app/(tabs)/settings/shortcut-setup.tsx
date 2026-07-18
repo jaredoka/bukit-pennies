@@ -101,6 +101,16 @@ export default function ShortcutSetup() {
       </Card>
 
       <Card>
+        <Title>Duplicate messages</Title>
+        <Text style={styles.step}>
+          If the bank sends the same SMS twice, only the first is stored. The server deduplicates
+          by the message text — identical text is always ignored the second time, so spending is
+          never double-counted. The confirmation notification still fires on the second run, but no
+          new transaction is created.
+        </Text>
+      </Card>
+
+      <Card>
         <Title>Test it</Title>
         <Text style={styles.step}>
           Run the shortcut manually on a copied bank message, or wait for a real spend — the

@@ -262,18 +262,23 @@ export function PickerSheet({
 }) {
   const styles = useStyles();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      {/* Outer Pressable = dim overlay that dismisses on tap */}
-      <Pressable style={styles.sheetOverlay} onPress={onClose}>
-        {/* Inner Pressable absorbs touches so tapping the sheet itself doesn't dismiss */}
-        <Pressable style={styles.sheet} onPress={() => {}}>
-          <View style={styles.sheetHandle} />
-          {title ? <Text style={styles.sheetTitle}>{title}</Text> : null}
-          {children}
-          <Button label="Done" onPress={onClose} />
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <>
+      {/* Overlay appears instantly */}
+      <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+        <Pressable style={styles.sheetOverlay} onPress={onClose} />
+      </Modal>
+      {/* Sheet panel slides up */}
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <View style={styles.sheetSlide}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            {title ? <Text style={styles.sheetTitle}>{title}</Text> : null}
+            {children}
+            <Button label="Done" onPress={onClose} />
+          </Pressable>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -335,8 +340,11 @@ const useStyles = themedStyles((colors) => ({
   // PickerSheet
   sheetOverlay: {
     flex: 1,
-    justifyContent: 'flex-end' as const,
     backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  sheetSlide: {
+    flex: 1,
+    justifyContent: 'flex-end' as const,
   },
   sheet: {
     backgroundColor: colors.card,

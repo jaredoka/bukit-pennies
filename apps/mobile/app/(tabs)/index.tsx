@@ -286,12 +286,6 @@ export default function Dashboard() {
             <Pressable onPress={toggle} hitSlop={8} accessibilityLabel={hidden ? 'Show amounts' : 'Hide amounts'}>
               <Ionicons name={hidden ? 'eye-off' : 'eye'} size={22} color={colors.muted} />
             </Pressable>
-            <Link href="/(tabs)/transactions/new" asChild>
-              <Pressable style={styles.cashButton} accessibilityLabel="Add a cash spend">
-                <Ionicons name="cash-outline" size={16} color={colors.onPrimary} />
-                <Text style={styles.cashButtonText}>Cash</Text>
-              </Pressable>
-            </Link>
           </View>
         </View>
 
@@ -586,16 +580,6 @@ const useStyles = themedStyles((colors) => ({
     paddingHorizontal: 2,
   },
   periodPillText: { fontSize: 18, fontWeight: '700', color: colors.text },
-  cashButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.primary,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  cashButtonText: { color: colors.onPrimary, fontWeight: '600', fontSize: 13 },
   wheelsRow: { flexDirection: 'row', alignItems: 'stretch', marginVertical: 8 },
   wheelCol: { flex: 3 },
   wheelColNarrow: { flex: 2 },

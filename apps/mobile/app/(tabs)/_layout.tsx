@@ -50,8 +50,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="capture"
         options={{
-          title: 'Capture',
-          tabBarIcon: ({ color, size }) => <Ionicons name="clipboard" color={color} size={size} />,
+          href: null,
         }}
       />
       <Tabs.Screen

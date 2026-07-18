@@ -110,6 +110,7 @@ export default function Budgets() {
             <View key={c.id}>
               <CategoryAccordionRow
                 category={c}
+                categoryIndex={idx}
                 budget={budget}
                 expanded={isExpanded}
                 onToggle={() => setExpandedId(isExpanded ? null : c.id)}
@@ -182,11 +183,13 @@ export default function Budgets() {
 
 function CategoryAccordionRow({
   category,
+  categoryIndex,
   budget,
   expanded,
   onToggle,
 }: {
   category: CategoryRow;
+  categoryIndex: number;
   budget: BudgetRow | null;
   expanded: boolean;
   onToggle: () => void;
@@ -204,7 +207,7 @@ function CategoryAccordionRow({
   const savedLabel = budget ? money(Number(budget.amount), budget.currency) : 'no limit';
   const dirty = value.trim() !== (budget ? Number(budget.amount).toFixed(2) : '');
   const isGlobal = category.user_id === null;
-  const dotColor = category.color ?? colors.muted;
+  const dotColor = category.color ?? colors.chartCategories[categoryIndex % colors.chartCategories.length]!;
 
   function save() {
     const amt = Number(value);

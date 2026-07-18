@@ -1,5 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Link } from 'expo-router';
+import { parseBankMessage, splitBankMessages } from '@bukit/parsers';
+import { useQueryClient } from '@tanstack/react-query';
+import { Link, Stack, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,16 +15,17 @@ import {
   View,
 } from 'react-native';
 import { Badge, Button, Centered, Field, Muted } from '@/components/ui';
-import { bruneiDayKey, formatDayHeading, formatTime } from '@/lib/format';
+import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
+import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
 import { useCategories, usePullToRefresh, useTransactions } from '@/lib/queries';
 import type { CategoryRow, TransactionRow } from '@/lib/types';
 import { themedStyles, useTheme } from '@/lib/theme';
 import { usePrivacy } from '@/lib/privacy';
 
 const BANK_LABELS: Record<string, string> = {
-  baiduri: 'Baiduri',
-  bibd: 'BIBD',
-  scb: 'StanChart',
+  baiduri: 'Baiduri Bank',
+  bibd: 'Bank Islam Brunei Darussalam',
+  scb: 'Standard Chartered Bank',
   unknown: 'Other',
 };
 
@@ -112,23 +115,30 @@ function Sheet({
   const styles = useStyles();
   const { colors } = useTheme();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
-          <View style={styles.sheetHandle} />
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>{title}</Text>
-            {onClear ? (
-              <Pressable onPress={onClear} hitSlop={8}>
-                <Text style={{ color: colors.danger, fontWeight: '600' }}>Clear</Text>
-              </Pressable>
-            ) : null}
-          </View>
-          {children}
-          <Button label="Done" onPress={onClose} />
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <>
+      {/* Overlay appears instantly — separate from the sliding panel */}
+      <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+        <Pressable style={styles.overlay} onPress={onClose} />
+      </Modal>
+      {/* Sheet panel slides up */}
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <View style={styles.overlaySlide}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>{title}</Text>
+              {onClear ? (
+                <Pressable onPress={onClear} hitSlop={8}>
+                  <Text style={{ color: colors.danger, fontWeight: '600' }}>Clear</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {children}
+            <Button label="Done" onPress={onClose} />
+          </Pressable>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -515,7 +525,7 @@ function FBarChip({ label, active, onPress }: { label: string; active: boolean; 
   const styles = useStyles();
   return (
     <Pressable onPress={onPress} style={[styles.fbarChip, active && styles.fbarChipActive]}>
-      <Text style={[styles.fbarChipText, active && styles.fbarChipTextActive]}>{label}</Text>
+      <Text style={[styles.fbarChipText, active && styles.fbarChipTextActive]} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 }
@@ -525,11 +535,13 @@ function FBarChip({ label, active, onPress }: { label: string; active: boolean; 
 export default function TransactionsList() {
   const { money } = usePrivacy();
   const styles = useStyles();
+  const { colors } = useTheme();
   const { data, isLoading, error } = useTransactions();
   const categories = useCategories();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<TxFilters>(DEFAULT_FILTERS);
   const [activeSheet, setActiveSheet] = useState<SheetKey | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
   const { refreshing, onRefresh } = usePullToRefresh();
 
   function patch(p: Partial<TxFilters>) {
@@ -625,26 +637,36 @@ export default function TransactionsList() {
 
   return (
     <>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable hitSlop={8} onPress={() => setShowAdd(true)} accessibilityLabel="Add transaction">
+              <Ionicons name="add-circle-outline" size={26} color={colors.primary} />
+            </Pressable>
+          ),
+        }}
+      />
       <View style={styles.screen}>
-        {/* Full-width search */}
-        <View style={styles.searchWrap}>
-          <Field
-            placeholder="Search merchant, notes, raw text…"
-            value={search}
-            onChangeText={setSearch}
-            autoCapitalize="none"
-            style={{ marginBottom: 0 }}
-          />
-        </View>
+        {/* Search + filter bar header — overflow visible so pills aren't clipped */}
+        <View style={styles.stickyHeader}>
+          <View style={styles.searchWrap}>
+            <Field
+              placeholder="Search merchant, notes, raw text…"
+              value={search}
+              onChangeText={setSearch}
+              autoCapitalize="none"
+              style={{ marginBottom: 0 }}
+            />
+          </View>
 
-        {/* Swipeable filter bar — alphabetical order */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.fbar}
-          contentContainerStyle={styles.fbarContent}
-          keyboardShouldPersistTaps="handled"
-        >
+          {/* Swipeable filter bar — alphabetical order */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.fbar}
+            contentContainerStyle={styles.fbarContent}
+            keyboardShouldPersistTaps="handled"
+          >
           {availBanks.length > 0 ? (
             <FBarChip label={bankLabel} active={filters.banks.length > 0} onPress={() => setActiveSheet('bank')} />
           ) : null}
@@ -667,6 +689,7 @@ export default function TransactionsList() {
             </>
           ) : null}
         </ScrollView>
+        </View>
 
         <SectionList
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -691,6 +714,8 @@ export default function TransactionsList() {
       </View>
 
       {/* Per-filter sheets */}
+      {showAdd ? <AddSheet onClose={() => setShowAdd(false)} /> : null}
+
       {activeSheet === 'bank' ? (
         <BankSheet available={availBanks} selected={filters.banks} onChange={(v) => patch({ banks: v })} onClose={() => setActiveSheet(null)} />
       ) : activeSheet === 'card' ? (
@@ -709,6 +734,211 @@ export default function TransactionsList() {
     </>
   );
 }
+
+// ---- Add sheet (Cash / Capture chooser) ------------------------------------
+
+function AddSheet({ onClose }: { onClose: () => void }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const router = useRouter();
+  const [showCapture, setShowCapture] = useState(false);
+
+  if (showCapture) {
+    return <CaptureSheet onClose={onClose} />;
+  }
+
+  return (
+    <>
+      <Modal visible transparent animationType="none" onRequestClose={onClose}>
+        <Pressable style={styles.overlay} onPress={onClose} />
+      </Modal>
+      <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+        <View style={styles.overlaySlide}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Add transaction manually</Text>
+            <Pressable
+              style={styles.addRow}
+              onPress={() => { onClose(); router.push('/(tabs)/transactions/new'); }}
+            >
+              <View style={[styles.addIcon, { backgroundColor: colors.primary + '18' }]}>
+                <Ionicons name="cash-outline" size={22} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addRowTitle}>Cash</Text>
+                <Muted>Manually enter a cash or card spend</Muted>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+            </Pressable>
+            <Pressable style={styles.addRow} onPress={() => setShowCapture(true)}>
+              <View style={[styles.addIcon, { backgroundColor: colors.primary + '18' }]}>
+                <Ionicons name="clipboard-outline" size={22} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addRowTitle}>Capture</Text>
+                <Muted>Paste a bank SMS or notification text</Muted>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+            </Pressable>
+          </Pressable>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+// ---- Capture sheet ----------------------------------------------------------
+
+const MAX_TEXT_BYTES = 4096;
+
+type Outcome = 'created' | 'needs review' | 'duplicate' | 'ignored' | 'error';
+
+function outcomeOf(res: IngestResponse): Outcome {
+  if (res.status === 'created') return res.transaction?.parse_status === 'needs_review' ? 'needs review' : 'created';
+  if (res.status === 'duplicate') return 'duplicate';
+  if (res.status === 'ignored') return 'ignored';
+  return 'error';
+}
+
+function CaptureSheet({ onClose }: { onClose: () => void }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const qc = useQueryClient();
+  const [text, setText] = useState('');
+  const [result, setResult] = useState<IngestResponse | null>(null);
+  const [bulkResults, setBulkResults] = useState<BulkItemResult[] | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [captureError, setCaptureError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const messages = useMemo(() => splitBankMessages(text), [text]);
+  const bulk = messages.length > 1;
+  const preview = useMemo(() => (messages.length === 1 ? parseBankMessage(messages[0]!) : null), [messages]);
+  const bulkPreview = useMemo(
+    () => bulk ? messages.map((m) => ({
+      text: m,
+      parsed: parseBankMessage(m),
+      oversized: new TextEncoder().encode(m).length > MAX_TEXT_BYTES,
+    })) : [],
+    [bulk, messages],
+  );
+  const transactionalCount = bulkPreview.filter((p) => p.parsed.tx !== null).length;
+
+  function invalidate() {
+    qc.invalidateQueries({ queryKey: ['transactions'] });
+    qc.invalidateQueries({ queryKey: ['monthly_totals'] });
+    qc.invalidateQueries({ queryKey: ['merchant_totals'] });
+  }
+  function reset() { setResult(null); setBulkResults(null); setProgress(null); setCaptureError(null); }
+
+  async function submitSingle() {
+    setBusy(true); reset();
+    try {
+      const res = await postIngest(messages[0] ?? text.trim(), 'paste');
+      setResult(res);
+      if (res.status === 'created') { setText(''); invalidate(); }
+    } catch (e) { setCaptureError(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  }
+
+  async function submitBulk() {
+    setBusy(true); reset();
+    setProgress({ done: 0, total: messages.length });
+    try {
+      const results = await postIngestMany(messages, 'paste', (done, total) => setProgress({ done, total }));
+      setBulkResults(results); invalidate();
+    } catch (e) { setCaptureError(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); setProgress(null); }
+  }
+
+  const captureResultText = result
+    ? result.status === 'created' ? '✓ Transaction saved.'
+    : result.status === 'duplicate' ? 'Already recorded — this exact message was captured before.'
+    : result.status === 'ignored' ? `Ignored: not a transaction message${result.reason ? ` (${result.reason})` : ''}.`
+    : `Error: ${result.error ?? 'unknown'}`
+    : null;
+  const captureResultColor = result
+    ? result.status === 'created' ? colors.primary : result.status === 'error' ? colors.danger : colors.warning
+    : colors.text;
+
+  return (
+    <>
+      <Modal visible transparent animationType="none" onRequestClose={onClose}>
+        <Pressable style={styles.overlay} onPress={onClose} />
+      </Modal>
+      <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+        <View style={styles.overlaySlide}>
+          <ScrollView
+            style={styles.sheet}
+            contentContainerStyle={{ paddingBottom: 36 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Capture</Text>
+            </View>
+            <Muted>Paste bank SMS text — one message or a whole conversation at once.</Muted>
+            <Field
+              multiline
+              value={text}
+              onChangeText={(t) => { setText(t); reset(); }}
+              placeholder="Card No.: 4x0213 Amount: BND 21.00 Merchant: … Date: …"
+              style={{ minHeight: 100, marginTop: 12, textAlignVertical: 'top' }}
+              autoCapitalize="none"
+            />
+            <Button
+              label={bulk ? `Save ${messages.length} messages` : 'Save transaction'}
+              onPress={bulk ? submitBulk : submitSingle}
+              disabled={messages.length === 0}
+              busy={busy}
+            />
+            {progress ? <Text style={styles.captureBanner}>{`Saving ${progress.done} / ${progress.total}…`}</Text> : null}
+            {captureError ? <Text style={[styles.captureBanner, { color: colors.danger }]}>{captureError}</Text> : null}
+            {captureResultText ? <Text style={[styles.captureBanner, { color: captureResultColor }]}>{captureResultText}</Text> : null}
+            {bulkResults ? (
+              <View style={{ marginTop: 12 }}>
+                {(() => {
+                  const counts = new Map<Outcome, number>();
+                  for (const r of bulkResults) { const o = outcomeOf(r.response); counts.set(o, (counts.get(o) ?? 0) + 1); }
+                  return <Muted>{Array.from(counts.entries()).map(([o, n]) => `${n} ${o}`).join(' · ')}</Muted>;
+                })()}
+                {bulkResults.map((r, i) => {
+                  const o = outcomeOf(r.response);
+                  const tone = o === 'created' ? 'success' : o === 'error' ? 'danger' : o === 'ignored' ? 'muted' : 'warning';
+                  return (
+                    <View key={i} style={styles.captureBulkRow}>
+                      <Text style={styles.captureBulkIndex}>{i + 1}</Text>
+                      <Text style={[styles.captureBulkText, { flex: 1, marginRight: 8 }]} numberOfLines={1}>{r.text.slice(0, 60)}</Text>
+                      <Badge label={o} tone={tone} />
+                    </View>
+                  );
+                })}
+                <Button label="Clear" variant="secondary" onPress={() => { setText(''); reset(); }} />
+              </View>
+            ) : null}
+            {preview?.tx ? (
+              <View style={{ marginTop: 12 }}>
+                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+                  <Badge label={preview.tx.bank} />
+                  <Badge label={`${(preview.tx.confidence * 100).toFixed(0)}%`} tone={preview.tx.confidence >= 0.75 ? 'success' : 'warning'} />
+                </View>
+                {[['Amount', formatMoney(preview.tx.amount, preview.tx.currency)], ['Merchant', preview.tx.merchant ?? '—'], ['Date', preview.tx.occurredAt ?? '—'], ['Card', preview.tx.cardLast4 ? `•${preview.tx.cardLast4}` : '—']].map(([label, value]) => (
+                  <View key={label} style={styles.capturePreviewRow}>
+                    <Text style={{ color: colors.muted }}>{label}</Text>
+                    <Text style={{ color: colors.text, fontWeight: '600', flexShrink: 1, textAlign: 'right' }}>{value}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            <Button label="Done" onPress={onClose} />
+          </ScrollView>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+// ---- Transaction row --------------------------------------------------------
 
 function TxRow({ tx }: { tx: TransactionRow }) {
   const { money } = usePrivacy();
@@ -737,6 +967,11 @@ function TxRow({ tx }: { tx: TransactionRow }) {
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
+  stickyHeader: {
+    backgroundColor: colors.bg,
+    overflow: 'visible',
+    zIndex: 10,
+  },
   searchWrap: {
     paddingHorizontal: 12,
     paddingTop: 12,
@@ -749,7 +984,8 @@ const useStyles = themedStyles((colors) => ({
   fbar: { flexGrow: 0 },
   fbarContent: {
     paddingHorizontal: 12,
-    paddingBottom: 8,
+    paddingTop: 4,
+    paddingBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -767,9 +1003,10 @@ const useStyles = themedStyles((colors) => ({
     paddingHorizontal: 12,
     paddingVertical: 6,
     backgroundColor: colors.card,
+    flexShrink: 0,
   },
   fbarChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  fbarChipText: { color: colors.text, fontSize: 13 },
+  fbarChipText: { color: colors.text, fontSize: 13, flexShrink: 0 },
   fbarChipTextActive: { color: colors.onPrimary, fontWeight: '600' },
   // Transaction list
   content: {
@@ -802,8 +1039,11 @@ const useStyles = themedStyles((colors) => ({
   // Sheet
   overlay: {
     flex: 1,
-    justifyContent: 'flex-end',
     backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  overlaySlide: {
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   sheet: {
     backgroundColor: colors.card,
@@ -890,5 +1130,40 @@ const useStyles = themedStyles((colors) => ({
     borderRadius: 2,
     position: 'absolute',
     bottom: 3,
+  },
+  // Add sheet rows
+  addRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  addIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addRowTitle: { fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 2 },
+  // Capture sheet
+  captureBanner: { marginTop: 10, fontWeight: '600', color: colors.text },
+  captureBulkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  captureBulkIndex: { width: 24, color: colors.muted, fontVariant: ['tabular-nums'] as const },
+  captureBulkText: { color: colors.text, fontSize: 13 },
+  capturePreviewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
 }));

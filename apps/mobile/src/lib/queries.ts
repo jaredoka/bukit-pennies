@@ -259,7 +259,10 @@ export function usePullToRefresh() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await qc.refetchQueries({ type: 'active' });
+      await Promise.all([
+        qc.refetchQueries({ type: 'active' }),
+        new Promise((r) => setTimeout(r, 600)),
+      ]);
     } finally {
       setRefreshing(false);
     }

@@ -1,0 +1,127 @@
+// Brunei merchant → category mapping (HANDOFF §16 differentiator).
+// Applied at parse time so transactions arrive pre-categorized. Zero deps,
+// pure TS — runs in the app, the edge function, and vitest unchanged.
+//
+// Category names MUST match the global default categories seeded in
+// supabase/migrations/01_schema.sql; the ingest store resolves the name to a
+// category_id at insert. Matching runs against the normalized merchant
+// (upper-cased, collapsed spaces), so patterns are upper-case substrings.
+// Bank messages truncate names (e.g. "HUA HO DEPARTME"), so patterns should
+// be the shortest unambiguous prefix of the brand.
+
+export type CategoryName =
+  | 'Food & Drink'
+  | 'Groceries'
+  | 'Transport'
+  | 'Shopping'
+  | 'Bills'
+  | 'Entertainment'
+  | 'Health'
+  | 'Other';
+
+interface MerchantRule {
+  /** Upper-case phrase matched on word boundaries against the normalized merchant. */
+  pattern: string;
+  category: CategoryName;
+}
+
+// Ordered: first match wins. Keep brand prefixes short enough to survive
+// bank-side truncation but long enough to avoid false hits.
+const RULES: MerchantRule[] = [
+  // Groceries / supermarkets
+  { pattern: 'SUPA SAVE', category: 'Groceries' },
+  { pattern: 'HUA HO', category: 'Groceries' },
+  { pattern: 'SIM KIM HUAT', category: 'Groceries' },
+  { pattern: 'SKH', category: 'Groceries' },
+  { pattern: 'MILIMEWA', category: 'Groceries' },
+  { pattern: 'SOON LEE', category: 'Groceries' },
+  { pattern: 'GUAN HOCK LEE', category: 'Groceries' },
+  { pattern: '7 ELEVEN', category: 'Groceries' },
+  { pattern: '7-ELEVEN', category: 'Groceries' },
+
+  // Food & drink — restaurants, fast food, cafés, kopitiams, delivery
+  { pattern: 'GALORIES', category: 'Food & Drink' },
+  { pattern: 'KFC', category: 'Food & Drink' },
+  { pattern: 'PIZZA HUT', category: 'Food & Drink' },
+  { pattern: 'JOLLIBEE', category: 'Food & Drink' },
+  { pattern: 'MCDONALD', category: 'Food & Drink' },
+  { pattern: 'BURGER KING', category: 'Food & Drink' },
+  { pattern: 'AYAMKU', category: 'Food & Drink' },
+  { pattern: 'EXCAPADE', category: 'Food & Drink' },
+  { pattern: 'THIEN THIEN', category: 'Food & Drink' },
+  { pattern: 'KOPI HOUSE', category: 'Food & Drink' },
+  { pattern: 'COFFEE BEAN', category: 'Food & Drink' },
+  { pattern: 'GLORIA JEAN', category: 'Food & Drink' },
+  { pattern: 'COFFEE', category: 'Food & Drink' },
+  { pattern: 'KOPI', category: 'Food & Drink' },
+  { pattern: 'RESTAURANT', category: 'Food & Drink' },
+  { pattern: 'RESTORAN', category: 'Food & Drink' },
+  { pattern: 'CAFE', category: 'Food & Drink' },
+  { pattern: 'BAKERY', category: 'Food & Drink' },
+  { pattern: 'FOODPANDA', category: 'Food & Drink' },
+  { pattern: 'DOMINO', category: 'Food & Drink' },
+  { pattern: 'SMOOTHIE', category: 'Food & Drink' },
+
+  // Transport — petrol, ride/bus
+  { pattern: 'SHELL', category: 'Transport' },
+  { pattern: 'CALTEX', category: 'Transport' },
+  { pattern: 'PETROL', category: 'Transport' },
+  { pattern: 'DART', category: 'Transport' },
+
+  // Bills — telcos, utilities
+  { pattern: 'DST', category: 'Bills' },
+  { pattern: 'IMAGINE', category: 'Bills' },
+  { pattern: 'PROGRESIF', category: 'Bills' },
+  { pattern: 'TELBRU', category: 'Bills' },
+
+  // Entertainment — cinema, streaming, games
+  { pattern: 'TIMES CINEPLEX', category: 'Entertainment' },
+  { pattern: 'CINEPLEX', category: 'Entertainment' },
+  { pattern: 'CINEMA', category: 'Entertainment' },
+  { pattern: 'NETFLIX', category: 'Entertainment' },
+  { pattern: 'SPOTIFY', category: 'Entertainment' },
+  { pattern: 'STEAM', category: 'Entertainment' },
+  { pattern: 'PLAYSTATION', category: 'Entertainment' },
+
+  // Health — pharmacies, clinics
+  { pattern: 'GUARDIAN', category: 'Health' },
+  { pattern: 'WATSONS', category: 'Health' },
+  { pattern: 'PHARMACY', category: 'Health' },
+  { pattern: 'CLINIC', category: 'Health' },
+  { pattern: 'JPMC', category: 'Health' },
+
+  // Shopping — online marketplaces, department/hardware
+  { pattern: 'SHOPEE', category: 'Shopping' },
+  { pattern: 'LAZADA', category: 'Shopping' },
+  { pattern: 'AMAZON', category: 'Shopping' },
+  { pattern: 'MR DIY', category: 'Shopping' },
+];
+
+/**
+ * Map a normalized merchant name to a global default category name, or null
+ * when no rule matches (leave the transaction uncategorized).
+ */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Word-boundary matchers, compiled once. Boundaries stop "STEAM" matching
+// "STEAMBOAT" or "DST" matching inside a longer word; hyphenated variants
+// ("7-ELEVEN") still hit because "-" is a word boundary.
+const MATCHERS = RULES.map((rule) => ({
+  regex: new RegExp(`\\b${escapeRegExp(rule.pattern)}\\b`),
+  category: rule.category,
+}));
+
+/**
+ * Map a normalized merchant name to a global default category name, or null
+ * when no rule matches (leave the transaction uncategorized).
+ */
+export function categorizeMerchant(merchantNormalized: string | null | undefined): CategoryName | null {
+  if (!merchantNormalized) return null;
+  const name = merchantNormalized.toUpperCase();
+  for (const m of MATCHERS) {
+    if (m.regex.test(name)) return m.category;
+  }
+  return null;
+}

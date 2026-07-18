@@ -435,3 +435,27 @@ trend/insight screens, no widgets, no shared/household budgets.
 
 Deliberately deferred: shared/household budgets, investment tracking,
 widgets, freemium.
+
+### 16.5 Supabase free-tier limits & upgrade triggers (checked 2026-07-19)
+
+Free tier: 500 MB database · 50,000 MAU · 500K edge-function
+invocations/month · **5 GB egress/month** · pauses after 1 week with no
+API activity · **no automated backups**.
+
+Mapped to this app (~1 KB/transaction, ~150 ingest calls/user/month,
+~30–50 MB egress per daily user/month):
+
+- Database and MAU: no realistic ceiling.
+- Edge invocations: ~3,000 active users.
+- **Egress is the first ceiling: roughly 100–300 regular users.**
+
+**Upgrade to Pro (US$25/mo) when either:** (a) Settings → Usage shows
+egress past ~80% two months running, or (b) real strangers depend on the
+app — Pro adds daily backups; free tier has none, and losing users'
+financial history is the bigger risk than any quota.
+
+Funding stance (owner): free app, no personal money sunk beyond
+Apple's US$99/yr until genuinely popular; at Pro-tier scale, optional
+support only (GitHub Sponsors / Ko-fi, "server costs ~$25/mo" framing) —
+never monetization. Cheap deferrals if needed before upgrading: reduce
+the 500-row transaction fetch, trim dashboard query columns.

@@ -66,6 +66,12 @@ export default function Settings() {
           note="Using the app and where your data is stored"
         />
         <Row
+          href="/(tabs)/settings/coffee"
+          icon="cafe"
+          label="Buy me a coffee!"
+          note="Support the developer"
+        />
+        <Row
           href="/(tabs)/settings/about"
           icon="information-circle"
           label="About"

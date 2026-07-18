@@ -382,8 +382,9 @@ trend/insight screens, no widgets, no shared/household budgets.
 
 ### 16.3 Decisions recorded (from the owner, 2026-07-19)
 
-- **Distribution: both stores** (Play US$25 + Apple US$99), Android first
-  within that — `NotificationListenerService` gives zero-setup capture.
+- **Distribution: both stores** (Play US$25 + Apple US$99), **iOS first**
+  within that (updated 2026-07-19 — owner has an iPhone for testing);
+  Android's `NotificationListenerService` zero-setup capture follows.
 - **Bank priority: BIBD** — parser verified; hosted deploy of it is the
   top item.
 - **Localization: English-only UI is fine.** Skip Bahasa Melayu for now.
@@ -398,9 +399,9 @@ trend/insight screens, no widgets, no shared/household budgets.
 
 1. **BIBD hosted go-live** — sync + deploy the verified parser; highest
    leverage, lowest effort.
-2. **Play Store + Android capture phase** — the deferred Kotlin
-   `NotificationListenerService` module (§9), Play Console closed testing
-   (12 testers/14 days), prominent-disclosure declaration.
+2. **Apple Developer account → TestFlight → App Store** (also unlocks the
+   share extension per §10) — moved ahead of Android on 2026-07-19; the
+   owner has an iPhone for testing.
 3. **Merchant → category mapping at parse time** (new parser-adjacent table
    or module; keep `@bukit/parsers` zero-dep).
 4. **Onboarding overhaul** — Sign in with Apple/Google, "paste your last
@@ -408,8 +409,9 @@ trend/insight screens, no widgets, no shared/household budgets.
    transaction.
 5. **Monthly insights screen** — month-over-month totals, category trends;
    the largest pure-feature gap vs. every leader.
-6. **Apple Developer account → TestFlight → App Store** (also unlocks the
-   share extension per §10).
+6. **Play Store + Android capture phase** — the deferred Kotlin
+   `NotificationListenerService` module (§9), Play Console closed testing
+   (12 testers/14 days), prominent-disclosure declaration.
 
 Deliberately deferred: shared/household budgets, investment tracking,
 widgets, freemium.

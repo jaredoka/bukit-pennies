@@ -133,20 +133,20 @@ export function useTransactionsForPeriod(year: number, month: number | null) {
   });
 }
 
-/** Parsed spends of the last `monthsBack` Brunei months — recurring detection. */
+/** Parsed spends of the last `monthsBack` Brunei months — recurring detection
+ *  and the insights screen. */
 export function useRecentMonthsTransactions(monthsBack = 6) {
   const since = bruneiMonthStartIso(monthsBack - 1);
   return useQuery({
     queryKey: ['transactions', 'recent-months', since],
     queryFn: () =>
-      unwrap<Pick<TransactionRow, 'occurred_at' | 'amount' | 'currency' | 'merchant_normalized'>[]>(
+      unwrap<Pick<TransactionRow, 'occurred_at' | 'amount' | 'currency' | 'category_id' | 'merchant_normalized'>[]>(
         supabase
           .from('transactions')
-          .select('occurred_at, amount, currency, merchant_normalized')
+          .select('occurred_at, amount, currency, category_id, merchant_normalized')
           .eq('parse_status', 'parsed')
           .not('amount', 'is', null)
           .not('occurred_at', 'is', null)
-          .not('merchant_normalized', 'is', null)
           .gte('occurred_at', since),
       ),
   });

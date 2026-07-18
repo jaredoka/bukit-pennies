@@ -383,8 +383,9 @@ trend/insight screens, no widgets, no shared/household budgets.
 ### 16.3 Decisions recorded (from the owner, 2026-07-19)
 
 - **Distribution: both stores** (Play US$25 + Apple US$99), **iOS first**
-  within that (updated 2026-07-19 — owner has an iPhone for testing);
-  Android's `NotificationListenerService` zero-setup capture follows.
+  (updated 2026-07-19 — owner has an iPhone for testing). **Android is
+  gated:** it starts only after the iOS app is completed — tested, ready,
+  and live on the App Store. No Android work before that gate.
 - **Bank priority: BIBD** — parser verified; hosted deploy of it is the
   top item.
 - **Localization: English-only UI is fine.** Skip Bahasa Melayu for now.
@@ -397,18 +398,23 @@ trend/insight screens, no widgets, no shared/household budgets.
 
 ### 16.4 Adoption roadmap (sequenced)
 
+**Stage A — iOS to App Store (everything here precedes any Android work):**
+
 1. **BIBD hosted go-live** — sync + deploy the verified parser; highest
    leverage, lowest effort.
-2. **Apple Developer account → TestFlight → App Store** (also unlocks the
-   share extension per §10) — moved ahead of Android on 2026-07-19; the
-   owner has an iPhone for testing.
-3. **Merchant → category mapping at parse time** (new parser-adjacent table
+2. **Merchant → category mapping at parse time** (new parser-adjacent table
    or module; keep `@bukit/parsers` zero-dep).
-4. **Onboarding overhaul** — Sign in with Apple/Google, "paste your last
+3. **Onboarding overhaul** — Sign in with Apple/Google, "paste your last
    bank SMS" first-run moment, empty-state preview; target < 60 s to first
    transaction.
-5. **Monthly insights screen** — month-over-month totals, category trends;
+4. **Monthly insights screen** — month-over-month totals, category trends;
    the largest pure-feature gap vs. every leader.
+5. **Apple Developer account → TestFlight → App Store launch** (also
+   unlocks the share extension per §10) — iOS app tested on the owner's
+   iPhone and deployed to the App Store.
+
+**Stage B — Android (starts only once Stage A ships on the App Store):**
+
 6. **Play Store + Android capture phase** — the deferred Kotlin
    `NotificationListenerService` module (§9), Play Console closed testing
    (12 testers/14 days), prominent-disclosure declaration.

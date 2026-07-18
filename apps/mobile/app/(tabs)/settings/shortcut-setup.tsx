@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { Button, Card, Muted } from '@/components/ui';
+import { Button, Card, Field, Muted } from '@/components/ui';
 import { SHORTCUT_DOWNLOAD_URL } from '@/lib/env';
+import { useCreateIngestToken } from '@/lib/queries';
 import { themedStyles, useTheme } from '@/lib/theme';
 
 // ─── Reusable sub-components ────────────────────────────────────────────────
@@ -61,6 +62,59 @@ function CopyRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+// Creates an ios_shortcut token without leaving the setup guide. The token is
+// shown once with a copy button; revoking lives in Capture devices & tokens.
+function InlineTokenCreator() {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const create = useCreateIngestToken();
+  const [name, setName] = useState('My iPhone');
+  const [token, setToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  if (token) {
+    return (
+      <View style={[styles.tokenBox, { borderColor: colors.primary }]}>
+        <Text style={[styles.tokenLabel, { color: colors.primary }]}>
+          Your token — copy it now, it is shown only once
+        </Text>
+        <Text selectable style={[styles.tokenValue, { color: colors.text, backgroundColor: colors.bg }]}>
+          {token}
+        </Text>
+        <Button
+          label={copied ? '✓ Copied — paste it in Step 3' : 'Copy token'}
+          onPress={async () => {
+            await Clipboard.setStringAsync(token);
+            setCopied(true);
+          }}
+        />
+        <Tip>Also save it somewhere safe (Notes, password manager) — it cannot be shown again, only replaced.</Tip>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ marginTop: 12 }}>
+      <Field label="Device name" value={name} onChangeText={setName} placeholder="My iPhone" />
+      <Button
+        label="Create my token"
+        onPress={() =>
+          create.mutate(
+            { name: name.trim(), kind: 'ios_shortcut' },
+            { onSuccess: (t) => setToken(t) },
+          )
+        }
+        disabled={!name.trim()}
+        busy={create.isPending}
+      />
+      {create.error ? (
+        <Text style={{ color: colors.danger, marginTop: 8 }}>{create.error.message}</Text>
+      ) : null}
+      <Tip>Already created one before? Reuse it, or manage tokens under Settings → Capture → Capture devices & tokens.</Tip>
+    </View>
+  );
+}
+
 function Divider() {
   const { colors } = useTheme();
   return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 12 }} />;
@@ -87,15 +141,14 @@ export default function ShortcutSetup() {
         </View>
       </Card>
 
-      {/* Step 1 */}
+      {/* Step 1 — inline token creation, no navigating away */}
       <Card>
-        <StepHeader number={1} title="Create a capture token" />
+        <StepHeader number={1} title="Create your capture token" />
         <Instruction>
-          Go to Settings → Capture → Capture devices & tokens, then tap "Add device". Choose the
-          kind "iOS Shortcut" and give it a name (e.g. "My iPhone"). Copy the bp_… token shown —
-          it is only displayed once.
+          The Shortcut needs a private token to send messages to your account. Create one right
+          here — no need to leave this page.
         </Instruction>
-        <Tip>Store the token somewhere safe (Notes, password manager) before leaving that screen.</Tip>
+        <InlineTokenCreator />
       </Card>
 
       {/* Step 2 */}
@@ -135,12 +188,12 @@ export default function ShortcutSetup() {
 
         <Divider />
         <CopyRow
-          label="Baiduri — paste this, then add your card number (e.g. 4x0213)"
-          value="Card No.: "
+          label="Baiduri — replace 0x0000 with your card number from the SMS (e.g. 4x0213)"
+          value="Card No.: 0x0000"
         />
         <CopyRow
-          label="BIBD — paste this, then add your last 4 digits (e.g. 0298)"
-          value="card ending with "
+          label="BIBD — replace 0000 with your card's last 4 digits (e.g. 0298)"
+          value="card ending with 0000"
         />
         <Divider />
 
@@ -148,7 +201,7 @@ export default function ShortcutSetup() {
           After setting the trigger, choose Run Immediately (if offered) then set the action to
           Run Shortcut → Bukit Pennies Capture.
         </Instruction>
-        <Tip>Add one automation per card. If your card is ever replaced, update the digits here — otherwise capture quietly stops.</Tip>
+        <Tip>Add one automation per card. If your card is ever replaced, update the digits — otherwise capture quietly stops. To capture every card of a bank with one automation, delete the placeholder digits entirely.</Tip>
       </Card>
 
       {/* Step 5 — Optional notification */}
@@ -267,6 +320,16 @@ const useStyles = themedStyles((colors) => ({
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
     fontSize: 12,
     lineHeight: 20,
+  },
+
+  tokenBox: { marginTop: 12, borderWidth: 1, borderRadius: 10, padding: 12 },
+  tokenLabel: { fontSize: 13, fontWeight: '700', marginBottom: 8 },
+  tokenValue: {
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+    fontSize: 13,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
   },
 
   sectionLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 },

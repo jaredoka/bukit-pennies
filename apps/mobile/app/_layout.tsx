@@ -8,6 +8,8 @@ import { initSentry, Sentry } from '@/lib/sentry';
 import { SessionProvider, useSession } from '@/lib/session';
 import { ThemeProvider, useTheme } from '@/lib/theme';
 import { PrivacyProvider } from '@/lib/privacy';
+import { kvGet } from '@/lib/kvStore';
+import { onboardedKey } from './welcome';
 
 initSentry();
 
@@ -19,6 +21,23 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { session, loading } = useSession();
   const segments = useSegments();
   const router = useRouter();
+  // null = unknown (still reading the device flag for this user)
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
+
+  const userId = session?.user.id;
+  useEffect(() => {
+    if (!userId) {
+      setOnboarded(null);
+      return;
+    }
+    let live = true;
+    kvGet(onboardedKey(userId)).then((v) => {
+      if (live) setOnboarded(v === '1');
+    });
+    return () => {
+      live = false;
+    };
+  }, [userId]);
 
   useEffect(() => {
     if (loading) return;
@@ -27,8 +46,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     // finish choosing the new password before entering the app.
     const onResetScreen = (segments as string[]).includes('reset-password');
     if (!session && !inAuthGroup) router.replace('/(auth)/sign-in');
-    if (session && inAuthGroup && !onResetScreen) router.replace('/(tabs)');
-  }, [session, loading, segments, router]);
+    if (session && inAuthGroup && !onResetScreen) {
+      if (onboarded === null) return; // flag still loading — hold the redirect
+      router.replace(onboarded ? '/(tabs)' : '/welcome');
+    }
+  }, [session, loading, segments, router, onboarded]);
 
   if (loading) {
     return (

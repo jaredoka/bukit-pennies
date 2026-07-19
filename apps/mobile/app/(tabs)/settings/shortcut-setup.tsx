@@ -193,8 +193,16 @@ export default function ShortcutSetup() {
           <Text style={[styles.warnText, { color: colors.text }]}>
             This only works if your bank sends transaction alerts as SMS, arriving in the
             Messages app. If those alerts are disabled, or your bank sends them another way
-            (app notification, email), nothing can be captured. Not sure? Ask your bank to
-            turn on SMS transaction alerts for your cards.
+            (app notification, email), nothing can be captured. You can usually enable SMS
+            transaction alerts from your bank's mobile app settings, or by asking your bank.
+          </Text>
+        </View>
+        <View style={[styles.warnBox, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '40', marginTop: 10 }]}>
+          <Text style={[styles.warnTitle, { color: colors.primary }]}>Stay safe</Text>
+          <Text style={[styles.warnText, { color: colors.text }]}>
+            Bukit Pennies will never ask for your banking details. No card numbers, no
+            account numbers, no bank passwords, no OTPs. Anyone asking for these in our name
+            is a scammer.
           </Text>
         </View>
       </Card>

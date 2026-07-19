@@ -167,13 +167,14 @@ export function useCategories() {
   });
 }
 
-export function useDevices() {
+export function useDevices(opts?: { refetchInterval?: number }) {
   return useQuery({
     queryKey: ['ingest_devices'],
     queryFn: () =>
       unwrap<IngestDeviceRow[]>(
         supabase.from('ingest_devices').select('*').order('created_at', { ascending: false }),
       ),
+    refetchInterval: opts?.refetchInterval,
   });
 }
 

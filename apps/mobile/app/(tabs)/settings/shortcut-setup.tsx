@@ -6,7 +6,7 @@ import { Button, Card, Field, Muted } from '@/components/ui';
 import { SHORTCUT_DOWNLOAD_URL } from '@/lib/env';
 import { kvGet, kvSet } from '@/lib/kvStore';
 import { deferSetup, onboardedKey } from '@/lib/onboarding';
-import { useCreateIngestToken } from '@/lib/queries';
+import { useCreateIngestToken, useDevices } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { themedStyles, useTheme } from '@/lib/theme';
 
@@ -154,6 +154,15 @@ export default function ShortcutSetup() {
     };
   }, [userId]);
 
+  // Capture-verified completion: the server stamps last_seen_at on the token
+  // whenever the Shortcut delivers a message, so a used ios_shortcut token
+  // proves the whole pipeline works. Poll while onboarding so the "Test it
+  // now" message flips the button live.
+  const devices = useDevices(onboarding ? { refetchInterval: 5000 } : undefined);
+  const captureVerified = !!devices.data?.some(
+    (d) => d.kind === 'ios_shortcut' && !d.revoked_at && d.last_seen_at !== null,
+  );
+
   async function completeSetup() {
     if (userId) await kvSet(onboardedKey(userId), '1');
     router.replace('/(tabs)');
@@ -288,6 +297,16 @@ export default function ShortcutSetup() {
         <View style={styles.infoRow}>
           <Text style={styles.infoIcon}>✓</Text>
           <Text style={[styles.infoText, { color: colors.text }]}>
+            <Text style={{ fontWeight: '700' }}>This setup is per phone.</Text>
+            {'  '}Your transactions live in your account, so a new phone shows all your data
+            the moment you log in. Only this Shortcut setup needs to be done again on the new
+            phone.
+          </Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Text style={styles.infoIcon}>✓</Text>
+          <Text style={[styles.infoText, { color: colors.text }]}>
             <Text style={{ fontWeight: '700' }}>Test it now.</Text>
             {'\n'}
             {'1. Copy a real transaction message from your bank.\n' +
@@ -308,8 +327,24 @@ export default function ShortcutSetup() {
             here on logs itself. Open the app anytime and your latest spending is already
             there, without keying in a thing.
           </Instruction>
+          <View style={{ marginTop: 12 }}>
+            {captureVerified ? (
+              <Text style={{ color: colors.primary, fontWeight: '600' }}>
+                ✓ Capture verified. Your Shortcut delivered its first message.
+              </Text>
+            ) : (
+              <Text style={{ color: colors.muted }}>
+                Waiting for your first captured message. Finish the steps above, then use
+                "Test it now" to send one.
+              </Text>
+            )}
+          </View>
           <View style={{ marginTop: 12, gap: 8 }}>
-            <Button label="Setup complete, take me to the app" onPress={completeSetup} />
+            <Button
+              label="Setup complete, take me to the app"
+              onPress={completeSetup}
+              disabled={!captureVerified}
+            />
             <Button
               label="I'll do it later"
               variant="secondary"

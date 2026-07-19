@@ -460,6 +460,16 @@ trend/insight screens, no widgets, no shared/household budgets.
 Deliberately deferred: shared/household budgets, investment tracking,
 widgets, freemium.
 
+**Post-launch watch (noted 2026-07-19, owner asked to be reminded):** the
+onboarding funnel is measurable from the database alone, no analytics
+tooling: accounts created (auth.users) vs capture tokens created
+(ingest_devices, kind ios_shortcut) vs tokens actually used
+(last_seen_at not null). The gaps between those three counts show exactly
+where users drop off (signup → setup started → capture working). Check
+after the first dozen real users; if drop-off clusters at the automation
+step, that is the trigger to add screenshots to the visual guide or
+consider the step-per-screen wizard (deliberately not built preemptively).
+
 ### 16.5 Supabase free-tier limits & upgrade triggers (checked 2026-07-19)
 
 Free tier: 500 MB database · 50,000 MAU · 500K edge-function

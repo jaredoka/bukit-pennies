@@ -8,6 +8,7 @@ import { initSentry, Sentry } from '@/lib/sentry';
 import { SessionProvider, useSession } from '@/lib/session';
 import { ThemeProvider, useTheme } from '@/lib/theme';
 import { PrivacyProvider } from '@/lib/privacy';
+import { PrimaryCurrencyProvider } from '@/lib/primaryCurrency';
 import { kvGet } from '@/lib/kvStore';
 import { isSetupDeferred, onboardedKey } from '@/lib/onboarding';
 
@@ -82,9 +83,11 @@ function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
         <ThemeProvider>
-          <PrivacyProvider>
-            <ThemedApp />
-          </PrivacyProvider>
+          <PrimaryCurrencyProvider>
+            <PrivacyProvider>
+              <ThemedApp />
+            </PrivacyProvider>
+          </PrimaryCurrencyProvider>
         </ThemeProvider>
       </SessionProvider>
     </QueryClientProvider>

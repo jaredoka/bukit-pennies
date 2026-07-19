@@ -79,15 +79,6 @@ export default function Settings() {
         />
       </View>
 
-      <View style={styles.group}>
-        <Row
-          href="/(tabs)/settings/delete-account"
-          icon="trash"
-          label="Delete account"
-          note="Permanently remove your account and all data"
-          danger
-        />
-      </View>
     </ScrollView>
   );
 }

@@ -24,7 +24,7 @@ export default function Budget() {
         </Muted>
         <View style={{ marginTop: 12 }}>
           <Field
-            label="Amount (BND)"
+            label="Amount ($)"
             value={value}
             onChangeText={setDraft}
             placeholder="e.g. 2500"

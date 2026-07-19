@@ -3,7 +3,7 @@
 **Status:** Phases 0–6 built and merged; app is live against hosted Supabase and field-tested on the owner's iPhone. §1–§14 are the original approved design (kept for reference); §15–§16 record what exists now and the adoption roadmap. **§16 is the current source of truth for what to build next.**
 
 **Branch:** `main` (GitHub Flow — feature branches off `main`, merged via pull request)
-**Date:** 2026-07-16 (original) · last updated 2026-07-19
+**Date:** 2026-07-16 (original) · last updated 2026-07-20
 
 ---
 
@@ -459,6 +459,35 @@ trend/insight screens, no widgets, no shared/household budgets.
 
 Deliberately deferred: shared/household budgets, investment tracking,
 widgets, freemium.
+
+## 17. UI polish session (2026-07-20)
+
+All changes on branch `shortcut-self-config`, merged to `main`.
+
+### Primary currency system
+- New `apps/mobile/src/lib/primaryCurrency.tsx` — `PrimaryCurrencyProvider` / `usePrimaryCurrency()` / `CURRENCY_OPTIONS` (BND, SGD, USD, MYR, GBP, EUR, AUD). Persisted via `kvStore` (`bukit.primary_currency`); defaults to BND. Wrapped at root in `app/_layout.tsx`.
+- `PAR_CURRENCIES` in `queries.ts` expanded from `['BND','SGD']` to all seven option codes so non-BND transactions are fetched.
+- **Dashboard** (`app/(tabs)/index.tsx`): all money values (donut center, legend, stat strip, budgets card, daily chart, month-history bars, top-merchants bar) now use `primaryCurrency`. Memos `dailyData`, `budgetProgress`, `monthlyBars` filter to primary currency. `useTopMerchants` accepts a `currency` param and passes an `.eq('currency',…)` filter. `effectiveIncome` is null for non-BND (income comparison only makes sense in BND). An excluded-currencies note appears below the donut when transactions in other currencies exist, linking to Settings > Appearance.
+- **Insights** (`app/(tabs)/insights.tsx`): `recentTx` filtered to `primaryCurrency` before building all insight memos; all `money()` calls pass `primaryCurrency`.
+- **Settings > Appearance** (`settings/appearance.tsx`): second Card "Primary currency" with `Chip` rows for each `CURRENCY_OPTIONS` entry; selection persisted immediately.
+
+### Goals currency
+- Migration `09_goal_currency.sql`: adds `currency text not null default 'BND'` to `savings_goals`.
+- `SavingsGoalRow` type updated; `useCreateSavingsGoal` mutation accepts and stores `currency`.
+- Goals page captures `primaryCurrency` at create time; `GoalCard` uses `goal.currency` for all `money()` calls — a goal's currency is fixed at creation and never changes. Note in the create form explains this and points to Settings > Appearance.
+
+### Budgets currency (Option A — fixed at creation)
+- `budgets` table already had a `currency char(3)` column (migration 06); `BudgetRow` type already included it.
+- `useUpsertBudget` now accepts and passes `currency`; existing budget currency is preserved on edit.
+- Budgets settings page passes `primaryCurrency` for new budgets; a note explains the fixed-currency behaviour and points to Settings > Appearance.
+- Dashboard `budgetProgress` memo filters to budgets matching `primaryCurrency`; a tappable note appears when budgets in other currencies are hidden.
+- Monthly limit amount label changed from "Amount (BND)" to "Amount ($)" in `settings/budget.tsx`.
+
+### Settings restructure
+- "Delete account" row removed from Settings index; moved inside the Account page as a "Danger zone" card with a warning and a button navigating to the existing `delete-account` screen.
+
+### Calendar date-range fix
+- Month/year nav bar restructured: inner month arrows + title wrapped in a `flex:1` center group (`calNavCenter`) so the title stays horizontally fixed regardless of month-name length. Year `«`/`»` buttons get a fixed `width:36` on each side (`calNavYearBtn`).
 
 **Email capture (gated candidate, noted 2026-07-20):** strongest candidate
 for the next capture channel, potentially replacing the Stage B Kotlin

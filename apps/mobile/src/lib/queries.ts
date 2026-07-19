@@ -16,7 +16,7 @@ import type {
 
 /** SGD circulates 1:1 with BND in Brunei (Currency Interchangeability
  *  Agreement) — SGD amounts count toward BND totals at par. */
-export const PAR_CURRENCIES = ['BND', 'SGD'];
+export const PAR_CURRENCIES = ['BND', 'SGD', 'USD', 'MYR', 'GBP', 'EUR', 'AUD'];
 
 async function unwrap<T>(promise: PromiseLike<{ data: T | null; error: { message: string } | null }>): Promise<T> {
   const { data, error } = await promise;
@@ -75,14 +75,15 @@ export function useMonthlyTotals() {
   });
 }
 
-export function useTopMerchants(limit = 8) {
+export function useTopMerchants(limit = 8, currency = 'BND') {
   return useQuery({
-    queryKey: ['merchant_totals', limit],
+    queryKey: ['merchant_totals', limit, currency],
     queryFn: () =>
       unwrap<MerchantTotalRow[]>(
         supabase
           .from('merchant_totals')
           .select('*')
+          .eq('currency', currency)
           .order('total', { ascending: false })
           .limit(limit),
       ),
@@ -191,14 +192,14 @@ export function useSavingsGoals() {
 export function useCreateSavingsGoal() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ name, target }: { name: string; target: number }) => {
+    mutationFn: async ({ name, target, currency }: { name: string; target: number; currency: string }) => {
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id;
       if (!userId) throw new Error('Not signed in');
       return unwrap<SavingsGoalRow>(
         supabase
           .from('savings_goals')
-          .insert({ user_id: userId, name, target_amount: target })
+          .insert({ user_id: userId, name, target_amount: target, currency })
           .select()
           .single(),
       );
@@ -366,7 +367,7 @@ export function useCreateManualTransaction() {
 export function useUpsertBudget() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ categoryId, amount }: { categoryId: string; amount: number }) => {
+    mutationFn: async ({ categoryId, amount, currency }: { categoryId: string; amount: number; currency: string }) => {
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id;
       if (!userId) throw new Error('Not signed in');
@@ -374,7 +375,7 @@ export function useUpsertBudget() {
         supabase
           .from('budgets')
           .upsert(
-            { user_id: userId, category_id: categoryId, amount },
+            { user_id: userId, category_id: categoryId, amount, currency },
             { onConflict: 'user_id,category_id' },
           )
           .select()

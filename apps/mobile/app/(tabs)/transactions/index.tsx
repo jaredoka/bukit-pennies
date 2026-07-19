@@ -2,8 +2,9 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { parseBankMessage, splitBankMessages } from '@bukit/parsers';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, Stack, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import {
+  Animated,
   ActivityIndicator,
   Modal,
   Pressable,
@@ -99,6 +100,18 @@ function applyFilters(tx: TransactionRow, f: TxFilters, search: string): boolean
 
 // ---- Shared sheet wrapper --------------------------------------------------
 
+function useSheetSlide(visible: boolean) {
+  const translateY = useRef(new Animated.Value(600)).current;
+  useEffect(() => {
+    Animated.timing(translateY, {
+      toValue: visible ? 0 : 600,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [visible, translateY]);
+  return translateY;
+}
+
 function Sheet({
   visible,
   title,
@@ -114,15 +127,11 @@ function Sheet({
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
+  const translateY = useSheetSlide(visible);
   return (
-    <>
-      {/* Overlay appears instantly — separate from the sliding panel */}
-      <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-        <Pressable style={styles.overlay} onPress={onClose} />
-      </Modal>
-      {/* Sheet panel slides up */}
-      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-        <View style={styles.overlaySlide}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <Pressable style={styles.overlaySlide} onPress={onClose}>
+        <Animated.View style={{ transform: [{ translateY }] }}>
           <Pressable style={styles.sheet} onPress={() => {}}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
@@ -136,9 +145,9 @@ function Sheet({
             {children}
             <Button label="Done" onPress={onClose} />
           </Pressable>
-        </View>
-      </Modal>
-    </>
+        </Animated.View>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -204,7 +213,8 @@ function CalendarSheet({
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
     const cells: (number | null)[] = Array(firstDow).fill(null);
     for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-    while (cells.length % 7 !== 0) cells.push(null);
+    // Always pad to exactly 6 rows so grid height never shifts
+    while (cells.length < 42) cells.push(null);
     return cells;
   }, [viewYear, viewMonth]);
 
@@ -216,6 +226,8 @@ function CalendarSheet({
     if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0); }
     else setViewMonth(m => m + 1);
   }
+  function prevYear() { setViewYear(y => y - 1); }
+  function nextYear() { setViewYear(y => y + 1); }
 
   function handleDay(day: number) {
     const ds = toDateStr(viewYear, viewMonth, day);
@@ -258,16 +270,26 @@ function CalendarSheet({
       onClose={onClose}
       onClear={() => { onChange({ dateFrom: '', dateTo: '' }); setPicking('start'); }}
     >
-      {/* Month nav */}
+      {/* Month + year nav */}
       <View style={styles.calNav}>
-        <Pressable onPress={prevMonth} hitSlop={12} style={styles.calNavBtn}>
-          <Ionicons name="chevron-back" size={20} color={colors.text} />
+        <Pressable onPress={prevYear} hitSlop={12} style={styles.calNavYearBtn}>
+          <Ionicons name="chevron-back" size={14} color={colors.muted} />
+          <Ionicons name="chevron-back" size={14} color={colors.muted} style={{ marginLeft: -8 }} />
         </Pressable>
-        <Text style={styles.calNavTitle}>
-          {MONTH_NAMES[viewMonth]} {viewYear}
-        </Text>
-        <Pressable onPress={nextMonth} hitSlop={12} style={styles.calNavBtn}>
-          <Ionicons name="chevron-forward" size={20} color={colors.text} />
+        <View style={styles.calNavCenter}>
+          <Pressable onPress={prevMonth} hitSlop={12} style={styles.calNavBtn}>
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+          </Pressable>
+          <Text style={styles.calNavTitle}>
+            {MONTH_NAMES[viewMonth]} {viewYear}
+          </Text>
+          <Pressable onPress={nextMonth} hitSlop={12} style={styles.calNavBtn}>
+            <Ionicons name="chevron-forward" size={20} color={colors.text} />
+          </Pressable>
+        </View>
+        <Pressable onPress={nextYear} hitSlop={12} style={styles.calNavYearBtn}>
+          <Ionicons name="chevron-forward" size={14} color={colors.muted} />
+          <Ionicons name="chevron-forward" size={14} color={colors.muted} style={{ marginLeft: -8 }} />
         </Pressable>
       </View>
 
@@ -301,7 +323,8 @@ function CalendarSheet({
         ))}
       </View>
 
-      {/* Week rows */}
+      {/* Week rows — fixed height so sheet never shifts between months */}
+      <View style={styles.calGrid}>
       {weeks.map((week, wi) => (
         <View key={wi} style={styles.calRow}>
           {week.map((day, di) => {
@@ -342,6 +365,7 @@ function CalendarSheet({
           })}
         </View>
       ))}
+      </View>
 
       <View style={{ height: 12 }} />
     </Sheet>
@@ -386,6 +410,7 @@ function CurrencySheet({
   onChange: (v: string[]) => void;
   onClose: () => void;
 }) {
+  const styles = useStyles();
   return (
     <Sheet visible title="Currency" onClose={onClose} onClear={() => onChange([])}>
       <View style={{ marginBottom: 8 }}>
@@ -397,6 +422,12 @@ function CurrencySheet({
             onPress={() => onChange(toggleItem(selected, c))}
           />
         ))}
+      </View>
+      <View style={styles.currencyNote}>
+        <Ionicons name="information-circle-outline" size={15} color="#6B7A8C" style={{ marginTop: 1 }} />
+        <Text style={styles.currencyNoteText}>
+          Only BND transactions are counted in the Dashboard totals and donut. Foreign-currency transactions are recorded here for your reference but are not converted or included in spending summaries.
+        </Text>
       </View>
     </Sheet>
   );
@@ -467,6 +498,8 @@ function CategorySheet({
   onChange: (v: (string | null)[]) => void;
   onClose: () => void;
 }) {
+  const { colors } = useTheme();
+  // Sort alphabetically — same order as Settings so fallback index matches
   const sorted = [...categories].sort((a, b) => a.name.localeCompare(b.name));
   return (
     <Sheet visible title="Category" onClose={onClose} onClear={() => onChange([])}>
@@ -477,11 +510,11 @@ function CategorySheet({
             selected={selected.includes(null)}
             onPress={() => onChange(toggleItem<string | null>(selected, null))}
           />
-          {sorted.map((c) => (
+          {sorted.map((c, i) => (
             <SelectRow
               key={c.id}
               label={c.name}
-              dot={c.color ?? undefined}
+              dot={c.color ?? colors.chartCategories[i % colors.chartCategories.length]!}
               selected={selected.includes(c.id)}
               onPress={() => onChange(toggleItem<string | null>(selected, c.id))}
             />
@@ -747,43 +780,41 @@ function AddSheet({ onClose }: { onClose: () => void }) {
     return <CaptureSheet onClose={onClose} />;
   }
 
+  const translateY = useSheetSlide(true);
   return (
-    <>
-      <Modal visible transparent animationType="none" onRequestClose={onClose}>
-        <Pressable style={styles.overlay} onPress={onClose} />
-      </Modal>
-      <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-        <View style={styles.overlaySlide}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>Add transaction manually</Text>
-            <Pressable
-              style={styles.addRow}
-              onPress={() => { onClose(); router.push('/(tabs)/transactions/new'); }}
-            >
-              <View style={[styles.addIcon, { backgroundColor: colors.primary + '18' }]}>
-                <Ionicons name="cash-outline" size={22} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.addRowTitle}>Cash</Text>
-                <Muted>Manually enter a cash or card spend</Muted>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-            </Pressable>
-            <Pressable style={styles.addRow} onPress={() => setShowCapture(true)}>
-              <View style={[styles.addIcon, { backgroundColor: colors.primary + '18' }]}>
-                <Ionicons name="clipboard-outline" size={22} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.addRowTitle}>Capture</Text>
-                <Muted>Paste a bank SMS or notification text</Muted>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-            </Pressable>
+    <Modal visible transparent animationType="none" onRequestClose={onClose}>
+      <Pressable style={styles.overlaySlide} onPress={onClose}>
+        <Animated.View style={{ transform: [{ translateY }] }}>
+        <Pressable style={styles.sheet} onPress={() => {}}>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetTitle}>Add transaction manually</Text>
+          <Pressable
+            style={styles.addRow}
+            onPress={() => { onClose(); router.push('/(tabs)/transactions/new'); }}
+          >
+            <View style={[styles.addIcon, { backgroundColor: colors.primary + '18' }]}>
+              <Ionicons name="cash-outline" size={22} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.addRowTitle}>Cash</Text>
+              <Muted>Manually enter a cash or card spend</Muted>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
           </Pressable>
-        </View>
-      </Modal>
-    </>
+          <Pressable style={styles.addRow} onPress={() => setShowCapture(true)}>
+            <View style={[styles.addIcon, { backgroundColor: colors.primary + '18' }]}>
+              <Ionicons name="clipboard-outline" size={22} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.addRowTitle}>Capture</Text>
+              <Muted>Paste a bank SMS or notification text</Muted>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Pressable>
+        </Pressable>
+        </Animated.View>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -861,18 +892,17 @@ function CaptureSheet({ onClose }: { onClose: () => void }) {
     ? result.status === 'created' ? colors.primary : result.status === 'error' ? colors.danger : colors.warning
     : colors.text;
 
+  const translateY = useSheetSlide(true);
   return (
-    <>
-      <Modal visible transparent animationType="none" onRequestClose={onClose}>
-        <Pressable style={styles.overlay} onPress={onClose} />
-      </Modal>
-      <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-        <View style={styles.overlaySlide}>
-          <ScrollView
-            style={styles.sheet}
-            contentContainerStyle={{ paddingBottom: 36 }}
-            keyboardShouldPersistTaps="handled"
-          >
+    <Modal visible transparent animationType="none" onRequestClose={onClose}>
+      <Pressable style={styles.overlaySlide} onPress={onClose}>
+        <Animated.View style={{ transform: [{ translateY }] }}>
+        <ScrollView
+          style={styles.sheet}
+          contentContainerStyle={{ paddingBottom: 36 }}
+          keyboardShouldPersistTaps="handled"
+          onStartShouldSetResponder={() => true}
+        >
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Capture</Text>
@@ -932,9 +962,9 @@ function CaptureSheet({ onClose }: { onClose: () => void }) {
             ) : null}
             <Button label="Done" onPress={onClose} />
           </ScrollView>
-        </View>
-      </Modal>
-    </>
+        </Animated.View>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -1037,13 +1067,10 @@ const useStyles = themedStyles((colors) => ({
   merchant: { fontWeight: '600', color: colors.text },
   amount: { fontWeight: '700', color: colors.text },
   // Sheet
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
   overlaySlide: {
     flex: 1,
     justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
   sheet: {
     backgroundColor: colors.card,
@@ -1082,11 +1109,19 @@ const useStyles = themedStyles((colors) => ({
   calNav: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 4,
   },
-  calNavBtn: { padding: 4 },
-  calNavTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
+  calNavYearBtn: { padding: 4, flexDirection: 'row', alignItems: 'center', width: 36 },
+  calNavCenter: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  calNavBtn: { padding: 4, flexDirection: 'row', alignItems: 'center' },
+  currencyNote: { flexDirection: 'row', gap: 6, alignItems: 'flex-start', marginBottom: 8, paddingHorizontal: 4 },
+  currencyNoteText: { flex: 1, fontSize: 12, color: '#6B7A8C', lineHeight: 17 },
+  calNavTitle: { fontSize: 15, fontWeight: '700', color: colors.text, textAlign: 'center' },
   calRangeRow: {
     flexDirection: 'row',
     borderWidth: 1,
@@ -1106,6 +1141,7 @@ const useStyles = themedStyles((colors) => ({
   calRangeLabel: { fontSize: 11, fontWeight: '700', color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   calRangeValue: { fontSize: 14, fontWeight: '600', color: colors.text },
   calRangePlaceholder: { color: colors.muted },
+  calGrid: { height: 240 },
   calRow: { flexDirection: 'row', marginBottom: 2 },
   calDayName: {
     flex: 1,

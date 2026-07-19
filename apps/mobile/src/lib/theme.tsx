@@ -61,14 +61,14 @@ export interface Palette {
 export const palettes: Record<'light' | 'dark', Palette> = {
   light: {
     bg: '#FFFFFF',
-    card: '#FAFAFA',
+    card: '#FFFEF0',          // very pale yellow for cards and header
     text: '#1A2430',
     muted: '#6B7A8C',
-    primary: '#E6AC00',       // bright yellow
+    primary: '#F5A800',       // bright warm yellow, nudged toward orange
     onPrimary: '#1A1200',     // near-black for legibility on yellow
     danger: '#C0392B',
     warning: '#B7791F',
-    border: '#E8E8E8',
+    border: '#F5F0CC',        // very faint yellow-tinted border
     chartCategories: CATEGORY_COLORS.light,
     chartOther: CATEGORY_COLOR_OTHER.light,
   },
@@ -171,7 +171,8 @@ export function useStackTheme() {
   return {
     headerStyle: { backgroundColor: colors.card },
     headerTintColor: colors.primary,
-    headerTitleStyle: { color: colors.text },
+    headerTitleStyle: { fontWeight: '700', color: colors.text },
+    headerTitleAlign: 'center' as const,
     contentStyle: { backgroundColor: colors.bg },
   };
 }

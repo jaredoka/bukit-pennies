@@ -44,12 +44,14 @@ export function Button({
   variant = 'primary',
   disabled,
   busy,
+  style,
 }: {
   label: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'danger';
   disabled?: boolean;
   busy?: boolean;
+  style?: import('react-native').ViewStyle;
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
@@ -62,6 +64,7 @@ export function Button({
         variant === 'secondary' && styles.buttonSecondary,
         variant === 'danger' && styles.buttonDanger,
         (pressed || disabled || busy) && { opacity: 0.6 },
+        style,
       ]}
     >
       {busy ? (

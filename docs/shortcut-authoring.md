@@ -28,12 +28,19 @@ Create a new shortcut named exactly **`Bukit Pennies Capture`** (the app's
 deep link targets this name — do not rename).
 
 1. **If** — Input: **Shortcut Input** · Condition: **begins with** · text: `bp_`
-   1. **Save File** — File: **Shortcut Input** · Service: **iCloud Drive** ·
-      turn **Ask Where to Save** OFF · Destination Path:
-      `/Bukit Pennies/token.txt` · **Overwrite If File Exists** ON
+
+   *(The If block does not pass its result to sub-steps — each sub-step uses
+   **Shortcut Input** directly, the same input the whole shortcut received.)*
+
+   1. **Save File** — File: **Shortcut Input** (the token string the app sent) ·
+      Service: **iCloud Drive** · turn **Ask Where to Save** OFF ·
+      Destination Path: `/Bukit Pennies/token.txt` ·
+      **Overwrite If File Exists** ON
    2. **Show Notification** — Title: `Bukit Pennies` · Body:
       `Connected. Capture is ready.`
-   3. **Stop Shortcut**
+      *(No input variable needed — the body is plain text.)*
+   3. **Stop Shortcut** *(no input — ends execution here for setup runs)*
+
 2. **End If** (Otherwise branch stays empty — actions below run for SMS input)
 3. **Get File** — Service: **iCloud Drive** · turn **Show Document Picker**
    OFF · File Path: `/Bukit Pennies/token.txt` · **Error If Not Found** OFF

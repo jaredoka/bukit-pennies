@@ -19,7 +19,7 @@ export default function Budget() {
       <Card>
         <Title>Monthly limit</Title>
         <Muted>
-          Set your monthly limit — this can be your income, a spending cap, or any figure you want
+          Set your monthly limit. This can be your income, a spending cap, or any figure you want
           to track against. The dashboard shows how much of it you&apos;ve used each month.
         </Muted>
         <View style={{ marginTop: 12 }}>

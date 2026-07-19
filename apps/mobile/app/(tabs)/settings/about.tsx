@@ -12,7 +12,7 @@ export default function About() {
         <Title>About</Title>
         <Muted>
           Bukit Pennies logs card spending by parsing bank notification text. It never connects to
-          your bank apps or accounts — no credentials, no open banking, only the text you (or your
+          your bank apps or accounts. No credentials, no open banking, only the text you (or your
           phone) hand it.
         </Muted>
         <View style={styles.links}>

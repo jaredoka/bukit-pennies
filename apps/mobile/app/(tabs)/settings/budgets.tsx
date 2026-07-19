@@ -120,7 +120,7 @@ export default function Budgets() {
           );
         })}
         {(categories.data ?? []).length === 0 ? (
-          <Muted>No categories yet — add one below.</Muted>
+          <Muted>No categories yet. Add one below.</Muted>
         ) : null}
       </Card>
 

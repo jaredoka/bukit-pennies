@@ -365,7 +365,7 @@ export default function Dashboard() {
             ) : null}
           </View>
         ) : (
-          <Muted>No spending this {isYearMode ? 'year' : 'month'} yet — capture a bank message or add one manually.</Muted>
+          <Muted>No spending this {isYearMode ? 'year' : 'month'} yet. Capture a bank message or add one manually.</Muted>
         )}
       </Card>
 
@@ -498,7 +498,7 @@ export default function Dashboard() {
             </View>
           ))
         ) : (
-          <Muted>No merchant data yet — capture a bank message to get started.</Muted>
+          <Muted>No merchant data yet. Capture a bank message to get started.</Muted>
         )}
       </Card>
 

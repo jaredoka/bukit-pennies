@@ -81,7 +81,7 @@ function InlineTokenCreator({ onToken }: { onToken: (token: string) => void }) {
     return (
       <View style={[styles.tokenBox, { borderColor: colors.primary }]}>
         <Text style={[styles.tokenLabel, { color: colors.primary }]}>
-          Your token — copy it now, it is shown only once
+          Your token. Copy it now, it is shown only once.
         </Text>
         <Text selectable style={[styles.tokenValue, { color: colors.text, backgroundColor: colors.bg }]}>
           {token}
@@ -93,7 +93,7 @@ function InlineTokenCreator({ onToken }: { onToken: (token: string) => void }) {
             setCopied(true);
           }}
         />
-        <Tip>No need to save it anywhere else — the Shortcut stores it for you in Step 3, and you can always replace it later under Settings → Capture.</Tip>
+        <Tip>No need to save it anywhere else. The Shortcut stores it for you in Step 3, and you can replace it anytime under Settings → Capture.</Tip>
       </View>
     );
   }
@@ -164,25 +164,24 @@ export default function ShortcutSetup() {
 
       {/* Intro */}
       <Card>
-        <Text style={styles.heroTitle}>Near-automatic capture</Text>
+        <Text style={styles.heroTitle}>Automatic capture</Text>
         {onboarding ? (
-          <Muted>One-time setup — finish the steps below to start using the app.</Muted>
+          <Muted>One-time setup. Finish the steps below to start using the app.</Muted>
         ) : null}
         <Muted>
-          iOS cannot read SMS for you, so a ready-made Shortcut watches for bank messages and
-          forwards them automatically — no copy-pasting needed after setup.
+          Your bank texts you for every card payment. A free Apple Shortcut forwards those
+          messages here so they log themselves. Set it up once, then forget it.
         </Muted>
         <View style={[styles.timePill, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '40' }]}>
-          <Text style={[styles.timePillText, { color: colors.primary }]}>⏱ About 3 minutes to set up</Text>
+          <Text style={[styles.timePillText, { color: colors.primary }]}>⏱ About 3 minutes</Text>
         </View>
       </Card>
 
-      {/* Step 1 — inline token creation, no navigating away */}
+      {/* Step 1: inline token creation, no navigating away */}
       <Card>
-        <StepHeader number={1} title="Create your capture token" />
+        <StepHeader number={1} title="Create your token" />
         <Instruction>
-          The Shortcut needs a private token to send messages to your account. Tap "Create my
-          token" below, then tap "Copy token" to copy it to your clipboard.
+          {'1. Tap "Create my token".\n2. Tap "Copy token".'}
         </Instruction>
         <InlineTokenCreator onToken={setToken} />
       </Card>
@@ -191,8 +190,7 @@ export default function ShortcutSetup() {
       <Card>
         <StepHeader number={2} title="Download the Shortcut" />
         <Instruction>
-          Tap the button below to download the Bukit Pennies Capture shortcut. iOS will ask to add
-          it — tap Add Shortcut. You never need to edit anything inside it.
+          {'1. Tap the button below.\n2. When iOS asks, tap "Add Shortcut".'}
         </Instruction>
         <View style={{ marginTop: 12 }}>
           <Button
@@ -202,12 +200,12 @@ export default function ShortcutSetup() {
         </View>
       </Card>
 
-      {/* Step 3 — one-tap token handoff via shortcuts:// deep link */}
+      {/* Step 3: one-tap token handoff via shortcuts:// deep link */}
       <Card>
         <StepHeader number={3} title="Connect the app to the Shortcut" />
         <Instruction>
-          One tap sends your token to the Shortcut, which stores it for you — no editing needed.
-          You should see a "Bukit Pennies — Connected" notification.
+          Tap the button below. When you see the notification "Connected. Capture is ready."
+          this step is done.
         </Instruction>
         <View style={{ marginTop: 12 }}>
           <Button
@@ -223,38 +221,40 @@ export default function ShortcutSetup() {
             disabled={!token}
           />
           {!token ? (
-            <Muted>Create a token in Step 1 first — the button unlocks once it exists.</Muted>
+            <Muted>Finish Step 1 first. This button unlocks once you have a token.</Muted>
           ) : null}
         </View>
-        <Tip>Reusing an old token instead? Just run the Shortcut once from the Shortcuts app — it will ask for the token and remember it.</Tip>
+        <Tip>Reusing an old token? Run the Shortcut once from the Shortcuts app instead. It will ask for the token and remember it.</Tip>
       </Card>
 
-      {/* Step 4 */}
+      {/* Step 4: the Message automation, per bank or per card */}
       <Card>
-        <StepHeader number={4} title="Create an automation to run it on bank SMS" />
+        <StepHeader number={4} title="Turn on capture: per bank or per card" />
         <Instruction>
-          In the Shortcuts app, go to the Automation tab and tap +. Choose "Message", leave
-          Sender empty (bank IDs like Baiduri/BIBD are not phone numbers), then set Message
-          Contains using one of the templates below — ideally with your card digits added so only
-          your card triggers it.
+          {'1. Open the Shortcuts app.\n' +
+            '2. Tap "Automation" at the bottom, then tap "+".\n' +
+            '3. Choose "Message".\n' +
+            '4. Leave "Sender" empty.\n' +
+            '5. In "Message Contains", paste a template from below.\n' +
+            '6. Choose "Run Immediately", then tap "Next".\n' +
+            '7. Pick the "Bukit Pennies Capture" shortcut.'}
         </Instruction>
 
         <Divider />
-        <CopyRow
-          label="Baiduri — replace 0x0000 with your card number from the SMS (e.g. 4x0213)"
-          value="Card No.: 0x0000"
-        />
-        <CopyRow
-          label="BIBD — replace 0000 with your card's last 4 digits (e.g. 0298)"
-          value="card ending with 0000"
-        />
-        <Divider />
+        <Text style={[styles.optionLabel, { color: colors.text }]}>Per bank (recommended)</Text>
+        <Muted>One automation captures every card from that bank.</Muted>
+        <CopyRow label="Baiduri" value="Card No.:" />
+        <CopyRow label="BIBD" value="card ending with" />
 
-        <Instruction>
-          After setting the trigger, choose Run Immediately (if offered) then set the action to
-          Run Shortcut → Bukit Pennies Capture.
-        </Instruction>
-        <Tip>Add one automation per card. If your card is ever replaced, update the digits — otherwise capture quietly stops. To capture every card of a bank with one automation, delete the placeholder digits entirely.</Tip>
+        <Divider />
+        <Text style={[styles.optionLabel, { color: colors.text }]}>Per card</Text>
+        <Muted>
+          Only want certain cards tracked? Use the card digits exactly as they appear in a real
+          SMS, one automation per card.
+        </Muted>
+        <CopyRow label="Baiduri (use your own digits)" value="Card No.: 4x0213" />
+        <CopyRow label="BIBD (use your own last 4 digits)" value="card ending with 0298" />
+        <Tip>If a card is replaced, its digits change and capture stops. Update the automation with the new digits. Per bank setups never have this problem.</Tip>
       </Card>
 
       {/* Good to know */}
@@ -265,7 +265,7 @@ export default function ShortcutSetup() {
           <Text style={styles.infoIcon}>✓</Text>
           <Text style={[styles.infoText, { color: colors.text }]}>
             <Text style={{ fontWeight: '700' }}>Logged confirmations are built in.</Text>
-            {'  '}Every captured spend shows a "Logged BND 5.10 at HUA HO"-style notification — no extra setup.
+            {'  '}Every captured spend shows a notification like "Logged BND 5.10 at HUA HO". No extra setup.
           </Text>
         </View>
 
@@ -273,7 +273,7 @@ export default function ShortcutSetup() {
           <Text style={styles.infoIcon}>✓</Text>
           <Text style={[styles.infoText, { color: colors.text }]}>
             <Text style={{ fontWeight: '700' }}>Duplicates are ignored.</Text>
-            {'  '}If the same SMS arrives twice, only the first is stored — spending is never double-counted.
+            {'  '}If the same SMS arrives twice, only the first is stored. Spending is never double counted.
           </Text>
         </View>
 
@@ -281,7 +281,7 @@ export default function ShortcutSetup() {
           <Text style={styles.infoIcon}>✓</Text>
           <Text style={[styles.infoText, { color: colors.text }]}>
             <Text style={{ fontWeight: '700' }}>Confirmation tap.</Text>
-            {'  '}iOS may ask you to confirm before the automation runs — that is an iOS security setting, not an error.
+            {'  '}iOS may ask you to confirm before the automation runs. That is an iOS security setting, not an error.
           </Text>
         </View>
 
@@ -289,7 +289,7 @@ export default function ShortcutSetup() {
           <Text style={styles.infoIcon}>✓</Text>
           <Text style={[styles.infoText, { color: colors.text }]}>
             <Text style={{ fontWeight: '700' }}>Test it now.</Text>
-            {'  '}Run the shortcut manually on a copied bank message — the transaction should appear in the app within seconds.
+            {'  '}Run the shortcut manually on a copied bank message. The transaction should appear in the app within seconds.
           </Text>
         </View>
       </Card>
@@ -299,11 +299,11 @@ export default function ShortcutSetup() {
         <Card>
           <Text style={[styles.sectionLabel, { color: colors.muted }]}>All done?</Text>
           <Instruction>
-            Once your automation is created (and ideally tested), you're set — every bank SMS
-            from here on logs itself.
+            Once your automation is created, you're set. Every bank SMS from here on logs
+            itself.
           </Instruction>
           <View style={{ marginTop: 12, gap: 8 }}>
-            <Button label="Setup complete — take me to the app" onPress={completeSetup} />
+            <Button label="Setup complete, take me to the app" onPress={completeSetup} />
             <Button
               label="I'll do it later"
               variant="secondary"
@@ -388,6 +388,7 @@ const useStyles = themedStyles((colors) => ({
     marginBottom: 12,
   },
 
+  optionLabel: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
   sectionLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 },
   infoRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   infoIcon: { fontSize: 16, color: colors.primary, lineHeight: 22 },

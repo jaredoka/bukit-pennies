@@ -118,7 +118,7 @@ export async function syncScheduledNotifications(opts: {
     await N.scheduleNotificationAsync({
       content: {
         title: 'Upcoming bill',
-        body: `${r.merchant} — about ${formatMoney(r.amount, r.currency)} expected around day ${expectedDay}.`,
+        body: `${r.merchant}: about ${formatMoney(r.amount, r.currency)} expected around day ${expectedDay}.`,
       },
       trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: fireAt },
     });
@@ -132,10 +132,10 @@ export async function syncScheduledNotifications(opts: {
       opts.income && opts.income > 0 ? Math.round((opts.spentThisMonth / opts.income) * 100) : null;
     await N.scheduleNotificationAsync({
       content: {
-        title: 'Bukit Pennies — weekly update',
+        title: 'Bukit Pennies weekly update',
         body:
           pct !== null
-            ? `You've spent ${formatMoney(opts.spentThisMonth)} this month — ${pct}% of your income used so far.`
+            ? `You've spent ${formatMoney(opts.spentThisMonth)} this month, ${pct}% of your income used so far.`
             : `You've spent ${formatMoney(opts.spentThisMonth)} this month. Set your income in Settings to track the percentage used.`,
       },
       trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: fire },
@@ -162,7 +162,7 @@ export async function maybeOverspendAlert(budgets: Array<{ id: string; name: str
           title: level === 2 ? 'Budget exceeded' : 'Budget almost used up',
           body:
             level === 2
-              ? `${b.name}: ${formatMoney(b.spent)} spent of ${formatMoney(b.limit)} — over budget.`
+              ? `${b.name}: ${formatMoney(b.spent)} spent of ${formatMoney(b.limit)}. Over budget.`
               : `${b.name}: ${Math.round(ratio * 100)}% of the ${formatMoney(b.limit)} budget used.`,
         },
         trigger: null,

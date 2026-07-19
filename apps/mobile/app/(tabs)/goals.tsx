@@ -59,7 +59,7 @@ export default function GoalsTab() {
 
       {(data ?? []).length === 0 ? (
         <Card>
-          <Muted>No goals yet — create your first one above.</Muted>
+          <Muted>No goals yet. Create your first one above.</Muted>
         </Card>
       ) : (
         (data ?? []).map((g) => <GoalCard key={g.id} goal={g} />)

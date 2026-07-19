@@ -87,7 +87,7 @@ export default function Insights() {
         <Card>
           <Title>Insights</Title>
           <Muted>
-            Nothing to analyze yet — insights appear once you have transactions across a month or
+            Nothing to analyze yet. Insights appear once you have transactions across a month or
             two. Capture a few bank messages to get started.
           </Muted>
         </Card>

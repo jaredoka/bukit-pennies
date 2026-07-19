@@ -585,7 +585,7 @@ export default function TransactionsList() {
       : 'Category';
   const currLabel = filters.currencies.length > 0 ? filters.currencies.join(', ') : 'Currency';
   const dateLabel =
-    filters.dateFrom && filters.dateTo ? `${filters.dateFrom} – ${filters.dateTo}`
+    filters.dateFrom && filters.dateTo ? `${filters.dateFrom} to ${filters.dateTo}`
     : filters.dateFrom ? `From ${filters.dateFrom}`
     : filters.dateTo ? `To ${filters.dateTo}`
     : 'Date';
@@ -853,7 +853,7 @@ function CaptureSheet({ onClose }: { onClose: () => void }) {
 
   const captureResultText = result
     ? result.status === 'created' ? '✓ Transaction saved.'
-    : result.status === 'duplicate' ? 'Already recorded — this exact message was captured before.'
+    : result.status === 'duplicate' ? 'Already recorded. This exact message was captured before.'
     : result.status === 'ignored' ? `Ignored: not a transaction message${result.reason ? ` (${result.reason})` : ''}.`
     : `Error: ${result.error ?? 'unknown'}`
     : null;
@@ -877,7 +877,7 @@ function CaptureSheet({ onClose }: { onClose: () => void }) {
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Capture</Text>
             </View>
-            <Muted>Paste bank SMS text — one message or a whole conversation at once.</Muted>
+            <Muted>Paste bank SMS text, one message or a whole conversation at once.</Muted>
             <Field
               multiline
               value={text}

@@ -34,7 +34,7 @@ export default function SavingsGoals() {
         <Title>New goal</Title>
         <Muted>
           Set a target and add to it whenever you put money aside. Bukit Pennies never touches
-          your bank — the progress is whatever you record here.
+          your bank. The progress is whatever you record here.
         </Muted>
         <View style={{ marginTop: 12 }}>
           <Field label="Goal" value={name} onChangeText={setName} placeholder="e.g. Umrah fund, new laptop" />
@@ -62,7 +62,7 @@ export default function SavingsGoals() {
 
       {(data ?? []).length === 0 ? (
         <Card>
-          <Muted>No goals yet — create your first one above.</Muted>
+          <Muted>No goals yet. Create your first one above.</Muted>
         </Card>
       ) : (
         (data ?? []).map((g) => <GoalCard key={g.id} goal={g} />)

@@ -74,7 +74,7 @@ function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void 
     try {
       const res = await postIngest(message, 'paste');
       if (res.status === 'error') {
-        setError(res.error ?? 'Something went wrong — try again or skip for now.');
+        setError(res.error ?? 'Something went wrong. Try again or skip for now.');
         return;
       }
       qc.invalidateQueries({ queryKey: ['transactions'] });
@@ -93,7 +93,7 @@ function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void 
       <Steps current={1} />
       <Text style={styles.hello}>Welcome to Bukit Pennies 👋</Text>
       <Muted>
-        Your bank texts you every time you spend. Paste your last bank SMS below — watch it
+        Your bank texts you every time you spend. Paste your last bank SMS below and watch it
         become your first logged transaction in seconds. No bank logins, ever.
       </Muted>
 
@@ -125,7 +125,7 @@ function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void 
         ) : preview ? (
           <Muted>
             {preview.isTransactional
-              ? 'Could not extract a transaction — you can still save it and fix it in Review.'
+              ? 'Could not extract a transaction. You can still save it and fix it in Review.'
               : 'This does not look like a purchase message (OTP, promo, or balance alert).'}
           </Muted>
         ) : null}

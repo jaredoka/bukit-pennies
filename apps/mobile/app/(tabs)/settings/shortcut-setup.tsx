@@ -5,10 +5,10 @@ import { useRouter } from 'expo-router';
 import { Button, Card, Field, Muted } from '@/components/ui';
 import { SHORTCUT_DOWNLOAD_URL } from '@/lib/env';
 import { kvGet, kvSet } from '@/lib/kvStore';
+import { deferSetup, onboardedKey } from '@/lib/onboarding';
 import { useCreateIngestToken } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { themedStyles, useTheme } from '@/lib/theme';
-import { onboardedKey } from '../../welcome';
 
 // ─── Reusable sub-components ────────────────────────────────────────────────
 
@@ -302,9 +302,20 @@ export default function ShortcutSetup() {
             Once your automation is created (and ideally tested), you're set — every bank SMS
             from here on logs itself.
           </Instruction>
-          <View style={{ marginTop: 12 }}>
+          <View style={{ marginTop: 12, gap: 8 }}>
             <Button label="Setup complete — take me to the app" onPress={completeSetup} />
+            <Button
+              label="I'll do it later"
+              variant="secondary"
+              onPress={() => {
+                deferSetup();
+                router.replace('/(tabs)');
+              }}
+            />
           </View>
+          <Muted>
+            You'll be brought back here each time you open the app until setup is complete.
+          </Muted>
         </Card>
       ) : null}
 

@@ -11,9 +11,10 @@ import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { themedStyles, useTheme } from '@/lib/theme';
 
-export function onboardedKey(userId: string): string {
-  return `onboarded:${userId}`;
-}
+import { onboardedKey } from '@/lib/onboarding';
+
+// Re-export for existing importers (_layout, shortcut-setup).
+export { onboardedKey };
 
 // ─── Step indicators ─────────────────────────────────────────────────────────
 

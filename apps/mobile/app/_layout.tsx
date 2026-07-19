@@ -9,7 +9,7 @@ import { SessionProvider, useSession } from '@/lib/session';
 import { ThemeProvider, useTheme } from '@/lib/theme';
 import { PrivacyProvider } from '@/lib/privacy';
 import { kvGet } from '@/lib/kvStore';
-import { onboardedKey } from './welcome';
+import { isSetupDeferred, onboardedKey } from '@/lib/onboarding';
 
 initSentry();
 
@@ -44,8 +44,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       const onSetupScreen = (segments as string[]).includes('shortcut-setup');
       if (inAuthGroup && !onResetScreen) {
         router.replace(onboarded ? '/(tabs)' : '/welcome');
-      } else if (!onboarded && !onWelcome && !onSetupScreen) {
-        // First-time users are held on the setup guide until they finish it.
+      } else if (!onboarded && !onWelcome && !onSetupScreen && !isSetupDeferred()) {
+        // Users who haven't completed setup are sent to the guide. "I'll do
+        // it later" defers for this launch only — next open re-prompts.
         router.replace('/(tabs)/settings/shortcut-setup');
       }
     });

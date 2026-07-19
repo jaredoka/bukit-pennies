@@ -21,7 +21,7 @@ export default function Landing() {
         <View style={[styles.trustBox, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '40' }]}>
           <Text style={[styles.trustText, { color: colors.text }]}>
             Never connects to your bank. No passwords, no account linking. It only reads
-            notification text.
+            notification text, and we will never ask for your banking details.
           </Text>
         </View>
         <View style={{ gap: 10, marginTop: 28 }}>

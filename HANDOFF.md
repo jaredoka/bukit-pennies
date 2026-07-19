@@ -460,6 +460,24 @@ trend/insight screens, no widgets, no shared/household budgets.
 Deliberately deferred: shared/household budgets, investment tracking,
 widgets, freemium.
 
+**Email capture (gated candidate, noted 2026-07-20):** strongest candidate
+for the next capture channel, potentially replacing the Stage B Kotlin
+listener. Design sketch: unique inbound address per user (token in the
+address is the auth, e.g. `u-<token>@in.<domain>`); users point their
+bank's e-alerts at it, or set a one-time Gmail/Outlook auto-forward rule.
+Inbound provider (Cloudflare Email Routing or Postmark inbound parse, both
+free tier) POSTs the message to the existing ingest edge function as a new
+`email` source. Parser needs an HTML-to-text pass plus golden fixtures
+from real bank emails (same collection process as SMS). Why attractive:
+universal across countries and platforms; works on Android with zero
+on-device setup and no notification-listener permission. Risks to design
+around: sender spoofing (check the provider's SPF/DKIM verdict on the
+bank's domain; needs_review flow catches garbage) and HTML soup.
+**Gate: confirm Baiduri/BIBD actually send per-transaction email alerts**
+(owner to check e-banking settings; unverified as of 2026-07-20). If
+neither bank does, the idea is dead for Brunei regardless of elegance.
+Not a blocker for the iOS launch.
+
 **Post-launch watch (noted 2026-07-19, owner asked to be reminded):** the
 onboarding funnel is measurable from the database alone, no analytics
 tooling: accounts created (auth.users) vs capture tokens created

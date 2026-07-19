@@ -186,6 +186,19 @@ export default function ShortcutSetup() {
         </View>
       </Card>
 
+      {/* Requirement warning: capture depends entirely on bank SMS arriving in Messages */}
+      <Card>
+        <View style={[styles.warnBox, { backgroundColor: colors.danger + '12', borderColor: colors.danger + '55' }]}>
+          <Text style={[styles.warnTitle, { color: colors.danger }]}>Important</Text>
+          <Text style={[styles.warnText, { color: colors.text }]}>
+            This only works if your bank sends transaction alerts as SMS, arriving in the
+            Messages app. If those alerts are disabled, or your bank sends them another way
+            (app notification, email), nothing can be captured. Not sure? Ask your bank to
+            turn on SMS transaction alerts for your cards.
+          </Text>
+        </View>
+      </Card>
+
       {/* Step 1: inline token creation, no navigating away */}
       <Card>
         <StepHeader number={1} title="Create your token" />
@@ -266,6 +279,24 @@ export default function ShortcutSetup() {
         <Tip>If a card is replaced, its digits change and capture stops. Update the automation with the new digits. Per bank setups never have this problem.</Tip>
       </Card>
 
+      {/* Step 5: test run. Also teaches the trigger logic: it fires on the
+          SMS arriving in Messages, not on the physical card tap. */}
+      <Card>
+        <StepHeader number={5} title="Test it" />
+        <Instruction>
+          The Shortcut runs when a bank message arrives in the Messages app, not when you tap
+          your card. So you can trigger it yourself right now:
+        </Instruction>
+        <View style={{ height: 8 }} />
+        <Instruction>
+          {'1. Copy a real transaction message from your bank.\n' +
+            '2. Open the Messages app (the iOS one, not WhatsApp).\n' +
+            '3. Open the chat with yourself or your own number.\n' +
+            '4. Paste the message and tap send.\n' +
+            '5. The transaction appears in the app within seconds, with a Logged notification.'}
+        </Instruction>
+      </Card>
+
       {/* Good to know */}
       <Card>
         <Text style={[styles.sectionLabel, { color: colors.muted }]}>Good to know</Text>
@@ -304,18 +335,6 @@ export default function ShortcutSetup() {
           </Text>
         </View>
 
-        <View style={styles.infoRow}>
-          <Text style={styles.infoIcon}>✓</Text>
-          <Text style={[styles.infoText, { color: colors.text }]}>
-            <Text style={{ fontWeight: '700' }}>Test it now.</Text>
-            {'\n'}
-            {'1. Copy a real transaction message from your bank.\n' +
-              '2. Open the Messages app (the iOS one, not WhatsApp).\n' +
-              '3. Open the chat with yourself or your own number.\n' +
-              '4. Paste the message and tap send.\n' +
-              '5. The transaction appears in the app within seconds, with a Logged notification.'}
-          </Text>
-        </View>
       </Card>
 
       {/* Onboarding completion — releases the AuthGate hold */}
@@ -334,8 +353,8 @@ export default function ShortcutSetup() {
               </Text>
             ) : (
               <Text style={{ color: colors.muted }}>
-                Waiting for your first captured message. Finish the steps above, then use
-                "Test it now" to send one.
+                Waiting for your first captured message. Finish the steps above, then send
+                one with Step 5.
               </Text>
             )}
           </View>
@@ -430,6 +449,9 @@ const useStyles = themedStyles((colors) => ({
   },
 
   optionLabel: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
+  warnBox: { padding: 14, borderRadius: 10, borderWidth: 1 },
+  warnTitle: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
+  warnText: { fontSize: 14, lineHeight: 21 },
   sectionLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 },
   infoRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   infoIcon: { fontSize: 16, color: colors.primary, lineHeight: 22 },

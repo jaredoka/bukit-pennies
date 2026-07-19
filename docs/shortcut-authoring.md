@@ -62,30 +62,27 @@ deep link targets this name — do not rename).
 
    *(Why re-read? After the If/End If, the token is always on disk — either
    it was already there before step 4, or step 4.2 just wrote it. Re-reading
-   gives one clean result variable for step 7 to use, regardless of which
-   branch ran. Without this, you'd need to reference either "File" from step 3
-   or "Provided Input" from step 4.1 depending on the path taken.)*
+   gives a single result to name and use in step 8, regardless of which
+   branch ran.)*
 
-   Rename the result variable to **Token**: tap the action's result chip →
-   **Rename**.
-7. **Get Contents of URL** — URL: the hosted ingest endpoint
+7. **Set Variable** — Variable Name: `Token` · Value: **File** (the result
+   of step 6 — tap the field and pick it from the magic variables list).
+8. **Get Contents of URL** — URL: the hosted ingest endpoint
    `https://<project-ref>.supabase.co/functions/v1/ingest`
    - Method: **POST**
-   - Headers: `Authorization` = `Bearer ` + **Token** variable chip
-     (type `Bearer `, space included, then insert the chip)
+   - Headers: `Authorization` = `Bearer ` + **Token** variable
+     (type `Bearer `, space included, then insert the **Token** variable chip)
    - Request Body: **JSON** with:
      - `text` = **Shortcut Input** (variable chip)
      - `source` = `ios_shortcut` (plain text)
-8. **Get Dictionary Value** — Key: `transaction` · from **Contents of URL**
-9. **Get Dictionary Value** — Key: `merchant` · from step 8's output ·
-   rename result to **Merchant**
-10. **Get Dictionary Value** — Key: `amount` · from step 8's output ·
-    rename result to **Amount**
-11. **Show Notification** — Title: `Bukit Pennies` · Body: `Logged ` +
-    **Amount** chip + ` at ` + **Merchant** chip
+9. **Get Dictionary Value** — Key: `transaction` · from **Contents of URL**
+10. **Get Dictionary Value** — Key: `merchant` · from step 9's output
+11. **Get Dictionary Value** — Key: `amount` · from step 9's output
+12. **Show Notification** — Title: `Bukit Pennies` · Body: `Logged ` +
+    **Amount** (result of step 11) + ` at ` + **Merchant** (result of step 10)
 
 On duplicate/ignored/error replies there is no `transaction` key, so steps
-8–11 produce a blank-bodied notification — harmless.
+9–12 produce a blank-bodied notification — harmless.
 
 ## Test before sharing
 

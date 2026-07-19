@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { useRouter } from 'expo-router';
 import { Button, Card, Field, Muted } from '@/components/ui';
 import { SHORTCUT_DOWNLOAD_URL } from '@/lib/env';
+import { kvGet, kvSet } from '@/lib/kvStore';
 import { useCreateIngestToken } from '@/lib/queries';
+import { useSession } from '@/lib/session';
 import { themedStyles, useTheme } from '@/lib/theme';
+import { onboardedKey } from '../../welcome';
 
 // ─── Reusable sub-components ────────────────────────────────────────────────
 
@@ -89,7 +93,7 @@ function InlineTokenCreator({ onToken }: { onToken: (token: string) => void }) {
             setCopied(true);
           }}
         />
-        <Tip>Also save it somewhere safe (Notes, password manager) — it cannot be shown again, only replaced.</Tip>
+        <Tip>No need to save it anywhere else — the Shortcut stores it for you in Step 3, and you can always replace it later under Settings → Capture.</Tip>
       </View>
     );
   }
@@ -131,7 +135,29 @@ function Divider() {
 export default function ShortcutSetup() {
   const styles = useStyles();
   const { colors } = useTheme();
+  const router = useRouter();
+  const { session } = useSession();
   const [token, setToken] = useState<string | null>(null);
+  // Onboarding mode: first-time users are held here by AuthGate until they
+  // tap "Setup complete", which flips the flag and releases them.
+  const [onboarding, setOnboarding] = useState(false);
+
+  const userId = session?.user.id;
+  useEffect(() => {
+    if (!userId) return;
+    let live = true;
+    kvGet(onboardedKey(userId)).then((v) => {
+      if (live) setOnboarding(v !== '1');
+    });
+    return () => {
+      live = false;
+    };
+  }, [userId]);
+
+  async function completeSetup() {
+    if (userId) await kvSet(onboardedKey(userId), '1');
+    router.replace('/(tabs)');
+  }
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -139,6 +165,9 @@ export default function ShortcutSetup() {
       {/* Intro */}
       <Card>
         <Text style={styles.heroTitle}>Near-automatic capture</Text>
+        {onboarding ? (
+          <Muted>One-time setup — finish the steps below to start using the app.</Muted>
+        ) : null}
         <Muted>
           iOS cannot read SMS for you, so a ready-made Shortcut watches for bank messages and
           forwards them automatically — no copy-pasting needed after setup.
@@ -152,8 +181,8 @@ export default function ShortcutSetup() {
       <Card>
         <StepHeader number={1} title="Create your capture token" />
         <Instruction>
-          The Shortcut needs a private token to send messages to your account. Create one right
-          here — no need to leave this page.
+          The Shortcut needs a private token to send messages to your account. Tap "Create my
+          token" below, then tap "Copy token" to copy it to your clipboard.
         </Instruction>
         <InlineTokenCreator onToken={setToken} />
       </Card>
@@ -264,6 +293,20 @@ export default function ShortcutSetup() {
           </Text>
         </View>
       </Card>
+
+      {/* Onboarding completion — releases the AuthGate hold */}
+      {onboarding ? (
+        <Card>
+          <Text style={[styles.sectionLabel, { color: colors.muted }]}>All done?</Text>
+          <Instruction>
+            Once your automation is created (and ideally tested), you're set — every bank SMS
+            from here on logs itself.
+          </Instruction>
+          <View style={{ marginTop: 12 }}>
+            <Button label="Setup complete — take me to the app" onPress={completeSetup} />
+          </View>
+        </Card>
+      ) : null}
 
     </ScrollView>
   );

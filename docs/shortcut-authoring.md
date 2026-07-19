@@ -94,6 +94,25 @@ On duplicate/ignored/error replies there is no `transaction` key, so steps
    transaction appears in the app; "Logged … at …" notification shows.
 4. Files app → iCloud Drive → Shortcuts → `Bukit Pennies/token.txt` exists.
 
+## Troubleshooting the build
+
+**Sending the token shows a "Logged … at …" notification instead of
+"Connected"** — the setup branch (step 1) did not match, so the token fell
+through to the capture path and was POSTed as if it were an SMS (the server
+ignores it as non-transactional, so no bad data — but the token was not
+saved). Check, in order:
+
+1. The **If** action's Input is **Shortcut Input** (tap the blue variable in
+   the If card to verify), not Clipboard or a file.
+2. The condition is **begins with** and the text is exactly `bp_` —
+   lowercase, no leading space; watch for autocapitalize turning it into
+   `Bp_`.
+3. Steps 1.1–1.3 (Save File, Show Notification, **Stop Shortcut**) sit
+   **inside** the If block — above "End If", not after it. If Stop Shortcut
+   is missing or outside, the capture path runs too.
+4. Re-test with the app's "Send the token to the Shortcut" button — the run
+   should end at the "Connected" notification and nothing else.
+
 ## Publish
 
 Shortcuts app → long-press the shortcut → **Share** → **Copy iCloud Link**,

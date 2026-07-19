@@ -323,6 +323,17 @@ State reached during on-device testing:
   `https://www.icloud.com/shortcuts/9a70cda0b1b84feca11991213011a95a`.
   `scripts/build-shortcut.mjs` + the `ios-shortcut.yml` workflow remain for
   reference/if Apple ever unblocks CI signing.
+- **Self-configuring shortcut (2026-07-19):** the shortcut was redesigned to
+  store its own token (`Bukit Pennies/token.txt` in iCloud Drive) instead of
+  a hardcoded `PASTE-YOUR-TOKEN-HERE` edit. The app hands the token over via
+  a `shortcuts://run-shortcut` deep link ("Send the token to the Shortcut",
+  Step 3 of the setup screen); fallback: the shortcut asks for the token on
+  first run. The "Logged … at …" notification is now baked in. Setup is 4
+  steps / ~3 min; the only remaining manual work is the Message automation
+  (iOS automations are unshareable). Owner rebuild recipe:
+  `docs/shortcut-authoring.md` — **the iCloud link above still points at the
+  old shortcut until the owner rebuilds and re-shares it** (old and new use
+  the same ingest contract, so nothing breaks in the meantime).
 - **Theming:** full light/dark theme system (`src/lib/theme.tsx`; palettes +
   `themedStyles` hook + persisted System/Light/Dark toggle in Settings). The
   static `colors` export from `components/ui.tsx` is gone — never reintroduce

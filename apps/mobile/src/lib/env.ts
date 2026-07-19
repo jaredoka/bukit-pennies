@@ -12,7 +12,9 @@ export const INGEST_URL = `${SUPABASE_URL}/functions/v1/ingest`;
 
 export const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? '';
 
-// Signed, ready-made iOS shortcut published by .github/workflows/ios-shortcut.yml.
+// Owner's shared iCloud link to the ready-made "Bukit Pennies Capture"
+// shortcut (CI cannot sign shortcuts — see docs/shortcut-authoring.md).
+// After the self-configuring rebuild, replace this with the new share link.
 export const SHORTCUT_DOWNLOAD_URL =
   'https://www.icloud.com/shortcuts/9a70cda0b1b84feca11991213011a95a';
 

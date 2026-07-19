@@ -64,7 +64,8 @@ function CopyRow({ label, value }: { label: string; value: string }) {
 
 // Creates an ios_shortcut token without leaving the setup guide. The token is
 // shown once with a copy button; revoking lives in Capture devices & tokens.
-function InlineTokenCreator() {
+// onToken lifts the fresh token so Step 3 can hand it to the Shortcut.
+function InlineTokenCreator({ onToken }: { onToken: (token: string) => void }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const create = useCreateIngestToken();
@@ -82,7 +83,7 @@ function InlineTokenCreator() {
           {token}
         </Text>
         <Button
-          label={copied ? '✓ Copied — paste it in Step 3' : 'Copy token'}
+          label={copied ? '✓ Copied' : 'Copy token'}
           onPress={async () => {
             await Clipboard.setStringAsync(token);
             setCopied(true);
@@ -101,7 +102,12 @@ function InlineTokenCreator() {
         onPress={() =>
           create.mutate(
             { name: name.trim(), kind: 'ios_shortcut' },
-            { onSuccess: (t) => setToken(t) },
+            {
+              onSuccess: (t) => {
+                setToken(t);
+                onToken(t);
+              },
+            },
           )
         }
         disabled={!name.trim()}
@@ -125,6 +131,7 @@ function Divider() {
 export default function ShortcutSetup() {
   const styles = useStyles();
   const { colors } = useTheme();
+  const [token, setToken] = useState<string | null>(null);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -137,7 +144,7 @@ export default function ShortcutSetup() {
           forwards them automatically — no copy-pasting needed after setup.
         </Muted>
         <View style={[styles.timePill, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '40' }]}>
-          <Text style={[styles.timePillText, { color: colors.primary }]}>⏱ About 5 minutes to set up</Text>
+          <Text style={[styles.timePillText, { color: colors.primary }]}>⏱ About 3 minutes to set up</Text>
         </View>
       </Card>
 
@@ -148,7 +155,7 @@ export default function ShortcutSetup() {
           The Shortcut needs a private token to send messages to your account. Create one right
           here — no need to leave this page.
         </Instruction>
-        <InlineTokenCreator />
+        <InlineTokenCreator onToken={setToken} />
       </Card>
 
       {/* Step 2 */}
@@ -156,7 +163,7 @@ export default function ShortcutSetup() {
         <StepHeader number={2} title="Download the Shortcut" />
         <Instruction>
           Tap the button below to download the Bukit Pennies Capture shortcut. iOS will ask to add
-          it — tap Add Shortcut. You do not need to edit anything inside it yet.
+          it — tap Add Shortcut. You never need to edit anything inside it.
         </Instruction>
         <View style={{ marginTop: 12 }}>
           <Button
@@ -166,14 +173,31 @@ export default function ShortcutSetup() {
         </View>
       </Card>
 
-      {/* Step 3 */}
+      {/* Step 3 — one-tap token handoff via shortcuts:// deep link */}
       <Card>
-        <StepHeader number={3} title="Paste your token into the Shortcut" />
+        <StepHeader number={3} title="Connect the app to the Shortcut" />
         <Instruction>
-          Open the Shortcuts app, find "Bukit Pennies Capture", and tap the three-dot (•••) menu
-          to edit it. Find the line that says PASTE-YOUR-TOKEN-HERE and replace it with the bp_…
-          token you copied in Step 1. That is the only change you need to make.
+          One tap sends your token to the Shortcut, which stores it for you — no editing needed.
+          You should see a "Bukit Pennies — Connected" notification.
         </Instruction>
+        <View style={{ marginTop: 12 }}>
+          <Button
+            label="Send the token to the Shortcut"
+            onPress={() =>
+              Linking.openURL(
+                'shortcuts://run-shortcut?name=' +
+                  encodeURIComponent('Bukit Pennies Capture') +
+                  '&input=text&text=' +
+                  encodeURIComponent(token ?? ''),
+              )
+            }
+            disabled={!token}
+          />
+          {!token ? (
+            <Muted>Create a token in Step 1 first — the button unlocks once it exists.</Muted>
+          ) : null}
+        </View>
+        <Tip>Reusing an old token instead? Just run the Shortcut once from the Shortcuts app — it will ask for the token and remember it.</Tip>
       </Card>
 
       {/* Step 4 */}
@@ -204,27 +228,17 @@ export default function ShortcutSetup() {
         <Tip>Add one automation per card. If your card is ever replaced, update the digits — otherwise capture quietly stops. To capture every card of a bank with one automation, delete the placeholder digits entirely.</Tip>
       </Card>
 
-      {/* Step 5 — Optional notification */}
-      <Card>
-        <StepHeader number={5} title="Optional — get a logged confirmation" />
-        <Instruction>
-          To see a "Logged BND 5.10 at HUA HO" notification every time a spend is captured, add
-          these four actions to the end of the shortcut (after the Get Contents of URL action):
-        </Instruction>
-        <View style={[styles.codeBlock, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-          <Text style={[styles.codeText, { color: colors.text }]}>
-            {'1.  Get Dictionary Value\n    Key: transaction  ←  from Contents of URL\n\n' +
-              '2.  Get Dictionary Value\n    Key: merchant  ←  from step 1\n\n' +
-              '3.  Get Dictionary Value\n    Key: amount  ←  from step 1\n\n' +
-              '4.  Show Notification\n    Title: Bukit Pennies\n    Body: Logged [amount] at [merchant]'}
-          </Text>
-        </View>
-        <Tip>The [bracketed] items are variable chips — tap the variable bar above the keyboard to insert them, do not type the brackets.</Tip>
-      </Card>
-
       {/* Good to know */}
       <Card>
         <Text style={[styles.sectionLabel, { color: colors.muted }]}>Good to know</Text>
+
+        <View style={styles.infoRow}>
+          <Text style={styles.infoIcon}>✓</Text>
+          <Text style={[styles.infoText, { color: colors.text }]}>
+            <Text style={{ fontWeight: '700' }}>Logged confirmations are built in.</Text>
+            {'  '}Every captured spend shows a "Logged BND 5.10 at HUA HO"-style notification — no extra setup.
+          </Text>
+        </View>
 
         <View style={styles.infoRow}>
           <Text style={styles.infoIcon}>✓</Text>
@@ -309,18 +323,6 @@ const useStyles = themedStyles((colors) => ({
     fontSize: 14,
   },
   copyHint: { fontWeight: '600', fontSize: 13 },
-
-  codeBlock: {
-    marginVertical: 10,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  codeText: {
-    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
-    fontSize: 12,
-    lineHeight: 20,
-  },
 
   tokenBox: { marginTop: 12, borderWidth: 1, borderRadius: 10, padding: 12 },
   tokenLabel: { fontSize: 13, fontWeight: '700', marginBottom: 8 },

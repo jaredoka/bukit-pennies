@@ -158,19 +158,19 @@ function ShortcutPage({ onSetUp, onSkip }: { onSetUp: () => void; onSkip: () => 
 
       <Card>
         <View style={[styles.timePill, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '40' }]}>
-          <Text style={[styles.timePillText, { color: colors.primary }]}>⏱ About 5 minutes</Text>
+          <Text style={[styles.timePillText, { color: colors.primary }]}>⏱ About 3 minutes</Text>
         </View>
 
         <View style={{ gap: 16, marginTop: 16 }}>
           <NudgeStep
             number="1"
-            title="Create a capture token"
-            body="Settings → Capture → Capture devices & tokens → Add device. Copy the bp_… token (shown once)."
+            title="Create a token & download the Shortcut"
+            body="Both happen right inside the setup guide — a token button and a download button."
           />
           <NudgeStep
             number="2"
-            title="Download the Shortcut"
-            body="A ready-made Shortcut that sends bank messages to your private endpoint. The only thing you paste is your token."
+            title="Connect with one tap"
+            body="The app sends your token to the Shortcut for you. No editing, no pasting."
           />
           <NudgeStep
             number="3"
@@ -180,7 +180,7 @@ function ShortcutPage({ onSetUp, onSkip }: { onSetUp: () => void; onSkip: () => 
         </View>
       </Card>
 
-      <Button label="Set up now — takes ~5 min" onPress={onSetUp} />
+      <Button label="Set up now — takes ~3 min" onPress={onSetUp} />
       <Button label="I'll do it later" variant="secondary" onPress={onSkip} />
       <Muted>
         You can always find the full guide under Settings → Capture → iOS Shortcut setup.

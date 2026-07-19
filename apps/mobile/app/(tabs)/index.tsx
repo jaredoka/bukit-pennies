@@ -37,6 +37,7 @@ import {
   type ReminderPrefs,
 } from '@/lib/notifications';
 import { usePrivacy } from '@/lib/privacy';
+import { usePrimaryCurrency } from '@/lib/primaryCurrency';
 import { detectRecurring } from '@/lib/recurring';
 import { themedStyles, useTheme } from '@/lib/theme';
 
@@ -80,10 +81,11 @@ export default function Dashboard() {
   const { width } = useWindowDimensions();
   const chartWidth = Math.min(width, 720) - 88;
 
+  const { currency: primaryCurrency } = usePrimaryCurrency();
   const profile = useProfile();
   const monthly = useMonthlyTotals();
   const thisMonthTx = useThisMonthTransactions();
-  const topMerchants = useTopMerchants(6);
+  const topMerchants = useTopMerchants(6, primaryCurrency);
   const categories = useCategories();
   const budgets = useBudgets();
   const recentTx = useRecentMonthsTransactions(6);
@@ -122,35 +124,48 @@ export default function Dashboard() {
   }, []);
 
   const thisMonthData = monthly.data?.find(
-    (r) => r.month.startsWith(thisMonthKey.slice(0, 7)) && r.currency === 'BND',
+    (r) => r.month.startsWith(thisMonthKey.slice(0, 7)) && r.currency === primaryCurrency,
   );
   const income = profile.data?.monthly_income == null ? null : Number(profile.data.monthly_income);
+  // Income comparison only makes sense for BND
+  const effectiveIncome = primaryCurrency === 'BND' ? income : null;
+
+  // Count excluded (non-primary-currency) transactions for the note
+  const excludedCurrencies = useMemo(() => {
+    const others = new Set<string>();
+    for (const tx of periodTx.data ?? []) {
+      if (tx.currency !== primaryCurrency) others.add(tx.currency);
+    }
+    return [...others].sort();
+  }, [periodTx.data, primaryCurrency]);
 
   // ---- Hero donut: category spend vs income / period ----------------------
   const donut = useMemo(() => {
     const byCategory = new Map<string | null, number>();
     let spent = 0;
     for (const tx of periodTx.data ?? []) {
-      if (tx.amount === null) continue;
+      if (tx.amount === null || tx.currency !== primaryCurrency) continue;
       byCategory.set(tx.category_id, (byCategory.get(tx.category_id) ?? 0) + Number(tx.amount));
       spent += Number(tx.amount);
     }
     const named = Array.from(byCategory.entries())
       .map(([id, value]) => {
-        const cat = categories.data?.find((c) => c.id === id);
+        const catIndex = id === null ? -1 : (categories.data?.findIndex((c) => c.id === id) ?? -1);
+        const cat = catIndex >= 0 ? categories.data![catIndex] : undefined;
         return {
           key: id ?? 'uncategorized',
           name: id === null ? 'Uncategorized' : (cat?.name ?? 'Unknown'),
           dbColor: id === null ? null : (cat?.color ?? null),
+          catIndex,
           value,
         };
       })
       .sort((a, b) => b.value - a.value);
-    const slices: Slice[] = named.slice(0, 5).map((c, i) => ({
+    const slices: Slice[] = named.slice(0, 5).map((c) => ({
       key: c.key,
       name: c.name,
       value: c.value,
-      color: c.dbColor ?? colors.chartCategories[i % colors.chartCategories.length]!,
+      color: c.dbColor ?? colors.chartCategories[Math.max(c.catIndex, 0) % colors.chartCategories.length]!,
       isRemaining: false,
     }));
     const rest = named.slice(5);
@@ -163,7 +178,7 @@ export default function Dashboard() {
         isRemaining: false,
       });
     }
-    const remaining = income !== null && !isYearMode ? income - spent : null;
+    const remaining = effectiveIncome !== null && !isYearMode ? effectiveIncome - spent : null;
     if (remaining !== null && remaining > 0) {
       slices.push({
         key: REMAINING_KEY,
@@ -174,10 +189,10 @@ export default function Dashboard() {
       });
     }
     return { slices, spent, remaining };
-  }, [periodTx.data, categories.data, colors, income, isYearMode]);
+  }, [periodTx.data, categories.data, colors, effectiveIncome, isYearMode, primaryCurrency]);
 
   const selectedSlice = donut.slices.find((s) => s.key === selected) ?? null;
-  const pctBase = income !== null && !isYearMode ? income : donut.spent;
+  const pctBase = effectiveIncome !== null && !isYearMode ? effectiveIncome : donut.spent;
 
   function toggleSelect(key: string) {
     setSelected((cur) => (cur === key ? null : key));
@@ -189,7 +204,7 @@ export default function Dashboard() {
     if (isYearMode) return [];
     const byDay = new Map<number, number>();
     for (const tx of periodTx.data ?? []) {
-      if (!tx.occurred_at || tx.amount === null) continue;
+      if (!tx.occurred_at || tx.amount === null || tx.currency !== primaryCurrency) continue;
       const day = Number(bruneiDayKey(tx.occurred_at).slice(8));
       byDay.set(day, (byDay.get(day) ?? 0) + Number(tx.amount));
     }
@@ -201,13 +216,18 @@ export default function Dashboard() {
 
   // ---- Budget progress (always current month) -----------------------------
   const budgetProgress = useMemo(() => {
-    if (!budgets.data?.length) return [];
+    if (!budgets.data?.length) return { items: [], hiddenCurrencies: new Set<string>() };
     const spentByCategory = new Map<string, number>();
     for (const tx of thisMonthTx.data ?? []) {
-      if (!tx.category_id || tx.amount === null) continue;
+      if (!tx.category_id || tx.amount === null || tx.currency !== primaryCurrency) continue;
       spentByCategory.set(tx.category_id, (spentByCategory.get(tx.category_id) ?? 0) + Number(tx.amount));
     }
-    return budgets.data
+    const hiddenCurrencies = new Set<string>();
+    const items = budgets.data
+      .filter((b) => {
+        if (b.currency !== primaryCurrency) { hiddenCurrencies.add(b.currency); return false; }
+        return true;
+      })
       .map((b) => {
         const cat = categories.data?.find((c) => c.id === b.category_id);
         return {
@@ -219,7 +239,8 @@ export default function Dashboard() {
         };
       })
       .sort((a, b) => b.spent / b.limit - a.spent / a.limit);
-  }, [budgets.data, thisMonthTx.data, categories.data, colors]);
+    return { items, hiddenCurrencies };
+  }, [budgets.data, thisMonthTx.data, categories.data, colors, primaryCurrency]);
 
   const recurring = useMemo(() => detectRecurring(recentTx.data ?? []).slice(0, 6), [recentTx.data]);
 
@@ -233,8 +254,8 @@ export default function Dashboard() {
   }, [recurring, thisMonthData, income, thisMonthTx.isLoading, recentTx.isLoading]);
 
   useEffect(() => {
-    if (budgetProgress.length === 0) return;
-    void maybeOverspendAlert(budgetProgress);
+    if (budgetProgress.items.length === 0) return;
+    void maybeOverspendAlert(budgetProgress.items);
   }, [budgetProgress]);
 
   async function cycleReminder(merchant: string) {
@@ -246,13 +267,14 @@ export default function Dashboard() {
   const monthlyBars = useMemo(
     () =>
       (monthly.data ?? [])
+        .filter((r) => r.currency === primaryCurrency)
         .slice(0, 6)
         .reverse()
         .map((r) => ({
           value: Number(r.total),
           label: formatMonthName(r.month.slice(0, 7) + '-01').split(' ')[0],
         })),
-    [monthly.data],
+    [monthly.data, primaryCurrency],
   );
 
   const merchantRanking = useMemo(() => {
@@ -266,7 +288,7 @@ export default function Dashboard() {
   }, [topMerchants.data]);
 
   const periodLabel = isYearMode ? 'this year' : 'this month';
-  const saved = income !== null && !isYearMode ? income - donut.spent : null;
+  const saved = effectiveIncome !== null && !isYearMode ? effectiveIncome - donut.spent : null;
 
   return (
     <>
@@ -313,25 +335,25 @@ export default function Dashboard() {
                       <Text style={styles.centerLabel} numberOfLines={1}>
                         {selectedSlice.name}
                       </Text>
-                      {(() => { const s = money(selectedSlice.value); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }]}>{s}</Text>; })()}
+                      {(() => { const s = money(selectedSlice.value, primaryCurrency); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }]} numberOfLines={1} adjustsFontSizeToFit>{s}</Text>; })()}
                       <Muted>
                         {pctBase > 0
-                          ? `${Math.round((selectedSlice.value / pctBase) * 100)}% of ${income !== null && !isYearMode ? 'income' : 'spending'}`
+                          ? `${Math.round((selectedSlice.value / pctBase) * 100)}% of ${effectiveIncome !== null && !isYearMode ? 'income' : 'spending'}`
                           : ''}
                       </Muted>
                     </>
-                  ) : income !== null && !isYearMode ? (
+                  ) : effectiveIncome !== null && !isYearMode ? (
                     <>
                       <Text style={styles.centerLabel}>
                         {donut.remaining !== null && donut.remaining < 0 ? 'Over income' : 'Remaining'}
                       </Text>
-                      {(() => { const s = money(Math.abs(donut.remaining ?? 0)); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }, donut.remaining !== null && donut.remaining < 0 && { color: colors.danger }]}>{s}</Text>; })()}
-                      <Muted>{`of ${money(income)}`}</Muted>
+                      {(() => { const s = money(Math.abs(donut.remaining ?? 0), primaryCurrency); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }, donut.remaining !== null && donut.remaining < 0 && { color: colors.danger }]} numberOfLines={1} adjustsFontSizeToFit>{s}</Text>; })()}
+                      <Muted>{`of ${money(effectiveIncome, primaryCurrency)}`}</Muted>
                     </>
                   ) : (
                     <>
                       <Text style={styles.centerLabel}>Spent</Text>
-                      {(() => { const s = money(donut.spent); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }]}>{s}</Text>; })()}
+                      {(() => { const s = money(donut.spent, primaryCurrency); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }]} numberOfLines={1} adjustsFontSizeToFit>{s}</Text>; })()}
                       <Muted>{periodLabel}</Muted>
                     </>
                   )}
@@ -352,11 +374,11 @@ export default function Dashboard() {
                   >
                     {s.name}
                   </Text>
-                  <Text style={styles.legendValue}>{money(s.value)}</Text>
+                  <Text style={styles.legendValue}>{money(s.value, primaryCurrency)}</Text>
                 </Pressable>
               ))}
             </View>
-            {income === null && !isYearMode ? (
+            {income === null && !isYearMode && primaryCurrency === 'BND' ? (
               <Link href="/(tabs)/settings" asChild>
                 <Pressable>
                   <Muted>Set your monthly income in Settings to see what's remaining →</Muted>
@@ -365,8 +387,17 @@ export default function Dashboard() {
             ) : null}
           </View>
         ) : (
-          <Muted>No spending this {isYearMode ? 'year' : 'month'} yet — capture a bank message or add one manually.</Muted>
+          <Muted>No spending this {isYearMode ? 'year' : 'month'} yet. Capture a bank message or add one manually.</Muted>
         )}
+        {excludedCurrencies.length > 0 ? (
+          <Link href="/(tabs)/settings/appearance" asChild>
+            <Pressable style={{ marginTop: 8, gap: 2 }}>
+              <Muted>{`Only ${primaryCurrency} transactions are shown above.`}</Muted>
+              <Muted>{`You also have ${excludedCurrencies.join(' and ')} transactions recorded.`}</Muted>
+              <Muted>Tap to change your primary currency in Settings &gt; Appearance.</Muted>
+            </Pressable>
+          </Link>
+        ) : null}
       </Card>
 
       {/* ---- 2-stat strip ---- */}
@@ -374,21 +405,21 @@ export default function Dashboard() {
         <Card style={styles.statCard}>
           <Muted>{`Saved ${periodLabel}`}</Muted>
           <Text style={[styles.statValue, saved !== null && saved < 0 && { color: colors.danger }]}>
-            {saved !== null ? money(Math.abs(saved)) : '—'}
+            {saved !== null ? money(Math.abs(saved), primaryCurrency) : '—'}
           </Text>
           {saved !== null && saved < 0 ? <Muted>over budget</Muted> : null}
         </Card>
         <Card style={styles.statCard}>
           <Muted>{`Spent ${periodLabel}`}</Muted>
-          <Text style={styles.statValue}>{money(donut.spent)}</Text>
+          <Text style={styles.statValue}>{money(donut.spent, primaryCurrency)}</Text>
         </Card>
       </View>
 
       {/* ---- Budgets (always current month) ---- */}
-      {budgetProgress.length > 0 ? (
+      {budgetProgress.items.length > 0 || budgetProgress.hiddenCurrencies.size > 0 ? (
         <Card>
           <Title>Budgets</Title>
-          {budgetProgress.map((b) => {
+          {budgetProgress.items.map((b) => {
             const ratio = b.limit > 0 ? b.spent / b.limit : 0;
             const over = ratio > 1;
             return (
@@ -399,7 +430,7 @@ export default function Dashboard() {
                     {b.name}
                   </Text>
                   <Text style={[styles.budgetAmounts, over && { color: colors.danger }]}>
-                    {money(b.spent)} / {money(b.limit)}
+                    {money(b.spent, primaryCurrency)} / {money(b.limit, primaryCurrency)}
                   </Text>
                 </View>
                 <View style={styles.budgetTrack}>
@@ -413,10 +444,18 @@ export default function Dashboard() {
                     ]}
                   />
                 </View>
-                {over ? <Muted>{`Over by ${money(b.spent - b.limit)}`}</Muted> : null}
+                {over ? <Muted>{`Over by ${money(b.spent - b.limit, primaryCurrency)}`}</Muted> : null}
               </View>
             );
           })}
+          {budgetProgress.hiddenCurrencies.size > 0 ? (
+            <Link href="/(tabs)/settings/appearance" asChild>
+              <Pressable style={{ marginTop: 8 }}>
+                <Muted>{`You have budgets in ${[...budgetProgress.hiddenCurrencies].join(' and ')} that are not shown here.`}</Muted>
+                <Muted>Switch your primary currency in Settings &gt; Appearance to view them.</Muted>
+              </Pressable>
+            </Link>
+          ) : null}
         </Card>
       ) : null}
 
@@ -484,7 +523,7 @@ export default function Dashboard() {
                   <Text style={styles.legendName} numberOfLines={1}>
                     {m.name}
                   </Text>
-                  <Text style={styles.legendValue}>{money(m.total)}</Text>
+                  <Text style={styles.legendValue}>{money(m.total, primaryCurrency)}</Text>
                 </View>
                 <View style={styles.merchantTrack}>
                   <View
@@ -498,7 +537,7 @@ export default function Dashboard() {
             </View>
           ))
         ) : (
-          <Muted>No merchant data yet — capture a bank message to get started.</Muted>
+          <Muted>No merchant data yet. Capture a bank message to get started.</Muted>
         )}
       </Card>
 
@@ -571,7 +610,12 @@ const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
   heroHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  heroActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  heroActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  currencyPills: { flexDirection: 'row', gap: 4 },
+  currencyPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1, borderColor: colors.border },
+  currencyPillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  currencyPillText: { fontSize: 11, fontWeight: '600', color: colors.muted },
+  currencyPillTextActive: { color: colors.onPrimary },
   periodPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -597,7 +641,7 @@ const useStyles = themedStyles((colors) => ({
     paddingHorizontal: 8,
     borderRadius: 8,
   },
-  legendRowActive: { backgroundColor: colors.bg },
+  legendRowActive: { backgroundColor: colors.primary + '28' },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendName: { flex: 1, color: colors.text, fontSize: 13 },
   legendValue: { color: colors.muted, fontSize: 13, fontVariant: ['tabular-nums'] },

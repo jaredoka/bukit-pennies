@@ -92,9 +92,9 @@ export default function Capture() {
       <Card>
         <Title>Paste bank messages</Title>
         <Muted>
-          Copy the notification text from your bank (SMS or app notification) and paste it here —
-          one message or a whole conversation at once. Bukit Pennies never connects to your bank —
-          it only reads the text you give it.
+          Copy the notification text from your bank (SMS or app notification) and paste it here,
+          one message or a whole conversation at once. Bukit Pennies never connects to your bank.
+          It only reads the text you give it.
         </Muted>
         <Field
           multiline
@@ -198,7 +198,7 @@ export default function Capture() {
             <Muted>
               {preview.isTransactional
                 ? 'Could not extract a transaction from this text.'
-                : 'This does not look like a transaction message (OTP, promo, or balance alert) — it will be ignored.'}
+                : 'This does not look like a transaction message (OTP, promo, or balance alert). It will be ignored.'}
             </Muted>
           )}
         </Card>
@@ -266,7 +266,7 @@ function ResultBanner({ result }: { result: IngestResponse }) {
     result.status === 'created'
       ? '✓ Transaction saved.'
       : result.status === 'duplicate'
-        ? 'Already recorded — this exact message was captured before.'
+        ? 'Already recorded. This exact message was captured before.'
         : result.status === 'ignored'
           ? `Ignored: not a transaction message${result.reason ? ` (${result.reason})` : ''}.`
           : `Error: ${result.error ?? 'unknown'}`;

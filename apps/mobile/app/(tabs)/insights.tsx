@@ -12,6 +12,7 @@ import { BarChart } from 'react-native-gifted-charts';
 import { Card, Muted, Title } from '@/components/ui';
 import { bruneiMonthKey, formatMonthName } from '@/lib/format';
 import { usePrivacy } from '@/lib/privacy';
+import { usePrimaryCurrency } from '@/lib/primaryCurrency';
 import { useCategories, usePullToRefresh, useRecentMonthsTransactions } from '@/lib/queries';
 import { themedStyles, useTheme } from '@/lib/theme';
 
@@ -31,23 +32,30 @@ export default function Insights() {
   const { width } = useWindowDimensions();
   const chartWidth = Math.min(width, 720) - 88;
   const { money } = usePrivacy();
+  const { currency: primaryCurrency } = usePrimaryCurrency();
 
   const recentTx = useRecentMonthsTransactions(MONTHS_BACK);
   const categories = useCategories();
   const { refreshing, onRefresh } = usePullToRefresh();
 
+  const filteredTx = useMemo(
+    () => (recentTx.data ?? []).filter((tx) => tx.currency === primaryCurrency),
+    [recentTx.data, primaryCurrency],
+  );
+
   const insights = useMemo(
-    () => buildInsights((recentTx.data ?? []) as Tx[]),
-    [recentTx.data],
+    () => buildInsights(filteredTx as Tx[]),
+    [filteredTx],
   );
 
   const categoryName = (id: string | null) => {
     if (id === null) return 'Uncategorized';
     return categories.data?.find((c) => c.id === id)?.name ?? 'Unknown';
   };
-  const categoryColor = (id: string | null, fallbackIndex: number) => {
-    const db = id === null ? null : categories.data?.find((c) => c.id === id)?.color;
-    return db ?? colors.chartCategories[fallbackIndex % colors.chartCategories.length]!;
+  const categoryColor = (id: string | null) => {
+    const idx = id === null ? -1 : (categories.data?.findIndex((c) => c.id === id) ?? -1);
+    const db = idx >= 0 ? categories.data![idx]!.color : null;
+    return db ?? colors.chartCategories[Math.max(idx, 0) % colors.chartCategories.length]!;
   };
 
   // ---- Stacked month bars: top categories + Other -------------------------
@@ -57,7 +65,7 @@ export default function Insights() {
       const stacks = topIds
         .map((id, i) => ({
           value: m.byCategory.get(id) ?? 0,
-          color: categoryColor(id, i),
+          color: categoryColor(id),
         }))
         .filter((s) => s.value > 0);
       const other =
@@ -87,7 +95,7 @@ export default function Insights() {
         <Card>
           <Title>Insights</Title>
           <Muted>
-            Nothing to analyze yet — insights appear once you have transactions across a month or
+            Nothing to analyze yet. Insights appear once you have transactions across a month or
             two. Capture a few bank messages to get started.
           </Muted>
         </Card>
@@ -97,11 +105,11 @@ export default function Insights() {
           <View style={styles.statRow}>
             <Card style={styles.statCard}>
               <Muted>This month</Muted>
-              <Text style={styles.statValue}>{money(cur?.total ?? 0)}</Text>
+              <Text style={styles.statValue}>{money(cur?.total ?? 0, primaryCurrency)}</Text>
             </Card>
             <Card style={styles.statCard}>
               <Muted>Last month</Muted>
-              <Text style={styles.statValue}>{money(prev?.total ?? 0)}</Text>
+              <Text style={styles.statValue}>{money(prev?.total ?? 0, primaryCurrency)}</Text>
             </Card>
             <Card style={styles.statCard}>
               <Muted>Change</Muted>
@@ -135,8 +143,8 @@ export default function Insights() {
               width={chartWidth}
               height={170}
               barWidth={26}
-              barBorderTopLeftRadius={4}
-              barBorderTopRightRadius={4}
+              barBorderTopLeftRadius={0}
+              barBorderTopRightRadius={0}
               yAxisTextStyle={{ color: colors.muted, fontSize: 10 }}
               xAxisLabelTextStyle={{ color: colors.muted, fontSize: 10 }}
               rulesColor={colors.border}
@@ -147,7 +155,7 @@ export default function Insights() {
             <View style={styles.legendWrap}>
               {insights.topCategoryIds.slice(0, STACK_CATEGORIES).map((id, i) => (
                 <View key={id ?? 'null'} style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: categoryColor(id, i) }]} />
+                  <View style={[styles.legendDot, { backgroundColor: categoryColor(id) }]} />
                   <Text style={styles.legendText}>{categoryName(id)}</Text>
                 </View>
               ))}
@@ -167,18 +175,18 @@ export default function Insights() {
               ) : (
                 insights.categoryDeltas.map((d, i) => (
                   <View key={d.id ?? 'null'} style={styles.deltaRow}>
-                    <View style={[styles.legendDot, { backgroundColor: categoryColor(d.id, i) }]} />
+                    <View style={[styles.legendDot, { backgroundColor: categoryColor(d.id) }]} />
                     <Text style={styles.rowName} numberOfLines={1}>
                       {categoryName(d.id)}
                     </Text>
-                    <Text style={styles.rowValue}>{money(d.current)}</Text>
+                    <Text style={styles.rowValue}>{money(d.current, primaryCurrency)}</Text>
                     <Text
                       style={[
                         styles.rowDelta,
                         { color: d.delta > 0 ? colors.danger : colors.primary },
                       ]}
                     >
-                      {`${d.delta > 0 ? '+' : '−'}${money(Math.abs(d.delta))}`}
+                      {`${d.delta > 0 ? '+' : '−'}${money(Math.abs(d.delta), primaryCurrency)}`}
                     </Text>
                   </View>
                 ))
@@ -202,14 +210,14 @@ export default function Insights() {
                     <Text style={styles.rowName} numberOfLines={1}>
                       {m.name}
                     </Text>
-                    <Text style={styles.rowValue}>{money(m.current)}</Text>
+                    <Text style={styles.rowValue}>{money(m.current, primaryCurrency)}</Text>
                     <Text
                       style={[
                         styles.rowDelta,
                         { color: m.delta > 0 ? colors.danger : colors.primary },
                       ]}
                     >
-                      {`${m.delta > 0 ? '+' : '−'}${money(Math.abs(m.delta))}`}
+                      {`${m.delta > 0 ? '+' : '−'}${money(Math.abs(m.delta), primaryCurrency)}`}
                     </Text>
                   </View>
                 ))}

@@ -1,6 +1,7 @@
 import { ScrollView, View } from 'react-native';
 import { Card, Chip, Muted, Title } from '@/components/ui';
 import { themedStyles, useTheme } from '@/lib/theme';
+import { CURRENCY_OPTIONS, usePrimaryCurrency } from '@/lib/primaryCurrency';
 
 const SCHEME_OPTIONS = [
   { key: 'system', label: 'System' },
@@ -11,6 +12,7 @@ const SCHEME_OPTIONS = [
 export default function Appearance() {
   const styles = useStyles();
   const { preference, setPreference } = useTheme();
+  const { currency, setCurrency } = usePrimaryCurrency();
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -24,6 +26,21 @@ export default function Appearance() {
               label={opt.label}
               active={preference === opt.key}
               onPress={() => setPreference(opt.key)}
+            />
+          ))}
+        </View>
+      </Card>
+
+      <Card>
+        <Title>Primary currency</Title>
+        <Muted>The Dashboard donut shows only transactions in this currency. Other currencies are still recorded but excluded from the summary.</Muted>
+        <View style={{ gap: 8, marginTop: 12 }}>
+          {CURRENCY_OPTIONS.map((opt) => (
+            <Chip
+              key={opt.code}
+              label={opt.label}
+              active={currency === opt.code}
+              onPress={() => setCurrency(opt.code)}
             />
           ))}
         </View>

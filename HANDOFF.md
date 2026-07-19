@@ -3,7 +3,7 @@
 **Status:** Phases 0–6 built and merged; app is live against hosted Supabase and field-tested on the owner's iPhone. §1–§14 are the original approved design (kept for reference); §15–§16 record what exists now and the adoption roadmap. **§16 is the current source of truth for what to build next.**
 
 **Branch:** `main` (GitHub Flow — feature branches off `main`, merged via pull request)
-**Date:** 2026-07-16 (original) · last updated 2026-07-19
+**Date:** 2026-07-16 (original) · last updated 2026-07-20
 
 ---
 
@@ -320,9 +320,20 @@ State reached during on-device testing:
   GitHub macOS runners, so CI cannot sign shortcut files. Distribution is a
   once-shared **iCloud link** from the owner's iPhone, wired into
   `SHORTCUT_DOWNLOAD_URL` (`apps/mobile/src/lib/env.ts`) —
-  `https://www.icloud.com/shortcuts/9a70cda0b1b84feca11991213011a95a`.
+  `https://www.icloud.com/shortcuts/20c719e5009d4cb0baaf4306d6e739c2`
+  (self-configuring rebuild, shared 2026-07-19).
   `scripts/build-shortcut.mjs` + the `ios-shortcut.yml` workflow remain for
   reference/if Apple ever unblocks CI signing.
+- **Self-configuring shortcut (2026-07-19):** the shortcut was redesigned to
+  store its own token (`Bukit Pennies/token.txt` in iCloud Drive) instead of
+  a hardcoded `PASTE-YOUR-TOKEN-HERE` edit. The app hands the token over via
+  a `shortcuts://run-shortcut` deep link ("Send the token to the Shortcut",
+  Step 3 of the setup screen); fallback: the shortcut asks for the token on
+  first run. The "Logged … at …" notification is now baked in. Setup is 4
+  steps / ~3 min; the only remaining manual work is the Message automation
+  (iOS automations are unshareable). Owner rebuild recipe:
+  `docs/shortcut-authoring.md`. Rebuilt and re-shared by the owner
+  2026-07-19; the live link above points at the self-configuring version.
 - **Theming:** full light/dark theme system (`src/lib/theme.tsx`; palettes +
   `themedStyles` hook + persisted System/Light/Dark toggle in Settings). The
   static `colors` export from `components/ui.tsx` is gone — never reintroduce
@@ -429,8 +440,8 @@ trend/insight screens, no widgets, no shared/household budgets.
    key, Apple Team ID, ASC App ID) and **`docs/testflight-deploy.md` is
    the step-by-step runbook** (build → TestFlight → on-device test
    checklist → App Store review notes → share extension later).
-   Shortcut download link live:
-   `https://www.icloud.com/shortcuts/9a70cda0b1b84feca11991213011a95a`.
+   Shortcut download link live (self-configuring rebuild):
+   `https://www.icloud.com/shortcuts/20c719e5009d4cb0baaf4306d6e739c2`.
 
    **iOS build facts (recorded 2026-07-19):** IPAs cannot be built on
    Windows (Xcode/macOS only). Path of record is **EAS cloud builds**
@@ -448,6 +459,63 @@ trend/insight screens, no widgets, no shared/household budgets.
 
 Deliberately deferred: shared/household budgets, investment tracking,
 widgets, freemium.
+
+## 17. UI polish session (2026-07-20)
+
+All changes on branch `shortcut-self-config`, merged to `main`.
+
+### Primary currency system
+- New `apps/mobile/src/lib/primaryCurrency.tsx` — `PrimaryCurrencyProvider` / `usePrimaryCurrency()` / `CURRENCY_OPTIONS` (BND, SGD, USD, MYR, GBP, EUR, AUD). Persisted via `kvStore` (`bukit.primary_currency`); defaults to BND. Wrapped at root in `app/_layout.tsx`.
+- `PAR_CURRENCIES` in `queries.ts` expanded from `['BND','SGD']` to all seven option codes so non-BND transactions are fetched.
+- **Dashboard** (`app/(tabs)/index.tsx`): all money values (donut center, legend, stat strip, budgets card, daily chart, month-history bars, top-merchants bar) now use `primaryCurrency`. Memos `dailyData`, `budgetProgress`, `monthlyBars` filter to primary currency. `useTopMerchants` accepts a `currency` param and passes an `.eq('currency',…)` filter. `effectiveIncome` is null for non-BND (income comparison only makes sense in BND). An excluded-currencies note appears below the donut when transactions in other currencies exist, linking to Settings > Appearance.
+- **Insights** (`app/(tabs)/insights.tsx`): `recentTx` filtered to `primaryCurrency` before building all insight memos; all `money()` calls pass `primaryCurrency`.
+- **Settings > Appearance** (`settings/appearance.tsx`): second Card "Primary currency" with `Chip` rows for each `CURRENCY_OPTIONS` entry; selection persisted immediately.
+
+### Goals currency
+- Migration `09_goal_currency.sql`: adds `currency text not null default 'BND'` to `savings_goals`.
+- `SavingsGoalRow` type updated; `useCreateSavingsGoal` mutation accepts and stores `currency`.
+- Goals page captures `primaryCurrency` at create time; `GoalCard` uses `goal.currency` for all `money()` calls — a goal's currency is fixed at creation and never changes. Note in the create form explains this and points to Settings > Appearance.
+
+### Budgets currency (Option A — fixed at creation)
+- `budgets` table already had a `currency char(3)` column (migration 06); `BudgetRow` type already included it.
+- `useUpsertBudget` now accepts and passes `currency`; existing budget currency is preserved on edit.
+- Budgets settings page passes `primaryCurrency` for new budgets; a note explains the fixed-currency behaviour and points to Settings > Appearance.
+- Dashboard `budgetProgress` memo filters to budgets matching `primaryCurrency`; a tappable note appears when budgets in other currencies are hidden.
+- Monthly limit amount label changed from "Amount (BND)" to "Amount ($)" in `settings/budget.tsx`.
+
+### Settings restructure
+- "Delete account" row removed from Settings index; moved inside the Account page as a "Danger zone" card with a warning and a button navigating to the existing `delete-account` screen.
+
+### Calendar date-range fix
+- Month/year nav bar restructured: inner month arrows + title wrapped in a `flex:1` center group (`calNavCenter`) so the title stays horizontally fixed regardless of month-name length. Year `«`/`»` buttons get a fixed `width:36` on each side (`calNavYearBtn`).
+
+**Email capture (gated candidate, noted 2026-07-20):** strongest candidate
+for the next capture channel, potentially replacing the Stage B Kotlin
+listener. Design sketch: unique inbound address per user (token in the
+address is the auth, e.g. `u-<token>@in.<domain>`); users point their
+bank's e-alerts at it, or set a one-time Gmail/Outlook auto-forward rule.
+Inbound provider (Cloudflare Email Routing or Postmark inbound parse, both
+free tier) POSTs the message to the existing ingest edge function as a new
+`email` source. Parser needs an HTML-to-text pass plus golden fixtures
+from real bank emails (same collection process as SMS). Why attractive:
+universal across countries and platforms; works on Android with zero
+on-device setup and no notification-listener permission. Risks to design
+around: sender spoofing (check the provider's SPF/DKIM verdict on the
+bank's domain; needs_review flow catches garbage) and HTML soup.
+**Gate: confirm Baiduri/BIBD actually send per-transaction email alerts**
+(owner to check e-banking settings; unverified as of 2026-07-20). If
+neither bank does, the idea is dead for Brunei regardless of elegance.
+Not a blocker for the iOS launch.
+
+**Post-launch watch (noted 2026-07-19, owner asked to be reminded):** the
+onboarding funnel is measurable from the database alone, no analytics
+tooling: accounts created (auth.users) vs capture tokens created
+(ingest_devices, kind ios_shortcut) vs tokens actually used
+(last_seen_at not null). The gaps between those three counts show exactly
+where users drop off (signup → setup started → capture working). Check
+after the first dozen real users; if drop-off clusters at the automation
+step, that is the trigger to add screenshots to the visual guide or
+consider the step-per-screen wizard (deliberately not built preemptively).
 
 ### 16.5 Supabase free-tier limits & upgrade triggers (checked 2026-07-19)
 

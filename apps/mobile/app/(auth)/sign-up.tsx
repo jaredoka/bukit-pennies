@@ -42,7 +42,7 @@ export default function SignUp() {
     >
       <View style={styles.inner}>
         <Text style={styles.brand}>Bukit Pennies</Text>
-        <Muted>Email + password only — no bank logins, ever.</Muted>
+        <Muted>Email and password only. No bank logins, ever.</Muted>
         <Card style={{ marginTop: 24 }}>
           <Title>Create account</Title>
           <Field label="Display name" value={displayName} onChangeText={setDisplayName} placeholder="Your name" />

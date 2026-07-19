@@ -45,6 +45,11 @@ deep link targets this name — do not rename).
 3. **Get File** — Service: **iCloud Drive** · turn **Show Document Picker**
    OFF · File Path: `/Bukit Pennies/token.txt` · **Error If Not Found** OFF
 4. **If** — Input: **File** (result of step 3) · Condition: **does not have any value**
+
+   *(Same as step 1 — the If block does not chain its result to sub-steps.
+   Step 4.1 fires independently when the condition is true; it takes no input
+   from step 4.)*
+
    1. **Ask for Input** — Prompt:
       `Paste your Bukit Pennies token (bp_…). Create one in the app under Settings → Capture.` ·
       Input Type: **Text**

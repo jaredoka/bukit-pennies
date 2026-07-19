@@ -56,9 +56,18 @@ deep link targets this name — do not rename).
    2. **Save File** — File: **Provided Input** · same settings as step 1.1
       (`/Bukit Pennies/token.txt`, no picker, overwrite ON)
 5. **End If**
-6. **Get File** — same settings as step 3 (re-read so both branches converge
-   on one variable). Rename its result variable to **Token** (tap the action's
-   result chip → Rename).
+6. **Get File** — same settings as step 3: Service **iCloud Drive**, Show
+   Document Picker OFF, File Path `/Bukit Pennies/token.txt`, Error If Not
+   Found OFF.
+
+   *(Why re-read? After the If/End If, the token is always on disk — either
+   it was already there before step 4, or step 4.2 just wrote it. Re-reading
+   gives one clean result variable for step 7 to use, regardless of which
+   branch ran. Without this, you'd need to reference either "File" from step 3
+   or "Provided Input" from step 4.1 depending on the path taken.)*
+
+   Rename the result variable to **Token**: tap the action's result chip →
+   **Rename**.
 7. **Get Contents of URL** — URL: the hosted ingest endpoint
    `https://<project-ref>.supabase.co/functions/v1/ingest`
    - Method: **POST**

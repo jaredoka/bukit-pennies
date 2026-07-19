@@ -182,7 +182,7 @@ export default function ShortcutSetup() {
           messages here so they log themselves. Set it up once, then forget it.
         </Muted>
         <View style={[styles.timePill, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '40' }]}>
-          <Text style={[styles.timePillText, { color: colors.primary }]}>⏱ About 3 minutes</Text>
+          <Text style={[styles.timePillText, { color: colors.primary }]}>⏱ 3 to 5 minutes</Text>
         </View>
       </Card>
 

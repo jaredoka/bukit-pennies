@@ -289,7 +289,12 @@ export default function ShortcutSetup() {
           <Text style={styles.infoIcon}>✓</Text>
           <Text style={[styles.infoText, { color: colors.text }]}>
             <Text style={{ fontWeight: '700' }}>Test it now.</Text>
-            {'  '}Copy a real transaction message from your bank. Open the Messages app (the iOS one, not WhatsApp), open the chat with yourself or your own number, paste the message, and tap send. The transaction should appear in the app within seconds, and you will get the Logged notification.
+            {'\n'}
+            {'1. Copy a real transaction message from your bank.\n' +
+              '2. Open the Messages app (the iOS one, not WhatsApp).\n' +
+              '3. Open the chat with yourself or your own number.\n' +
+              '4. Paste the message and tap send.\n' +
+              '5. The transaction appears in the app within seconds, with a Logged notification.'}
           </Text>
         </View>
       </Card>
@@ -299,8 +304,9 @@ export default function ShortcutSetup() {
         <Card>
           <Text style={[styles.sectionLabel, { color: colors.muted }]}>All done?</Text>
           <Instruction>
-            Once your automation is created, you're set. Every bank SMS from here on logs
-            itself.
+            Once your automation is created, you're set and ready to go. Every bank SMS from
+            here on logs itself. Open the app anytime and your latest spending is already
+            there, without keying in a thing.
           </Instruction>
           <View style={{ marginTop: 12, gap: 8 }}>
             <Button label="Setup complete, take me to the app" onPress={completeSetup} />

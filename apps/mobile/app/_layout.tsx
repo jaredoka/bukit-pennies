@@ -29,7 +29,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     // finish choosing the new password before entering the app.
     const onResetScreen = (segments as string[]).includes('reset-password');
     if (!session && !inAuthGroup) {
-      router.replace('/(auth)/sign-in');
+      router.replace('/(auth)/landing');
       return;
     }
     if (!session) return;

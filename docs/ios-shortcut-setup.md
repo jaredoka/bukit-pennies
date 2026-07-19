@@ -65,13 +65,15 @@ harmless. If you built the shortcut manually, the recipe is in
 
 ## Test it
 
-Text yourself the sample from another phone (or wait for a real spend):
+Copy a real transaction message from your bank. Open the Messages app (the
+iOS one, not WhatsApp), open the chat with yourself or your own number,
+paste the message, and tap send. The transaction should appear in the app
+within seconds, and you will get the "Logged $… at …" notification. No real
+SMS handy? Use this sample:
 
 ```
 Card No.: 4x0213 Amount: BND 21.00 Merchant: GALORIES SMOOTHIES BSB BN Date: 10-07-2026 17:37:59 If suspicious, please call 2449666.
 ```
-
-The transaction should appear in the app within seconds, without opening it.
 
 ## Manual setup (fallback — if the download is unavailable)
 

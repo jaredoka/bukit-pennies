@@ -265,7 +265,7 @@ export default function ShortcutSetup() {
           <Text style={styles.infoIcon}>✓</Text>
           <Text style={[styles.infoText, { color: colors.text }]}>
             <Text style={{ fontWeight: '700' }}>Logged confirmations are built in.</Text>
-            {'  '}Every captured spend shows a notification like "Logged BND 5.10 at HUA HO". No extra setup.
+            {'  '}Every captured spend shows a notification like "Logged $5.10 at HUA HO". No extra setup.
           </Text>
         </View>
 
@@ -273,7 +273,7 @@ export default function ShortcutSetup() {
           <Text style={styles.infoIcon}>✓</Text>
           <Text style={[styles.infoText, { color: colors.text }]}>
             <Text style={{ fontWeight: '700' }}>Duplicates are ignored.</Text>
-            {'  '}If the same SMS arrives twice, only the first is stored. Spending is never double counted.
+            {'  '}If the same SMS arrives twice, only the first is stored and spending is never double counted. The duplicate shows an empty "Logged $ at ." notification, which you can ignore.
           </Text>
         </View>
 
@@ -289,7 +289,7 @@ export default function ShortcutSetup() {
           <Text style={styles.infoIcon}>✓</Text>
           <Text style={[styles.infoText, { color: colors.text }]}>
             <Text style={{ fontWeight: '700' }}>Test it now.</Text>
-            {'  '}Run the shortcut manually on a copied bank message. The transaction should appear in the app within seconds.
+            {'  '}Copy a real transaction message from your bank. Open the Messages app (the iOS one, not WhatsApp), open the chat with yourself or your own number, paste the message, and tap send. The transaction should appear in the app within seconds, and you will get the Logged notification.
           </Text>
         </View>
       </Card>

@@ -7,8 +7,8 @@ const SECTIONS: Array<{ title: string; body: string }> = [
     title: 'What Bukit Pennies is',
     body:
       'It logs your card spending by reading the notification text your bank already sends ' +
-      '(like Baiduri’s SMS) and turns it into a dashboard. It never connects to your bank — ' +
-      'no passwords, no account linking. Only notification text you hand it is ever processed.',
+      '(like Baiduri’s SMS) and turns it into a dashboard. It never connects to your bank. ' +
+      'No passwords, no account linking. Only notification text you hand it is ever processed.',
   },
   {
     title: 'Capturing a spend',
@@ -20,7 +20,7 @@ const SECTIONS: Array<{ title: string; body: string }> = [
   {
     title: 'Review inbox',
     body:
-      'Messages the parser wasn’t confident about wait in Review — nothing is guessed silently. ' +
+      'Messages the parser wasn’t confident about wait in Review. Nothing is guessed silently. ' +
       'Fill in the amount, merchant, or date and confirm; flagged near-duplicates can be merged ' +
       'away or kept.',
   },
@@ -36,14 +36,14 @@ const SECTIONS: Array<{ title: string; body: string }> = [
       'Your transactions, notes, and categories are stored in a Supabase (Postgres) cloud project. ' +
       'Row-level security in the database means your account can only ever see its own rows. ' +
       'Your password is stored as a salted hash by Supabase Auth. Capture tokens are stored only ' +
-      'as SHA-256 fingerprints — the plaintext is shown once, on your device. Your sign-in ' +
+      'as SHA-256 fingerprints. The plaintext is shown once, on your device. Your sign-in ' +
       'session lives in the device’s secure storage and is removed on sign-out. Bank credentials ' +
       'are stored nowhere, because they are never asked for.',
   },
   {
     title: 'Capture tokens',
     body:
-      'Each capture path (Shortcut, paste, …) has its own bp_ token — create and revoke them in ' +
+      'Each capture path (Shortcut, paste, and so on) has its own bp_ token. Create and revoke them in ' +
       'Settings → Capture devices. Revoking one path never affects the others.',
   },
 ];

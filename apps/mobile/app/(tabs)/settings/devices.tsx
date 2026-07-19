@@ -57,7 +57,7 @@ export default function Devices() {
       <Card>
         <Title>New capture device</Title>
         <Muted>
-          Each capture path gets its own token. The token is shown once — store it in the Shortcut
+          Each capture path gets its own token. The token is shown once. Store it in the Shortcut
           or listener config, then it can only be revoked, never read again.
         </Muted>
         <View style={{ marginTop: 12 }}>
@@ -81,7 +81,7 @@ export default function Devices() {
 
       {revealed ? (
         <Card style={{ borderColor: colors.primary, borderWidth: 1 }}>
-          <Title>Your new token — copy it now</Title>
+          <Title>Your new token. Copy it now</Title>
           <Muted>This is the only time it will be shown.</Muted>
           <Text selectable style={styles.token}>
             {revealed}
@@ -94,7 +94,7 @@ export default function Devices() {
             }}
           />
           <View style={{ height: 8 }} />
-          <Button label="Done — I stored it" variant="secondary" onPress={() => setRevealed(null)} />
+          <Button label="Done, I stored it" variant="secondary" onPress={() => setRevealed(null)} />
         </Card>
       ) : null}
 

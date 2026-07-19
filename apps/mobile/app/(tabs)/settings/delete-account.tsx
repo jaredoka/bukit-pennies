@@ -31,7 +31,7 @@ export default function DeleteAccount() {
         <Title>Delete your account</Title>
         <Text style={styles.body}>
           This permanently deletes your account and every transaction, note, category, card, and
-          capture token attached to it. There is no undo and no grace period — the rows are removed
+          capture token attached to it. There is no undo and no grace period. The rows are removed
           from the database immediately.
         </Text>
         <Muted>

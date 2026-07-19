@@ -42,7 +42,7 @@ export default function ReviewInbox() {
       ListEmptyComponent={
         <Centered>
           <Text style={{ fontSize: 40 }}>🎉</Text>
-          <Muted>Inbox zero — nothing needs review.</Muted>
+          <Muted>Inbox zero. Nothing needs review.</Muted>
         </Centered>
       }
     />
@@ -91,7 +91,7 @@ function FixItem({ tx }: { tx: TransactionRow }) {
       <Field label="Amount (BND)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" />
       <Field label="Merchant" value={merchant} onChangeText={setMerchant} placeholder="MERCHANT NAME" />
       <Field
-        label="Date (YYYY-MM-DD HH:mm, Brunei time — optional)"
+        label="Date (YYYY-MM-DD HH:mm, Brunei time, optional)"
         value={date}
         onChangeText={setDate}
         placeholder="2026-07-16 12:30"
@@ -129,7 +129,7 @@ function DuplicateItem({ tx }: { tx: TransactionRow }) {
         <Badge label={tx.source} />
       </View>
       <Title>
-        {money(tx.amount === null ? null : Number(tx.amount), tx.currency)} — {tx.merchant ?? 'unknown'}
+        {money(tx.amount === null ? null : Number(tx.amount), tx.currency)} · {tx.merchant ?? 'unknown'}
       </Title>
       <Muted>
         {tx.occurred_at

@@ -23,6 +23,7 @@ import {
 import type { BudgetRow, CategoryRow } from '@/lib/types';
 import { themedStyles, useTheme } from '@/lib/theme';
 import { usePrivacy } from '@/lib/privacy';
+import { usePrimaryCurrency } from '@/lib/primaryCurrency';
 
 // 20 swatches evenly spaced around the colour wheel (~18° hue steps)
 const COLOR_SWATCHES = [
@@ -53,6 +54,7 @@ const RESET_PHRASE = 'RESET-BUDGET';
 export default function Budgets() {
   const styles = useStyles();
   const { colors } = useTheme();
+  const { currency: primaryCurrency } = usePrimaryCurrency();
   const categories = useCategories();
   const budgets = useBudgets();
   const createCategory = useCreateCategory();
@@ -99,6 +101,7 @@ export default function Budgets() {
           Set a monthly budget per category. The dashboard tracks this month&apos;s spending
           against each limit. Tap a category to edit its budget and colour.
         </Muted>
+        <Muted>{`Budgets are fixed to the currency set when they are saved. New budgets will use your current primary currency (${primaryCurrency}). To set a budget in a different currency, switch your primary currency in Settings > Appearance first.`}</Muted>
       </Card>
 
       <Card style={styles.listCard}>
@@ -114,25 +117,26 @@ export default function Budgets() {
                 budget={budget}
                 expanded={isExpanded}
                 onToggle={() => setExpandedId(isExpanded ? null : c.id)}
+                primaryCurrency={primaryCurrency}
               />
               {!isLast && !isExpanded && <View style={styles.divider} />}
             </View>
           );
         })}
         {(categories.data ?? []).length === 0 ? (
-          <Muted>No categories yet — add one below.</Muted>
+          <Muted>No categories yet. Add one below.</Muted>
         ) : null}
       </Card>
 
       <Card>
         <Title>Add category</Title>
         <View style={styles.addRow}>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, height: 41 }}>
             <Field
               placeholder="Category name"
               value={newName}
               onChangeText={setNewName}
-              style={{ marginBottom: 0 }}
+              style={{ marginBottom: 0, height: 41 }}
             />
           </View>
           <Button
@@ -140,6 +144,7 @@ export default function Budgets() {
             onPress={addCategory}
             disabled={!newName.trim()}
             busy={createCategory.isPending}
+            style={styles.inlineBtn}
           />
         </View>
         {createCategory.error ? (
@@ -187,12 +192,14 @@ function CategoryAccordionRow({
   budget,
   expanded,
   onToggle,
+  primaryCurrency,
 }: {
   category: CategoryRow;
   categoryIndex: number;
   budget: BudgetRow | null;
   expanded: boolean;
   onToggle: () => void;
+  primaryCurrency: string;
 }) {
   const { money } = usePrivacy();
   const styles = useStyles();
@@ -217,7 +224,7 @@ function CategoryAccordionRow({
     }
     setError(null);
     upsert.mutate(
-      { categoryId: category.id, amount: Math.round(amt * 100) / 100 },
+      { categoryId: category.id, amount: Math.round(amt * 100) / 100, currency: budget?.currency ?? primaryCurrency },
       { onError: (e) => setError(e instanceof Error ? e.message : String(e)) },
     );
   }
@@ -255,22 +262,23 @@ function CategoryAccordionRow({
           ) : null}
 
           <View style={styles.controls}>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, height: 41 }}>
               <Field
                 placeholder="Monthly budget ($)"
                 value={value}
                 onChangeText={setValue}
                 keyboardType="decimal-pad"
-                style={{ marginBottom: 0 }}
+                style={{ marginBottom: 0, height: 41 }}
               />
             </View>
-            <Button label="Save" variant="secondary" onPress={save} disabled={!dirty} busy={upsert.isPending} />
+            <Button label="Save" variant="secondary" onPress={save} disabled={!dirty} busy={upsert.isPending} style={styles.inlineBtn} />
             {budget ? (
               <Button
                 label="Clear"
                 variant="secondary"
                 onPress={() => del.mutate(budget.id, { onSuccess: () => setValue('') })}
                 busy={del.isPending}
+                style={styles.inlineBtn}
               />
             ) : null}
           </View>
@@ -307,15 +315,14 @@ const useStyles = themedStyles((colors) => ({
     paddingTop: 14,
     paddingBottom: 14,
     gap: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
     backgroundColor: colors.bg,
   },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginHorizontal: 16 },
   dot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
   name: { flex: 1, fontWeight: '600', color: colors.text },
-  controls: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  addRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  controls: { flexDirection: 'row', gap: 8, alignItems: 'center', height: 53 },
+  inlineBtn: { marginVertical: 0, paddingVertical: 0, height: 41, justifyContent: 'center' },
+  addRow: { flexDirection: 'row', gap: 8, alignItems: 'center', height: 53 },
   error: { color: colors.danger, marginTop: 6 },
   swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   swatch: { width: 28, height: 28, borderRadius: 14 },

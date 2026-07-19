@@ -68,7 +68,7 @@ export default function ResetPassword() {
           ) : null}
           {error ? (
             <Text style={styles.error}>
-              {error} — request a new link from the sign-in screen.
+              {error}. Request a new link from the sign-in screen.
             </Text>
           ) : null}
         </Card>

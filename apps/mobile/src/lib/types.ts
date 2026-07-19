@@ -16,6 +16,7 @@ export interface SavingsGoalRow {
   name: string;
   target_amount: number | string;
   saved_amount: number | string;
+  currency: string;
   created_at: string;
 }
 

@@ -11,9 +11,10 @@ import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { themedStyles, useTheme } from '@/lib/theme';
 
-export function onboardedKey(userId: string): string {
-  return `onboarded:${userId}`;
-}
+import { onboardedKey } from '@/lib/onboarding';
+
+// Re-export for existing importers (_layout, shortcut-setup).
+export { onboardedKey };
 
 // ─── Step indicators ─────────────────────────────────────────────────────────
 
@@ -73,7 +74,7 @@ function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void 
     try {
       const res = await postIngest(message, 'paste');
       if (res.status === 'error') {
-        setError(res.error ?? 'Something went wrong — try again or skip for now.');
+        setError(res.error ?? 'Something went wrong. Try again or skip for now.');
         return;
       }
       qc.invalidateQueries({ queryKey: ['transactions'] });
@@ -92,7 +93,7 @@ function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void 
       <Steps current={1} />
       <Text style={styles.hello}>Welcome to Bukit Pennies 👋</Text>
       <Muted>
-        Your bank texts you every time you spend. Paste your last bank SMS below — watch it
+        Your bank texts you every time you spend. Paste your last bank SMS below and watch it
         become your first logged transaction in seconds. No bank logins, ever.
       </Muted>
 
@@ -124,7 +125,7 @@ function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void 
         ) : preview ? (
           <Muted>
             {preview.isTransactional
-              ? 'Could not extract a transaction — you can still save it and fix it in Review.'
+              ? 'Could not extract a transaction. You can still save it and fix it in Review.'
               : 'This does not look like a purchase message (OTP, promo, or balance alert).'}
           </Muted>
         ) : null}
@@ -142,85 +143,11 @@ function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void 
   );
 }
 
-// ─── Page 2: iOS Shortcut nudge ───────────────────────────────────────────────
-
-function ShortcutPage({ onSetUp, onSkip }: { onSetUp: () => void; onSkip: () => void }) {
-  const styles = useStyles();
-  const { colors } = useTheme();
-
-  return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Steps current={2} />
-      <Text style={styles.hello}>Set up automatic capture</Text>
-      <Muted>
-        One-time setup. After this, every bank SMS you receive logs itself — no tapping required.
-      </Muted>
-
-      <Card>
-        <View style={[styles.timePill, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '40' }]}>
-          <Text style={[styles.timePillText, { color: colors.primary }]}>⏱ About 5 minutes</Text>
-        </View>
-
-        <View style={{ gap: 16, marginTop: 16 }}>
-          <NudgeStep
-            number="1"
-            title="Create a capture token"
-            body="Settings → Capture → Capture devices & tokens → Add device. Copy the bp_… token (shown once)."
-          />
-          <NudgeStep
-            number="2"
-            title="Download the Shortcut"
-            body="A ready-made Shortcut that sends bank messages to your private endpoint. The only thing you paste is your token."
-          />
-          <NudgeStep
-            number="3"
-            title="Add a bank SMS automation"
-            body="Shortcuts app → Automation → Message. Set it to trigger on bank SMS and run the Shortcut automatically."
-          />
-        </View>
-      </Card>
-
-      <Button label="Set up now — takes ~5 min" onPress={onSetUp} />
-      <Button label="I'll do it later" variant="secondary" onPress={onSkip} />
-      <Muted>
-        You can always find the full guide under Settings → Capture → iOS Shortcut setup.
-      </Muted>
-    </ScrollView>
-  );
-}
-
-function NudgeStep({ number, title, body }: { number: string; title: string; body: string }) {
-  const { colors } = useTheme();
-  return (
-    <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-      <View
-        style={{
-          width: 26,
-          height: 26,
-          borderRadius: 13,
-          backgroundColor: colors.primary,
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          marginTop: 1,
-        }}
-      >
-        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>{number}</Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontWeight: '700', color: colors.text, fontSize: 14 }}>{title}</Text>
-        <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 2 }}>{body}</Text>
-      </View>
-    </View>
-  );
-}
-
 // ─── Root controller ──────────────────────────────────────────────────────────
 
 export default function Welcome() {
   const router = useRouter();
   const { session } = useSession();
-  const [page, setPage] = useState<1 | 2>(1);
   const userId = session?.user.id;
 
   // Returning users (existing transactions, e.g. fresh install) skip straight in.
@@ -243,32 +170,14 @@ export default function Welcome() {
     };
   }, [userId, router]);
 
-  async function finish() {
-    if (userId) await kvSet(onboardedKey(userId), '1');
-    router.replace('/(tabs)');
+  // After the paste hero, first-timers go straight into the setup guide.
+  // The onboarded flag is set only when they tap "Setup complete" there —
+  // AuthGate holds them on the guide until then.
+  function toSetup() {
+    router.replace('/(tabs)/settings/shortcut-setup');
   }
 
-  if (page === 1) {
-    return (
-      <PastePage
-        onDone={() => setPage(2)}
-        onSkip={() => setPage(2)}
-      />
-    );
-  }
-
-  return (
-    <ShortcutPage
-      onSetUp={() => {
-        // Mark onboarded so they don't see this flow again, then send them to
-        // the full setup guide in Settings.
-        void finish().then(() => {
-          router.push('/(tabs)/settings/shortcut-setup');
-        });
-      }}
-      onSkip={finish}
-    />
-  );
+  return <PastePage onDone={toSetup} onSkip={toSetup} />;
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -288,14 +197,6 @@ const useStyles = themedStyles((colors) => ({
   content: { padding: 24, paddingTop: 60, gap: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
   hello: { fontSize: 26, fontWeight: '800', color: colors.text },
   error: { color: colors.danger, marginTop: 8 },
-  timePill: {
-    alignSelf: 'flex-start',
-    paddingVertical: 5,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  timePillText: { fontSize: 13, fontWeight: '600' },
   previewRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

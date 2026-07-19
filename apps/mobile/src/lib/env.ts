@@ -12,9 +12,10 @@ export const INGEST_URL = `${SUPABASE_URL}/functions/v1/ingest`;
 
 export const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? '';
 
-// Signed, ready-made iOS shortcut published by .github/workflows/ios-shortcut.yml.
+// Owner's shared iCloud link to the self-configuring "Bukit Pennies Capture"
+// shortcut (CI cannot sign shortcuts — see docs/shortcut-authoring.md).
 export const SHORTCUT_DOWNLOAD_URL =
-  'https://www.icloud.com/shortcuts/9a70cda0b1b84feca11991213011a95a';
+  'https://www.icloud.com/shortcuts/20c719e5009d4cb0baaf4306d6e739c2';
 
 // Public policy pages (GitHub Pages, served from the public
 // jaredoka/bukit-pennies-legal repo — this repo is private).

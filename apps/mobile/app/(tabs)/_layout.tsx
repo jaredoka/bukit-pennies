@@ -16,6 +16,7 @@ export default function TabsLayout() {
         tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
         headerStyle: { backgroundColor: colors.card },
         headerTitleStyle: { fontWeight: '700', color: colors.text },
+        headerTitleAlign: 'center',
         sceneStyle: { backgroundColor: colors.bg },
       }}
     >

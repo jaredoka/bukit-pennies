@@ -219,7 +219,7 @@ export default function TransactionDetail() {
                   </Pressable>
                 ))}
                 {categories.data?.length === 0 ? (
-                  <Muted>No categories yet — add one below.</Muted>
+                  <Muted>No categories yet. Add one below.</Muted>
                 ) : null}
                 <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginTop: 16 }}>
                   <View style={{ flex: 1 }}>

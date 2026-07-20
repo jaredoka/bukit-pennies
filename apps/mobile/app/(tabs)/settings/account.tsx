@@ -1,15 +1,16 @@
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Platform, ScrollView, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, Field, Muted, Title } from '@/components/ui';
 import { useProfile, useUpdateProfile } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
-import { themedStyles } from '@/lib/theme';
+import { themedStyles, useTheme } from '@/lib/theme';
 
 export default function Account() {
   const styles = useStyles();
+  const { colors } = useTheme();
   const { session } = useSession();
   const router = useRouter();
   const profile = useProfile();
@@ -66,6 +67,16 @@ export default function Account() {
       <Card>
         <Title>Profile</Title>
         <Muted>{session?.user.email ?? ''}</Muted>
+
+        <View style={styles.idRow}>
+          <Text style={[styles.idLabel, { color: colors.muted }]}>User ID</Text>
+          <Text style={[styles.idValue, { color: colors.text }]}>
+            {session?.user.id
+              ? `${session.user.id.slice(0, 4).toUpperCase()}-${session.user.id.slice(4, 8).toUpperCase()}`
+              : '—'}
+          </Text>
+        </View>
+
         <View style={{ marginTop: 16 }}>
           <Field
             label="Display name"
@@ -141,4 +152,24 @@ export default function Account() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
+  idRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+    gap: 8,
+  },
+  idLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  idValue: {
+    flex: 1,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
 }));

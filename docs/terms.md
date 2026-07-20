@@ -1,7 +1,7 @@
 # Bukit Pennies — Terms of Service
 
 **Effective date:** 16 July 2026
-**Contact:** jaredoka@gmail.com
+**Contact:** bukitpennies@gmail.com
 
 By creating an account or using Bukit Pennies, you agree to these terms.
 
@@ -57,4 +57,4 @@ Continued use after changes take effect constitutes acceptance.
 
 ## Contact
 
-**jaredoka@gmail.com**
+**bukitpennies@gmail.com**

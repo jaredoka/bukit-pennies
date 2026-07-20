@@ -1,7 +1,7 @@
 # Bukit Pennies — Privacy Policy
 
 **Effective date:** 16 July 2026
-**Contact:** jaredoka@gmail.com
+**Contact:** bukitpennies@gmail.com
 
 Bukit Pennies is a personal spending tracker for Brunei that works by parsing
 bank **notification text**. This policy describes exactly what data the app
@@ -66,4 +66,4 @@ this page with a new effective date.
 
 ## Contact
 
-Questions or requests: **jaredoka@gmail.com**
+Questions or requests: **bukitpennies@gmail.com**

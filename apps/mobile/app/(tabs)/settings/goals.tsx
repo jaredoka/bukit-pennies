@@ -8,6 +8,7 @@ import {
   useSavingsGoals,
 } from '@/lib/queries';
 import { usePrivacy } from '@/lib/privacy';
+import { usePrimaryCurrency } from '@/lib/primaryCurrency';
 import { themedStyles, useTheme } from '@/lib/theme';
 import type { SavingsGoalRow } from '@/lib/types';
 
@@ -15,6 +16,7 @@ export default function SavingsGoals() {
   const styles = useStyles();
   const { data, isLoading } = useSavingsGoals();
   const create = useCreateSavingsGoal();
+  const { currency: primaryCurrency } = usePrimaryCurrency();
   const [name, setName] = useState('');
   const [target, setTarget] = useState('');
   const targetNum = Number(target);
@@ -49,7 +51,7 @@ export default function SavingsGoals() {
             label="Create goal"
             onPress={() =>
               create.mutate(
-                { name: name.trim(), target: targetNum },
+                { name: name.trim(), target: targetNum, currency: primaryCurrency },
                 { onSuccess: () => { setName(''); setTarget(''); } },
               )
             }

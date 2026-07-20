@@ -180,7 +180,7 @@ export function useStackTheme() {
   return {
     headerStyle: { backgroundColor: colors.card },
     headerTintColor: colors.primary,
-    headerTitleStyle: { fontWeight: '700', color: colors.text },
+    headerTitleStyle: { fontWeight: '700' as const, color: colors.text },
     headerTitleAlign: 'center' as const,
     contentStyle: { backgroundColor: colors.bg },
   };

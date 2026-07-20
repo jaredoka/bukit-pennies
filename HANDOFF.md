@@ -507,6 +507,24 @@ bank's domain; needs_review flow catches garbage) and HTML soup.
 neither bank does, the idea is dead for Brunei regardless of elegance.
 Not a blocker for the iOS launch.
 
+**Monetization (noted 2026-07-20, owner decision: free until real traction):**
+App remains free. No subscriptions, no ads, no paid tiers for now. The "Buy
+me a coffee" page has been removed from Settings. When the app has real users
+and traction, the owner is open to a tip jar and eventually a Pro tier.
+
+Tip jar constraint: Ko-fi, Buy Me a Coffee, and PayPal are all restricted in
+Brunei. The most viable approach is a **QR code bank transfer** page (Baiduri
+or BIBD QR displayed in-app, users scan with their banking app — zero fees,
+Brunei-native). For international tips, Wise (TransferWise) supports Brunei.
+Build the tip jar page when ready, re-add it to Settings as "Support the app"
+or similar, and register `support` or `tip-jar` in the settings stack layout.
+
+Longer-term monetization (gated on 500+ active users): free tier stays
+generous (unlimited capture, dashboard, budgets). Pro tier ($2-3/mo or
+~$25/yr) could include CSV export, 12+ month trend analytics, multi-currency
+dashboards, custom categories. Owner is also open to acquisition by a bank or
+government entity.
+
 **Post-launch watch (noted 2026-07-19, owner asked to be reminded):** the
 onboarding funnel is measurable from the database alone, no analytics
 tooling: accounts created (auth.users) vs capture tokens created

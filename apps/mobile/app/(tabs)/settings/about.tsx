@@ -42,7 +42,7 @@ export default function About() {
       <Card>
         <Title>Get in touch</Title>
         <Muted>
-          Questions, feedback, collaboration, or anything else.
+          Questions, feedback, feature requests, collaboration, or anything else.
         </Muted>
         <Text
           style={[styles.link, { marginTop: 12 }]}

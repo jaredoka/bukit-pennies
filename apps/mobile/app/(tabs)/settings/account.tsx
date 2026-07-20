@@ -1,6 +1,8 @@
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Alert, ScrollView, View } from 'react-native';
-import { Button, Card, Muted, Title } from '@/components/ui';
+import { Button, Card, Field, Muted, Title } from '@/components/ui';
+import { useProfile, useUpdateProfile } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { themedStyles } from '@/lib/theme';
@@ -9,6 +11,16 @@ export default function Account() {
   const styles = useStyles();
   const { session } = useSession();
   const router = useRouter();
+  const profile = useProfile();
+  const updateProfile = useUpdateProfile();
+  const [displayName, setDisplayName] = useState('');
+
+  // Seed the field once profile loads, but don't overwrite mid-edit.
+  useEffect(() => {
+    if (profile.data?.display_name != null && displayName === '') {
+      setDisplayName(profile.data.display_name);
+    }
+  }, [profile.data?.display_name]);
 
   async function resetPassword() {
     const email = session?.user.email;
@@ -31,6 +43,25 @@ export default function Account() {
       <Card>
         <Title>Account</Title>
         <Muted>{session?.user.email ?? ''}</Muted>
+        <View style={{ marginTop: 16 }}>
+          <Field
+            label="Display name"
+            value={displayName}
+            onChangeText={setDisplayName}
+            placeholder="Your name"
+            autoCapitalize="words"
+            returnKeyType="done"
+            onSubmitEditing={() =>
+              updateProfile.mutate({ display_name: displayName.trim() || null })
+            }
+          />
+          <Button
+            label="Save"
+            onPress={() => updateProfile.mutate({ display_name: displayName.trim() || null })}
+            busy={updateProfile.isPending}
+            disabled={displayName.trim() === (profile.data?.display_name ?? '')}
+          />
+        </View>
         <View style={{ marginTop: 12, gap: 8 }}>
           <Button label="Reset password" variant="secondary" onPress={resetPassword} />
           <Button label="Sign out" variant="secondary" onPress={() => supabase.auth.signOut()} />

@@ -541,6 +541,18 @@ support only (GitHub Sponsors / Ko-fi, "server costs ~$25/mo" framing) —
 never monetization. Cheap deferrals if needed before upgrading: reduce
 the 500-row transaction fetch, trim dashboard query columns.
 
+**Known design edge case — two accounts, one phone (2026-07-20, owner decision: leave unsupported):**
+The iOS Shortcut stores a single ingest token. If a user creates two Bukit
+Pennies accounts and sets up two Message automations on the same device (one
+per card), both automations run the same shortcut with the same token, so
+both card transactions are logged to the account that token belongs to. The
+second account receives nothing. Workaround requires the user to maintain two
+separately-named shortcuts, each holding a different token — not a supported
+flow. The shortcut setup guide makes no mention of multi-account use.
+Transaction logging is independent of app login state: the shortcut runs as
+an iOS background automation and POSTs directly to the edge function; the
+user does not need the app open or any account signed in for capture to work.
+
 **GitHub note (2026-07-19):** repo is **private** (policy pages moved to
 the public `bukit-pennies-legal` repo). Private-repo Actions draws from
 the account's 2,000 free min/mo, shared with the owner's other projects —

@@ -27,31 +27,49 @@ export default function Account() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.data?.display_name]);
 
+  const [resetBusy, setResetBusy] = useState(false);
+
   async function resetPassword() {
     const email = session?.user.email;
     if (!email) return;
-    const redirectTo =
-      Platform.OS === 'web'
-        ? `${globalThis.location.origin}/reset-password`
-        : Linking.createURL('reset-password');
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
-    if (error) {
-      Alert.alert('Error', error.message);
-    } else {
-      Alert.alert(
-        'Check your email',
-        `A password reset link has been sent to ${email}. Tap it on this device to choose a new password.`,
-      );
+    setResetBusy(true);
+    try {
+      // Must sign out first: Supabase rejects resetPasswordForEmail when a
+      // valid session is active (the user is already authenticated, so a
+      // password-reset email would be redundant from the server's perspective).
+      // Signing out locally (scope:'local') clears the session without a
+      // network round-trip, then we send the reset email with the app's deep-
+      // link scheme so tapping it reopens the in-app reset-password screen.
+      await supabase.auth.signOut({ scope: 'local' });
+      const redirectTo =
+        Platform.OS === 'web'
+          ? `${globalThis.location.origin}/reset-password`
+          : Linking.createURL('reset-password');
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      if (error) {
+        Alert.alert('Error', error.message);
+      } else {
+        Alert.alert(
+          'Check your email',
+          `A reset link has been sent to ${email}. Tap it on this device to choose a new password.`,
+        );
+      }
+    } finally {
+      setResetBusy(false);
     }
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
-    // AuthGate redirects to landing once session clears.
+    // scope:'local' clears the stored session immediately without needing a
+    // network round-trip, so the sign-out works even when offline.
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (error) Alert.alert('Error', error.message);
+    // AuthGate's onAuthStateChange listener redirects to landing once session is null.
   }
 
   async function switchAccount() {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (error) Alert.alert('Error', error.message);
   }
 
   // Short user-facing ID derived from the auth UUID — first 8 hex chars,
@@ -110,11 +128,11 @@ export default function Account() {
       <Card>
         <Title>Password</Title>
         <Muted>
-          We'll email a reset link to {session?.user.email ?? 'your account email'}. Open the link
-          on this device to choose a new password.
+          We'll email a reset link to {session?.user.email ?? 'your account email'}. Tap it on
+          this device to choose a new password. You'll be signed out first.
         </Muted>
         <View style={{ marginTop: 12 }}>
-          <Button label="Send reset link" variant="secondary" onPress={resetPassword} />
+          <Button label="Send reset link" variant="secondary" onPress={resetPassword} busy={resetBusy} />
         </View>
       </Card>
 

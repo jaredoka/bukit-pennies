@@ -181,9 +181,11 @@ export default function ShortcutSetup() {
     leaveToDashboard();
   }
 
+  // Called from the bottom-of-page button (user is already on the setup page,
+  // so land them on the Settings index rather than jumping to the Dashboard).
   function skipForNow() {
     deferSetup();
-    leaveToDashboard();
+    router.replace('/(tabs)/settings');
   }
 
   // Offer browse-without-setup up front, so users don't have to scroll to the
@@ -195,7 +197,14 @@ export default function ShortcutSetup() {
       'One-time setup',
       'Setting up automatic capture takes 3 to 5 minutes and makes every card payment log itself. Prefer to look around the app first? You can come back anytime.',
       [
-        { text: "I'll do it later", style: 'cancel', onPress: skipForNow },
+        {
+          text: "I'll do it later",
+          style: 'cancel',
+          // Pop-up appears on the setup page: land the user on Settings index,
+          // not the Dashboard. If the pop-up later moves to other screens,
+          // remove this navigation entirely so the user stays where they were.
+          onPress: skipForNow,
+        },
         { text: 'Complete setup now' },
       ],
     );

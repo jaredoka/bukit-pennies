@@ -467,6 +467,13 @@ export function useRevokeDevice() {
   });
 }
 
+export function useSubmitBugReport() {
+  return useMutation({
+    mutationFn: async (report: { short_id: string; app_version: string; description: string }) =>
+      unwrap(supabase.from('bug_reports').insert(report)),
+  });
+}
+
 // ---------------------------------------------------------------- realtime
 
 /** Invalidate transaction queries on any realtime insert/update — Shortcut

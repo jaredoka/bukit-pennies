@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
@@ -17,6 +17,7 @@ import {
   bruneiMonthKey,
   formatMonthName,
 } from '@/lib/format';
+import { kvGet } from '@/lib/kvStore';
 import {
   useBudgets,
   useCategories,
@@ -36,9 +37,11 @@ import {
   type ReminderDays,
   type ReminderPrefs,
 } from '@/lib/notifications';
+import { onboardedKey } from '@/lib/onboarding';
 import { usePrivacy } from '@/lib/privacy';
 import { usePrimaryCurrency } from '@/lib/primaryCurrency';
 import { detectRecurring } from '@/lib/recurring';
+import { useSession } from '@/lib/session';
 import { themedStyles, useTheme } from '@/lib/theme';
 
 /** off → on due day → 1 day before → 3 days before → off */
@@ -80,6 +83,14 @@ export default function Dashboard() {
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
   const chartWidth = Math.min(width, 720) - 88;
+  const router = useRouter();
+  const { session } = useSession();
+  const [onboarded, setOnboarded] = useState(true); // optimistic: hide banner until confirmed
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+    kvGet(onboardedKey(session.user.id)).then((v) => setOnboarded(v === '1'));
+  }, [session?.user.id]);
 
   const { currency: primaryCurrency } = usePrimaryCurrency();
   const profile = useProfile();
@@ -297,6 +308,20 @@ export default function Dashboard() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
+      {/* ---- Capture nudge: shown until setup is complete ---- */}
+      {!onboarded ? (
+        <Pressable
+          style={[styles.captureBanner, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '40' }]}
+          onPress={() => router.push('/(tabs)/settings/shortcut-setup')}
+        >
+          <Ionicons name="flash-outline" size={15} color={colors.primary} />
+          <Text style={[styles.captureBannerText, { color: colors.primary }]}>
+            Set up automatic capture — every bank SMS logs itself
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+        </Pressable>
+      ) : null}
+
       {/* ---- Hero: interactive donut + period wheels ---- */}
       <Card>
         <View style={styles.heroHeader}>
@@ -609,6 +634,17 @@ export default function Dashboard() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
+  captureBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  captureBannerText: { flex: 1, fontSize: 13, fontWeight: '600' },
   heroHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   heroActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   currencyPills: { flexDirection: 'row', gap: 4 },

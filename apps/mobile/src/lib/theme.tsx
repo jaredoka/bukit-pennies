@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Platform, StyleSheet, useColorScheme } from 'react-native';
+import { isFreshInstall } from './installMarker';
 
 // Default category colours per theme. User-chosen colours stored in the DB
 // override these entirely and are never affected by theme switching.
@@ -137,11 +138,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [preference, setPreferenceState] = useState<SchemePreference>('system');
 
   useEffect(() => {
-    loadPreference().then((stored) => {
+    (async () => {
+      // The stored preference survives app deletion (Keychain), so a fresh
+      // install must explicitly reset to light; updates keep the user's choice.
+      if (await isFreshInstall()) {
+        setPreferenceState('light');
+        void savePreference('light');
+        return;
+      }
+      const stored = await loadPreference();
       if (stored === 'light' || stored === 'dark' || stored === 'system') {
         setPreferenceState(stored);
       }
-    });
+    })();
   }, []);
 
   const value = useMemo<ThemeValue>(() => {

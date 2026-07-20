@@ -3,6 +3,7 @@ import { Link, type Href } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Muted } from '@/components/ui';
 import { themedStyles, useTheme } from '@/lib/theme';
+import Constants from 'expo-constants';
 
 function Row({ href, icon, label, note, danger }: { href: Href; icon: keyof typeof Ionicons.glyphMap; label: string; note: string; danger?: boolean }) {
   const styles = useStyles();
@@ -25,6 +26,8 @@ function Row({ href, icon, label, note, danger }: { href: Href; icon: keyof type
 
 export default function Settings() {
   const styles = useStyles();
+  const { colors } = useTheme();
+  const version = Constants.expoConfig?.version ?? '—';
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -33,7 +36,7 @@ export default function Settings() {
           href="/(tabs)/settings/account"
           icon="person"
           label="Account"
-          note="Sign out and manage your account"
+          note="Sign out, reset password, manage your account"
         />
         <Row
           href="/(tabs)/settings/appearance"
@@ -54,6 +57,12 @@ export default function Settings() {
           note="Category budgets, savings goals, export"
         />
         <Row
+          href="/(tabs)/settings/notifications"
+          icon="notifications"
+          label="Notifications"
+          note="Weekly summary and spending alerts"
+        />
+        <Row
           href="/(tabs)/settings/capture"
           icon="clipboard"
           label="Capture"
@@ -65,11 +74,11 @@ export default function Settings() {
           label="How the app works"
           note="Using the app and where your data is stored"
         />
-        <Row
-          href="/(tabs)/settings/coffee"
-          icon="cafe"
-          label="Buy me a coffee!"
-          note="Support the developer"
+<Row
+          href="/(tabs)/settings/report-bug"
+          icon="bug"
+          label="Report a bug"
+          note="Let us know if something isn't working"
         />
         <Row
           href="/(tabs)/settings/about"
@@ -79,13 +88,16 @@ export default function Settings() {
         />
       </View>
 
+      <Text style={[styles.versionNote, { color: colors.muted }]}>
+        Bukit Pennies v{version}
+      </Text>
     </ScrollView>
   );
 }
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 16, gap: 24, maxWidth: 720, width: '100%', alignSelf: 'center' },
+  content: { padding: 16, gap: 24, maxWidth: 720, width: '100%', alignSelf: 'center', paddingBottom: 32 },
   group: {
     backgroundColor: colors.card,
     borderRadius: 12,
@@ -102,4 +114,5 @@ const useStyles = themedStyles((colors) => ({
     borderBottomColor: colors.border,
   },
   rowLabel: { fontWeight: '600', color: colors.text },
+  versionNote: { textAlign: 'center', fontSize: 12 },
 }));

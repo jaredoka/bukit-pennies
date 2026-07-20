@@ -28,7 +28,7 @@ export default function Landing() {
           <Button label="Create account" onPress={() => router.push('/(auth)/sign-up')} />
           <Button label="Log in" variant="secondary" onPress={() => router.push('/(auth)/sign-in')} />
         </View>
-        <Text style={[styles.footnote, { color: colors.muted }]}>Free. Made for Brunei.</Text>
+        <Text style={[styles.footnote, { color: colors.muted }]}>Built in Brunei 🇧🇳</Text>
       </View>
     </View>
   );

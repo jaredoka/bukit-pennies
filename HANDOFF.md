@@ -507,6 +507,24 @@ bank's domain; needs_review flow catches garbage) and HTML soup.
 neither bank does, the idea is dead for Brunei regardless of elegance.
 Not a blocker for the iOS launch.
 
+**Monetization (noted 2026-07-20, owner decision: free until real traction):**
+App remains free. No subscriptions, no ads, no paid tiers for now. The "Buy
+me a coffee" page has been removed from Settings. When the app has real users
+and traction, the owner is open to a tip jar and eventually a Pro tier.
+
+Tip jar constraint: Ko-fi, Buy Me a Coffee, and PayPal are all restricted in
+Brunei. The most viable approach is a **QR code bank transfer** page (Baiduri
+or BIBD QR displayed in-app, users scan with their banking app — zero fees,
+Brunei-native). For international tips, Wise (TransferWise) supports Brunei.
+Build the tip jar page when ready, re-add it to Settings as "Support the app"
+or similar, and register `support` or `tip-jar` in the settings stack layout.
+
+Longer-term monetization (gated on 500+ active users): free tier stays
+generous (unlimited capture, dashboard, budgets). Pro tier ($2-3/mo or
+~$25/yr) could include CSV export, 12+ month trend analytics, multi-currency
+dashboards, custom categories. Owner is also open to acquisition by a bank or
+government entity.
+
 **Post-launch watch (noted 2026-07-19, owner asked to be reminded):** the
 onboarding funnel is measurable from the database alone, no analytics
 tooling: accounts created (auth.users) vs capture tokens created
@@ -540,6 +558,18 @@ Apple's US$99/yr until genuinely popular; at Pro-tier scale, optional
 support only (GitHub Sponsors / Ko-fi, "server costs ~$25/mo" framing) —
 never monetization. Cheap deferrals if needed before upgrading: reduce
 the 500-row transaction fetch, trim dashboard query columns.
+
+**Known design edge case — two accounts, one phone (2026-07-20, owner decision: leave unsupported):**
+The iOS Shortcut stores a single ingest token. If a user creates two Bukit
+Pennies accounts and sets up two Message automations on the same device (one
+per card), both automations run the same shortcut with the same token, so
+both card transactions are logged to the account that token belongs to. The
+second account receives nothing. Workaround requires the user to maintain two
+separately-named shortcuts, each holding a different token — not a supported
+flow. The shortcut setup guide makes no mention of multi-account use.
+Transaction logging is independent of app login state: the shortcut runs as
+an iOS background automation and POSTs directly to the edge function; the
+user does not need the app open or any account signed in for capture to work.
 
 **GitHub note (2026-07-19):** repo is **private** (policy pages moved to
 the public `bukit-pennies-legal` repo). Private-repo Actions draws from

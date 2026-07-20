@@ -21,4 +21,4 @@ export const SHORTCUT_DOWNLOAD_URL =
 // jaredoka/bukit-pennies-legal repo — this repo is private).
 export const PRIVACY_POLICY_URL = 'https://jaredoka.github.io/bukit-pennies-legal/privacy-policy';
 export const TERMS_URL = 'https://jaredoka.github.io/bukit-pennies-legal/terms';
-export const SUPPORT_EMAIL = 'jaredoka@gmail.com';
+export const SUPPORT_EMAIL = 'bukitpennies@gmail.com';

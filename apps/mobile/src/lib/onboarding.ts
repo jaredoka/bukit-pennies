@@ -17,3 +17,15 @@ export function deferSetup(): void {
 export function isSetupDeferred(): boolean {
   return deferred;
 }
+
+// The browse-without-setup pop-up should appear once per launch, not every
+// time the setup screen mounts.
+let prompted = false;
+
+export function markSetupPromptShown(): void {
+  prompted = true;
+}
+
+export function wasSetupPromptShown(): boolean {
+  return prompted;
+}

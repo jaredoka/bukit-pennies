@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { Button, Card, Field, Muted } from '@/components/ui';
 import { SHORTCUT_DOWNLOAD_URL } from '@/lib/env';
 import { kvGet, kvSet } from '@/lib/kvStore';
-import { deferSetup, onboardedKey } from '@/lib/onboarding';
+import {
+  deferSetup,
+  markSetupPromptShown,
+  onboardedKey,
+  wasSetupPromptShown,
+} from '@/lib/onboarding';
 import { useCreateIngestToken, useDevices } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { themedStyles, useTheme } from '@/lib/theme';
@@ -163,10 +168,39 @@ export default function ShortcutSetup() {
     (d) => d.kind === 'ios_shortcut' && !d.revoked_at && d.last_seen_at !== null,
   );
 
-  async function completeSetup() {
-    if (userId) await kvSet(onboardedKey(userId), '1');
+  // Leaving for the dashboard: first swap this screen for the settings index
+  // so the Settings tab's stack isn't left with the setup guide as its only
+  // (and unescapable) route, then switch to the dashboard tab.
+  function leaveToDashboard() {
+    router.replace('/(tabs)/settings');
     router.replace('/(tabs)');
   }
+
+  async function completeSetup() {
+    if (userId) await kvSet(onboardedKey(userId), '1');
+    leaveToDashboard();
+  }
+
+  function skipForNow() {
+    deferSetup();
+    leaveToDashboard();
+  }
+
+  // Offer browse-without-setup up front, so users don't have to scroll to the
+  // bottom of the guide to discover "I'll do it later".
+  useEffect(() => {
+    if (!onboarding || wasSetupPromptShown()) return;
+    markSetupPromptShown();
+    Alert.alert(
+      'One-time setup',
+      'Setting up automatic capture takes 3 to 5 minutes and makes every card payment log itself. Prefer to look around the app first? You can come back anytime.',
+      [
+        { text: "I'll do it later", style: 'cancel', onPress: skipForNow },
+        { text: 'Complete setup now' },
+      ],
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onboarding]);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -382,10 +416,7 @@ export default function ShortcutSetup() {
             <Button
               label="I'll do it later"
               variant="secondary"
-              onPress={() => {
-                deferSetup();
-                router.replace('/(tabs)');
-              }}
+              onPress={skipForNow}
             />
           </View>
           <Muted>

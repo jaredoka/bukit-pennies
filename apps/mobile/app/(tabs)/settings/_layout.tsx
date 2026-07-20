@@ -1,6 +1,11 @@
 import { Stack } from 'expo-router';
 import { useStackTheme } from '@/lib/theme';
 
+// Anchor deep navigations (e.g. AuthGate replacing straight to
+// shortcut-setup) on the settings index, so the rest of Settings stays
+// reachable underneath instead of the stack containing only that screen.
+export const unstable_settings = { initialRouteName: 'index' };
+
 export default function SettingsLayout() {
   return (
     <Stack screenOptions={useStackTheme()}>

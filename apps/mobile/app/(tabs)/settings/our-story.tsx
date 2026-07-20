@@ -17,8 +17,8 @@ export default function OurStory() {
           had no idea where my money went.
         </Text>
         <Text style={[styles.body, { color: colors.text }]}>
-          The problem was never discipline. It was friction. Manually keying in every purchase is a
-          habit that is easy to break. So I built something that removes the habit entirely. Your
+          Manually keying in every purchase is a habit that is easy to break. So I built something
+          that removes the task entirely. Your
           bank already texts you when you spend, so I wrote an app that reads those messages and
           logs the transaction for you. Now the only spending I track manually is cash, which I
           rarely use anyway.
@@ -40,7 +40,7 @@ export default function OurStory() {
       <Card>
         <Title>The name</Title>
         <Text style={[styles.body, { color: colors.text }]}>
-          My teacher once said <Text style={styles.italic}>lama lama jadi bukit</Text>. Little by
+          My teacher once said <Text style={styles.italic}>sedikit-sedikit, lama-lama menjadi bukit</Text>. Little by
           little, it becomes a mountain. It is the only idiom from school I still remember, and it
           turns out it applies to everything. Savings, habits, debt. Pennies add up. That is the
           whole idea.

@@ -81,6 +81,12 @@ export default function Settings() {
           note="Support the developer"
         />
         <Row
+          href="/(tabs)/settings/report-bug"
+          icon="bug"
+          label="Report a bug"
+          note="Let us know if something isn't working"
+        />
+        <Row
           href="/(tabs)/settings/about"
           icon="information-circle"
           label="About"

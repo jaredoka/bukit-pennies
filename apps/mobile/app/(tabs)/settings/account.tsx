@@ -1,8 +1,7 @@
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
+import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, Field, Muted, Title } from '@/components/ui';
 import { useProfile, useUpdateProfile } from '@/lib/queries';
 import { useSession } from '@/lib/session';
@@ -17,7 +16,6 @@ export default function Account() {
   const profile = useProfile();
   const updateProfile = useUpdateProfile();
   const [displayName, setDisplayName] = useState('');
-  const [copiedId, setCopiedId] = useState(false);
 
   // Seed the field once profile loads, but don't overwrite mid-edit.
   useEffect(() => {
@@ -79,13 +77,6 @@ export default function Account() {
     ? `${userId.slice(0, 4).toUpperCase()}-${userId.slice(4, 8).toUpperCase()}`
     : '—';
 
-  async function copyId() {
-    if (!userId) return;
-    await Clipboard.setStringAsync(shortId);
-    setCopiedId(true);
-    setTimeout(() => setCopiedId(false), 1500);
-  }
-
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
 
@@ -94,14 +85,11 @@ export default function Account() {
         <Title>Profile</Title>
         <Muted>{session?.user.email ?? ''}</Muted>
 
-        {/* User ID chip */}
-        <Pressable style={styles.idRow} onPress={copyId} accessibilityLabel="Copy user ID">
+        {/* User ID — read-only, automatically attached to bug reports */}
+        <View style={styles.idRow}>
           <Text style={[styles.idLabel, { color: colors.muted }]}>User ID</Text>
           <Text style={[styles.idValue, { color: colors.text }]}>{shortId}</Text>
-          <Text style={[styles.idCopy, { color: copiedId ? colors.primary : colors.muted }]}>
-            {copiedId ? '✓ Copied' : 'Copy'}
-          </Text>
-        </Pressable>
+        </View>
 
         <View style={{ marginTop: 16 }}>
           <Field
@@ -198,5 +186,4 @@ const useStyles = themedStyles((colors) => ({
     fontWeight: '600',
     letterSpacing: 1,
   },
-  idCopy: { fontSize: 13, fontWeight: '600' },
 }));

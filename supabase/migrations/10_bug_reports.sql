@@ -10,9 +10,6 @@ create table public.bug_reports (
 
 alter table public.bug_reports enable row level security;
 
+-- Insert-only: users submit reports but cannot read them back.
 create policy bug_reports_insert on public.bug_reports
   for insert with check (user_id = auth.uid());
-
--- Users can read their own reports (to show confirmation / history).
-create policy bug_reports_select on public.bug_reports
-  for select using (user_id = auth.uid());

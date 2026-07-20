@@ -1,23 +1,21 @@
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, ScrollView, View } from 'react-native';
 import { Button, Card, Field, Muted, Title } from '@/components/ui';
 import { useProfile, useUpdateProfile } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
-import { themedStyles, useTheme } from '@/lib/theme';
+import { themedStyles } from '@/lib/theme';
 
 export default function Account() {
   const styles = useStyles();
-  const { colors } = useTheme();
   const { session } = useSession();
   const router = useRouter();
   const profile = useProfile();
   const updateProfile = useUpdateProfile();
   const [displayName, setDisplayName] = useState('');
 
-  // Seed the field once profile loads, but don't overwrite mid-edit.
   useEffect(() => {
     if (profile.data?.display_name != null && displayName === '') {
       setDisplayName(profile.data.display_name);
@@ -32,12 +30,6 @@ export default function Account() {
     if (!email) return;
     setResetBusy(true);
     try {
-      // Must sign out first: Supabase rejects resetPasswordForEmail when a
-      // valid session is active (the user is already authenticated, so a
-      // password-reset email would be redundant from the server's perspective).
-      // Signing out locally (scope:'local') clears the session without a
-      // network round-trip, then we send the reset email with the app's deep-
-      // link scheme so tapping it reopens the in-app reset-password screen.
       await supabase.auth.signOut({ scope: 'local' });
       const redirectTo =
         Platform.OS === 'web'
@@ -58,24 +50,14 @@ export default function Account() {
   }
 
   async function signOut() {
-    // scope:'local' clears the stored session immediately without needing a
-    // network round-trip, so the sign-out works even when offline.
     const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) Alert.alert('Error', error.message);
-    // AuthGate's onAuthStateChange listener redirects to landing once session is null.
   }
 
   async function switchAccount() {
     const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) Alert.alert('Error', error.message);
   }
-
-  // Short user-facing ID derived from the auth UUID — first 8 hex chars,
-  // formatted as XXXX-XXXX. Long enough to be unique; short enough to read.
-  const userId = session?.user.id;
-  const shortId = userId
-    ? `${userId.slice(0, 4).toUpperCase()}-${userId.slice(4, 8).toUpperCase()}`
-    : '—';
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -84,13 +66,6 @@ export default function Account() {
       <Card>
         <Title>Profile</Title>
         <Muted>{session?.user.email ?? ''}</Muted>
-
-        {/* User ID — read-only, automatically attached to bug reports */}
-        <View style={styles.idRow}>
-          <Text style={[styles.idLabel, { color: colors.muted }]}>User ID</Text>
-          <Text style={[styles.idValue, { color: colors.text }]}>{shortId}</Text>
-        </View>
-
         <View style={{ marginTop: 16 }}>
           <Field
             label="Display name"
@@ -166,24 +141,4 @@ export default function Account() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
-  idRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.bg,
-    gap: 8,
-  },
-  idLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  idValue: {
-    flex: 1,
-    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: 1,
-  },
 }));

@@ -76,15 +76,6 @@ export interface MonthlyTotalRow {
   tx_count: number;
 }
 
-export interface BugReportRow {
-  id: string;
-  user_id: string;
-  short_id: string;
-  app_version: string;
-  description: string;
-  created_at: string;
-}
-
 export interface MerchantTotalRow {
   user_id: string;
   merchant_normalized: string;

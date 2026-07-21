@@ -4,11 +4,10 @@ import {
   KeyboardAvoidingView,
   Linking as RNLinking,
   Platform,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { Button, Card, Field, Muted, Title } from '@/components/ui';
+import { Button, Card, Field, Title } from '@/components/ui';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
 import { themedStyles } from '@/lib/theme';
@@ -40,10 +39,9 @@ export default function SignUp() {
       style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
-        <Text style={styles.brand}>Bukit Pennies</Text>
-        <Muted>Email and password only. No bank logins, ever.</Muted>
-        <Card style={{ marginTop: 24 }}>
+        <Card>
           <Title>Create account</Title>
           <Field label="Display name" value={displayName} onChangeText={setDisplayName} placeholder="Your name" />
           <Field
@@ -88,7 +86,7 @@ export default function SignUp() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
-  brand: { fontSize: 28, fontWeight: '800', color: colors.primary },
+  brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginBottom: 8 },
   info: { color: colors.primary, marginBottom: 8 },
   link: { color: colors.primary, textAlign: 'center', marginTop: 12 },

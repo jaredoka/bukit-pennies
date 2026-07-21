@@ -9,8 +9,9 @@ import { SessionProvider, useSession } from '@/lib/session';
 import { ThemeProvider, useTheme } from '@/lib/theme';
 import { PrivacyProvider } from '@/lib/privacy';
 import { PrimaryCurrencyProvider } from '@/lib/primaryCurrency';
-import { kvGet } from '@/lib/kvStore';
+import { kvGet, kvSet } from '@/lib/kvStore';
 import { isSetupDeferred, onboardedKey } from '@/lib/onboarding';
+import { supabase } from '@/lib/supabase';
 
 initSentry();
 
@@ -38,9 +39,20 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     // user completes onboarding, and a stale cached value would bounce them
     // back into setup forever.
     let live = true;
-    kvGet(onboardedKey(session.user.id)).then((v) => {
+    (async () => {
+      let onboarded = (await kvGet(onboardedKey(session.user.id))) === '1';
+      // Returning-user heuristic: if the flag was never written but the user
+      // already has transactions (e.g. completed setup on a previous install,
+      // or pressed "I'll do it later" after the pipeline was already working),
+      // stamp them as onboarded so they are never re-prompted.
+      if (!onboarded) {
+        const { data } = await supabase.from('transactions').select('id').limit(1);
+        if (data?.length) {
+          await kvSet(onboardedKey(session.user.id), '1');
+          onboarded = true;
+        }
+      }
       if (!live) return;
-      const onboarded = v === '1';
       const onWelcome = segments[0] === 'welcome';
       const onSetupScreen = (segments as string[]).includes('shortcut-setup');
       if (inAuthGroup && !onResetScreen) {
@@ -50,7 +62,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         // it later" defers for this launch only — next open re-prompts.
         router.replace('/(tabs)/settings/shortcut-setup');
       }
-    });
+    })();
     return () => {
       live = false;
     };

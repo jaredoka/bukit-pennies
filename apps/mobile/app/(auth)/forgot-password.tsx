@@ -1,7 +1,7 @@
 import * as Linking from 'expo-linking';
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { Button, Card, Field, Muted, Title } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { themedStyles } from '@/lib/theme';
@@ -28,14 +28,14 @@ export default function ForgotPassword() {
 
   return (
     <View style={styles.screen}>
+      <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
-        <Text style={styles.brand}>Bukit Pennies</Text>
-        <Card style={{ marginTop: 24 }}>
+        <Card>
           <Title>Reset password</Title>
           {sent ? (
             <Muted>
               If an account exists for that email, a reset link is on its way. Open it on this
-              device to choose a new password.
+              device to choose a new password.{'\n\n'}If you don't see it within a minute, check your spam or junk folder.
             </Muted>
           ) : (
             <>
@@ -67,7 +67,7 @@ export default function ForgotPassword() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
-  brand: { fontSize: 28, fontWeight: '800', color: colors.primary },
+  brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginBottom: 8 },
   link: { color: colors.primary, textAlign: 'center', marginTop: 12 },
 }));

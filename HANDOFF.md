@@ -320,7 +320,7 @@ State reached during on-device testing:
   GitHub macOS runners, so CI cannot sign shortcut files. Distribution is a
   once-shared **iCloud link** from the owner's iPhone, wired into
   `SHORTCUT_DOWNLOAD_URL` (`apps/mobile/src/lib/env.ts`) —
-  `https://www.icloud.com/shortcuts/20c719e5009d4cb0baaf4306d6e739c2`
+  `https://www.icloud.com/shortcuts/92fe37ee63e04a4785d69517f0c1635e`
   (self-configuring rebuild, shared 2026-07-19).
   `scripts/build-shortcut.mjs` + the `ios-shortcut.yml` workflow remain for
   reference/if Apple ever unblocks CI signing.
@@ -349,6 +349,13 @@ State reached during on-device testing:
   disabled for testing (re-enable with real SMTP pre-launch); unsigned-IPA
   workflow needs `SENTRY_DISABLE_AUTO_UPLOAD=true` (no Sentry token in CI);
   IPA sideloaded via Sideloadly, 7-day free-ID expiry.
+- **Transactional email (future):** current SMTP is Gmail (`bukitpennies@gmail.com`)
+  which has poor deliverability — reset emails land in spam. Before public
+  launch, migrate to **Resend** (resend.com, free tier 3 000 emails/month) and
+  register a custom domain (e.g. `bukitpennies.com`, ~$12/yr). Send from
+  `noreply@bukitpennies.com` with Resend's verified domain. The domain also
+  serves as the app's public website and App Store support URL. Until then, the
+  forgot-password screen shows a note to check spam.
 
 ## 16. Current app state + mass-adoption roadmap (added 2026-07-19)
 
@@ -441,7 +448,7 @@ trend/insight screens, no widgets, no shared/household budgets.
    the step-by-step runbook** (build → TestFlight → on-device test
    checklist → App Store review notes → share extension later).
    Shortcut download link live (self-configuring rebuild):
-   `https://www.icloud.com/shortcuts/20c719e5009d4cb0baaf4306d6e739c2`.
+   `https://www.icloud.com/shortcuts/92fe37ee63e04a4785d69517f0c1635e`.
 
    **iOS build facts (recorded 2026-07-19):** IPAs cannot be built on
    Windows (Xcode/macOS only). Path of record is **EAS cloud builds**

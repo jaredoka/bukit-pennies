@@ -187,10 +187,17 @@ export async function handleIngest(
     }
   }
 
+  const amount = inserted.amount !== null ? inserted.amount.toFixed(2) : '';
+  const merchant = inserted.merchant ?? '';
+  const notificationBody = amount && merchant
+    ? `Logged ${amount} at ${merchant}`
+    : amount ? `Logged ${amount}` : merchant ? `Logged at ${merchant}` : 'Logged';
+
   return {
     status: 200,
     body: {
       status: 'created',
+      notification_body: notificationBody,
       transaction: { ...inserted, possible_duplicate_of: possibleDuplicateOf },
     },
   };

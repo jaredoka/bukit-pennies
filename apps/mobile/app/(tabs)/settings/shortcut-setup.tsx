@@ -379,7 +379,7 @@ export default function ShortcutSetup() {
           <Text style={styles.infoIcon}>✓</Text>
           <Text style={[styles.infoText, { color: colors.text }]}>
             <Text style={{ fontWeight: '700' }}>Confirmation tap.</Text>
-            {'  '}iOS may ask you to confirm before the automation runs. That is an iOS security setting, not an error.
+            {'  '}iOS may show a prompt saying "Allow Bukit Pennies Capture to send 1 text item to…" the first time the automation runs. Tap <Text style={{ fontWeight: '700' }}>Always Allow</Text> and it will never ask again.
           </Text>
         </View>
 

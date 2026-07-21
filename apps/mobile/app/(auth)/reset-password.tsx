@@ -1,7 +1,7 @@
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { Button, Card, Field, Muted, Title } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { themedStyles } from '@/lib/theme';
@@ -43,9 +43,9 @@ export default function ResetPassword() {
 
   return (
     <View style={styles.screen}>
+      <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
-        <Text style={styles.brand}>Bukit Pennies</Text>
-        <Card style={{ marginTop: 24 }}>
+        <Card>
           <Title>Choose a new password</Title>
           {!ready && !error ? <Muted>Verifying your reset link…</Muted> : null}
           {ready ? (
@@ -80,6 +80,6 @@ export default function ResetPassword() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
-  brand: { fontSize: 28, fontWeight: '800', color: colors.primary },
+  brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginTop: 8 },
 }));

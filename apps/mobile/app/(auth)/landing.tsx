@@ -1,5 +1,6 @@
-import { useRouter } from 'expo-router';
+﻿import { useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
+import { HexBackground } from '@/components/HexBackground';
 import { Button } from '@/components/ui';
 import { themedStyles } from '@/lib/theme';
 
@@ -11,6 +12,7 @@ export default function Landing() {
 
   return (
     <View style={styles.screen}>
+      <HexBackground />
       <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
         <Text style={styles.pitch}>

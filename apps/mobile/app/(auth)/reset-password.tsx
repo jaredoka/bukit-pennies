@@ -49,7 +49,7 @@ export default function ResetPassword() {
       <View style={styles.inner}>
         <Card>
           <Title>Choose a new password</Title>
-          {!ready && !error ? <Muted>Verifying your reset linkâ€¦</Muted> : null}
+          {!ready && !error ? <Muted>Verifying your reset link…</Muted> : null}
           {ready ? (
             <>
               <Field
@@ -57,7 +57,7 @@ export default function ResetPassword() {
                 secureTextEntry
                 value={password}
                 onChangeText={setPassword}
-                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                placeholder="Password"
                 onSubmitEditing={submit}
               />
               <Button

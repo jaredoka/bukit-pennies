@@ -46,7 +46,7 @@ export default function SignIn() {
             secureTextEntry
             value={password}
             onChangeText={setPassword}
-            placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+            placeholder="Password"
             onSubmitEditing={submit}
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}

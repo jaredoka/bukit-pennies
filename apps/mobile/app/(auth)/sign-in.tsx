@@ -1,7 +1,7 @@
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
-import { Button, Card, Field, Muted, Title } from '@/components/ui';
+import { KeyboardAvoidingView, Platform, Text, View } from 'react-native';
+import { Button, Card, Field, Title } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { themedStyles } from '@/lib/theme';
 
@@ -26,10 +26,9 @@ export default function SignIn() {
       style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
-        <Text style={styles.brand}>Bukit Pennies</Text>
-        <Muted>Card spending, from bank notification text only.</Muted>
-        <Card style={{ marginTop: 24 }}>
+        <Card>
           <Title>Sign in</Title>
           <Field
             label="Email"
@@ -59,13 +58,14 @@ export default function SignIn() {
         </Card>
       </View>
     </KeyboardAvoidingView>
+
   );
 }
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
-  brand: { fontSize: 28, fontWeight: '800', color: colors.primary },
+  brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginBottom: 8 },
   link: { color: colors.primary, textAlign: 'center', marginTop: 12 },
 }));

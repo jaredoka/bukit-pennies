@@ -75,14 +75,16 @@ deep link targets this name — do not rename).
    - Request Body: **JSON** with:
      - `text` = **Shortcut Input** (variable chip)
      - `source` = `ios_shortcut` (plain text)
-9. **Get Dictionary Value** — Key: `transaction` · from **Contents of URL**
-10. **Get Dictionary Value** — Key: `merchant` · from step 9's output
-11. **Get Dictionary Value** — Key: `amount` · from step 9's output
-12. **Show Notification** — Title: `Bukit Pennies` · Body: `Logged ` +
-    **Amount** (result of step 11) + ` at ` + **Merchant** (result of step 10)
+9. **Get Dictionary from Input** — Input: **Contents of URL** (result of step 8).
+   *(Converts the JSON response Text to a top-level Dictionary.)*
+10. **Get Dictionary Value** — Key: `notification_body` · from **Dictionary** (step 9).
+    *(The API returns a pre-formatted string like "Logged 21.00 at HUA HO" at the
+    top level — no nested object parsing needed.)*
+11. **Show Notification** — Title: `Bukit Pennies` · Body: **Dictionary Value**
+    (result of step 10)
 
-On duplicate/ignored/error replies there is no `transaction` key, so steps
-9–12 produce a blank-bodied notification — harmless.
+On duplicate/ignored/error replies there is no `notification_body` key, so step 10
+produces no value and the notification body is blank — harmless.
 
 ## Test before sharing
 
@@ -95,6 +97,8 @@ On duplicate/ignored/error replies there is no `transaction` key, so steps
 4. Files app → iCloud Drive → Shortcuts → `Bukit Pennies/token.txt` exists.
 
 ## Troubleshooting the build
+
+**"Conversion Error: Get Dictionary Value failed because Shortcuts couldn't convert from Text to Dictionary"** — the API now returns `notification_body` as a top-level string so no nested dictionary access is needed. Remove any steps that extract `transaction`, `merchant`, or `amount` from the response. The correct chain is: Get Dictionary from Input → Get Dictionary Value `notification_body` → Show Notification (3 steps total after Get Contents of URL).
 
 **Sending the token shows a "Logged … at …" notification instead of
 "Connected"** — the setup branch (step 1) did not match, so the token fell

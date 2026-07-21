@@ -1,7 +1,8 @@
-import * as Linking from 'expo-linking';
+﻿import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, Text, View } from 'react-native';
+import { HexBackground } from '@/components/HexBackground';
 import { Button, Card, Field, Muted, Title } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { themedStyles } from '@/lib/theme';
@@ -43,11 +44,12 @@ export default function ResetPassword() {
 
   return (
     <View style={styles.screen}>
+      <HexBackground />
       <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
         <Card>
           <Title>Choose a new password</Title>
-          {!ready && !error ? <Muted>Verifying your reset link…</Muted> : null}
+          {!ready && !error ? <Muted>Verifying your reset linkâ€¦</Muted> : null}
           {ready ? (
             <>
               <Field
@@ -55,7 +57,7 @@ export default function ResetPassword() {
                 secureTextEntry
                 value={password}
                 onChangeText={setPassword}
-                placeholder="••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                 onSubmitEditing={submit}
               />
               <Button

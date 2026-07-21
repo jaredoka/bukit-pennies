@@ -1,7 +1,8 @@
-import * as Linking from 'expo-linking';
+﻿import * as Linking from 'expo-linking';
 import { Link } from 'expo-router';
 import { useState } from 'react';
 import { Platform, Text, View } from 'react-native';
+import { HexBackground } from '@/components/HexBackground';
 import { Button, Card, Field, Muted, Title } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { themedStyles } from '@/lib/theme';
@@ -28,6 +29,7 @@ export default function ForgotPassword() {
 
   return (
     <View style={styles.screen}>
+      <HexBackground />
       <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
         <Card>

@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+﻿import { Link } from 'expo-router';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { HexBackground } from '@/components/HexBackground';
 import { Button, Card, Field, Title } from '@/components/ui';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
@@ -39,6 +40,7 @@ export default function SignUp() {
       style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <HexBackground />
       <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
         <Card>
@@ -57,7 +59,7 @@ export default function SignUp() {
             secureTextEntry
             value={password}
             onChangeText={setPassword}
-            placeholder="••••••••"
+            placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
             onSubmitEditing={submit}
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}

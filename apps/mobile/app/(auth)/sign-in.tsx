@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Text, View } from 'react-native';
 import { HexBackground } from '@/components/HexBackground';
+import { HornbillMascot } from '@/components/HornbillMascot';
 import { Button, Card, Field, Title } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { themedStyles } from '@/lib/theme';
@@ -30,6 +31,9 @@ export default function SignIn() {
       <HexBackground />
       <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
+        <View style={{ alignItems: 'flex-start', paddingLeft: 8 }}>
+          <HornbillMascot animation="bob" size={56} blinkChance={0.3} />
+        </View>
         <Card>
           <Title>Sign in</Title>
           <Field

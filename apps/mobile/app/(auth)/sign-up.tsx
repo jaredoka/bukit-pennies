@@ -8,6 +8,8 @@ import {
   View,
 } from 'react-native';
 import { HexBackground } from '@/components/HexBackground';
+import { HornbillMascot } from '@/components/HornbillMascot';
+import { TraversingHornbill } from '@/components/TraversingHornbill';
 import { Button, Card, Field, Title } from '@/components/ui';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
@@ -43,6 +45,7 @@ export default function SignUp() {
       <HexBackground />
       <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
+        <TraversingHornbill size={44} />
         <Card>
           <Title>Create account</Title>
           <Field label="Display name" value={displayName} onChangeText={setDisplayName} placeholder="Your name" />
@@ -63,8 +66,13 @@ export default function SignUp() {
             onSubmitEditing={submit}
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          {info ? <Text style={styles.info}>{info}</Text> : null}
-          <Button label="Sign up" onPress={submit} busy={busy} disabled={!email || password.length < 8} />
+          {info ? (
+            <View style={styles.verifyWrap}>
+              <HornbillMascot animation="blink" size={64} />
+              <Text style={styles.info}>{info}</Text>
+            </View>
+          ) : null}
+          {!info ? <Button label="Sign up" onPress={submit} busy={busy} disabled={!email || password.length < 8} /> : null}
           <Text style={styles.legal}>
             By signing up you agree to the{' '}
             <Text style={styles.legalLink} onPress={() => RNLinking.openURL(TERMS_URL)}>
@@ -90,7 +98,8 @@ const useStyles = themedStyles((colors) => ({
   inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
   brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginBottom: 8 },
-  info: { color: colors.primary, marginBottom: 8 },
+  verifyWrap: { alignItems: 'center', gap: 12, marginVertical: 8 },
+  info: { color: colors.primary, textAlign: 'center', lineHeight: 20 },
   link: { color: colors.primary, textAlign: 'center', marginTop: 12 },
   legal: { color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 10, lineHeight: 17 },
   legalLink: { color: colors.primary, textDecorationLine: 'underline' },

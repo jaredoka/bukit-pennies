@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { BarChart, LineChart, PieChart } from 'react-native-gifted-charts';
+import { HornbillMascot } from '@/components/HornbillMascot';
 import { Card, Muted, PickerSheet, Title, WheelPicker } from '@/components/ui';
 import {
   bruneiDayKey,
@@ -412,7 +413,11 @@ export default function Dashboard() {
             ) : null}
           </View>
         ) : (
-          <Muted>No spending this {isYearMode ? 'year' : 'month'} yet. Capture a bank message or add one manually.</Muted>
+          <View style={styles.emptyState}>
+            <HornbillMascot animation="idle" size={64} />
+            <Muted>No spending this {isYearMode ? 'year' : 'month'} yet.</Muted>
+            <Muted>Capture a bank message or add one manually.</Muted>
+          </View>
         )}
         {excludedCurrencies.length > 0 ? (
           <Link href="/(tabs)/settings/appearance" asChild>
@@ -664,6 +669,7 @@ const useStyles = themedStyles((colors) => ({
   wheelCol: { flex: 3 },
   wheelColNarrow: { flex: 2 },
   wheelDivider: { width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 8 },
+  emptyState: { alignItems: 'center', gap: 6, paddingVertical: 16 },
   heroWrap: { alignItems: 'center', gap: 16 },
   center: { alignItems: 'center', width: 148 },
   centerLabel: { color: colors.muted, fontSize: 13, fontWeight: '600', textAlign: 'center' },

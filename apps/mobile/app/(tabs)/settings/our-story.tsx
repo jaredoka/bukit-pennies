@@ -1,4 +1,5 @@
-import { ScrollView, Text } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
+import { HornbillMascot } from '@/components/HornbillMascot';
 import { Card, Title } from '@/components/ui';
 import { themedStyles, useTheme } from '@/lib/theme';
 
@@ -10,7 +11,10 @@ export default function OurStory() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
 
       <Card>
-        <Title>The story</Title>
+        <View style={styles.titleRow}>
+          <View style={styles.titleWrap}><Title>The story</Title></View>
+          <HornbillMascot animation="tail" size={48} flip blinkChance={0.25} />
+        </View>
         <Text style={[styles.body, { color: colors.text }]}>
           I built this because I kept failing at the same thing. I would download a budgeting app,
           track every transaction diligently for a week or two, then slowly stop. Months later I
@@ -54,6 +58,8 @@ export default function OurStory() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
-  body: { fontSize: 14, lineHeight: 22, marginTop: 10 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  titleWrap: { marginBottom: -8 },
+  body: { fontSize: 14, lineHeight: 20, marginTop: 8 },
   italic: { fontStyle: 'italic' },
 }));

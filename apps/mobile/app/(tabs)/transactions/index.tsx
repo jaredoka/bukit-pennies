@@ -15,6 +15,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { HornbillMascot } from '@/components/HornbillMascot';
 import { Badge, Button, Centered, Field, Muted } from '@/components/ui';
 import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
 import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
@@ -737,9 +738,17 @@ export default function TransactionsList() {
           )}
           renderItem={({ item }) => <TxRow tx={item} />}
           ListEmptyComponent={
-            <Centered>
-              <Muted>{anyFilter || search ? 'No transactions match.' : 'No transactions yet.'}</Muted>
-            </Centered>
+            anyFilter || search ? (
+              <Centered>
+                <Muted>No transactions match.</Muted>
+              </Centered>
+            ) : (
+              <Centered>
+                <HornbillMascot animation="idle" size={64} />
+                <Muted>No transactions yet.</Muted>
+                <Muted>Capture a bank message or add one manually.</Muted>
+              </Centered>
+            )
           }
           stickySectionHeadersEnabled={false}
           keyboardShouldPersistTaps="handled"

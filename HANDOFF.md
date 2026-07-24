@@ -5,8 +5,12 @@
 **Branch:** `main` (GitHub Flow — feature branches off `main`, merged via pull request)
 **Date:** 2026-07-16 (original) · last updated 2026-07-25
 
-**§18 is a security audit (2026-07-25)** — five issues found and fixed;
-migration 11 applied to the hosted project and the ingest function redeployed.
+**§18 is a security audit (2026-07-25)** — five issues found; four fixed.
+Migration 11 is applied to the hosted project and the ingest function is
+redeployed. **SEC-2 (rate limiting) is REOPENED**: verified in production that
+Supabase Edge Functions give every request a fresh isolate, so no in-memory
+limiter works — including the pre-existing one from §6 step 7, which has never
+functioned. Remedy proposed in §18, not yet built.
 
 **§19 (2026-07-25):** the repo is **public, permanently** — never commit a
 secret. The `bukit-pennies-legal` repo is retired; policy pages are now served
@@ -139,7 +143,11 @@ Body: {
 4. Insert `on conflict (user_id, raw_hash) do nothing` → no row returned = `duplicate`.
 5. **Near-dupe pass** (listener + share can double-capture with different wording): same user + amount + card_last4, `occurred_at` ±3 min, different hash → set `possible_duplicate_of`; surfaced in review inbox with merge/dismiss, not dropped.
 6. `confidence < 0.75` or missing amount → `parse_status = 'needs_review'`.
-7. Cheap rate limit: >60 req/min per token → 429 (tokens are long-lived secrets; bounds abuse on leak).
+7. ~~Cheap rate limit: >60 req/min per token → 429 (tokens are long-lived secrets; bounds abuse on leak).~~
+   **Never worked — see §18 SEC-2.** The limiter is in instance memory, but
+   Supabase Edge Functions run every request in a fresh isolate, so the state
+   is always empty. Verified in production 2026-07-25. Do not cite this as a
+   control until it is moved to Postgres.
 
 ## 7. Parser package (`@bukit/parsers`)
 
@@ -641,7 +649,15 @@ Scoping was chosen over clearing-on-sign-out deliberately: it fixes the leak
 Shortcut setup, and it avoids minting a throwaway `ingest_devices` row on
 every sign-out/in cycle.
 
-### SEC-2 — Per-token rate limit could not bound an anonymous flood (Medium)
+### SEC-2 — Rate limiting does not work at all on this runtime (Medium, REOPENED 2026-07-25)
+
+> **Correction.** The fix described below was deployed and then found to be
+> ineffective in production, along with the pre-existing limiter it was
+> extending. **Treat SEC-2 as open.** See "What actually happens" at the end
+> of this subsection. The analysis of the flaw is still accurate; the remedy
+> is not.
+
+#### Original finding — per-token rate limit could not bound an anonymous flood
 
 `handleIngest` keyed its limiter on the token hash *before* validating the
 token, commented "so invalid-token floods are bounded too". It did not: every
@@ -663,6 +679,48 @@ unknown-IP traffic into one shared bucket. Both limiters now share a window
 store with an amortised sweep (every 1,000 ops) that drops fully-expired keys.
 Three tests cover it, including an assertion that no store lookup happens once
 a peer is cut off.
+
+#### What actually happens (verified against production, 2026-07-25)
+
+The fix was deployed and then smoke-tested: **70 consecutive requests with
+invented tokens from one IP all returned 401. Not one 429.** Diagnosis, in
+order:
+
+1. The client IP is available — Supabase forwards both `x-forwarded-for`
+   (`<client>,<client>, <proxy>`) and `cf-connecting-ip`. `peerKeyOf` parses
+   the first hop correctly, so that is not the cause.
+2. A throwaway function with a module-level counter and a per-boot id was
+   deployed to test the real assumption. **Twelve consecutive requests each
+   returned a different boot id and `counter: 1`.**
+
+**Every request runs in a fresh isolate.** Module-level state on Supabase Edge
+Functions does not survive between requests, so *any* in-memory limiter is a
+no-op — mine and, importantly, the pre-existing one too.
+
+**This means HANDOFF §6 step 7 ("Cheap rate limit: >60 req/min per token →
+429") has never been true in production.** It was written as a design
+intention, the unit tests pass because they drive the limiter directly, and
+nothing ever verified it end-to-end. The in-memory code is harmless but
+inert; it should not be trusted or cited as a control.
+
+This matters more now than it did: per §19 the repo is public, so the ingest
+URL is discoverable, and the endpoint is `verify_jwt = false`. Each anonymous
+request costs an isolate spin-up plus one `ingest_devices` lookup — against a
+free tier of 500K invocations/month.
+
+**Recommended remedy (not yet built):** move the limit to shared state, which
+on this stack means Postgres. The cheap shape is a **single round trip that
+resolves the token and enforces the limit together** — a security-definer RPC
+`resolve_ingest_device(p_token_hash, p_peer)` that upserts a counter row,
+returns `blocked` when the peer's failure budget or the token's request budget
+is spent, and otherwise returns the device. The happy path then costs exactly
+what it costs today (one query), so no latency is added to real captures,
+while an anonymous flood is bounded by a tiny indexed upsert instead of
+reaching the parser. Needs a `ingest_rate_limits(key, window_start, count)`
+table plus a periodic prune.
+
+**Do not "fix" this by adding more in-memory bookkeeping.** The constraint is
+the isolate lifecycle, not the algorithm.
 
 ### SEC-3 — `ingest_devices` was client-writable, contradicting its own policy comment (Low)
 

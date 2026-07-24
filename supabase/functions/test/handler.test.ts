@@ -8,7 +8,7 @@ import {
   type TransactionRow,
 } from '../_shared/handler.ts';
 import { sha256Hex } from '../_shared/auth.ts';
-import { createSlidingWindowLimiter } from '../_shared/rate-limit.ts';
+import { createFailureLimiter, createSlidingWindowLimiter } from '../_shared/rate-limit.ts';
 
 const BAIDURI_SAMPLE =
   'Card No.: 4x0213 Amount: BND 21.00 Merchant: GALORIES SMOOTHIES BSB BN Date: 10-07-2026 17:37:59 If suspicious, please call 2449666.';
@@ -112,6 +112,57 @@ describe('handleIngest', () => {
     clock += 61_000; // window rolls over
     expect(limiter.allow('k')).toBe(true);
     void store;
+  });
+
+  // SEC-2: the per-token window cannot bound an anonymous flood, because every
+  // invented token is a fresh key. The peer failure budget is what stops it.
+  it('cuts off a peer that floods invented tokens, before any store lookup', async () => {
+    const store = makeFakeStore();
+    let lookups = 0;
+    const counting: IngestStore = {
+      ...store,
+      async findActiveDeviceByTokenHash(hash: string) {
+        lookups++;
+        return store.findActiveDeviceByTokenHash(hash);
+      },
+    };
+    const failureLimiter = createFailureLimiter(20, 60_000, () => 0);
+    const opts = { peerKey: '203.0.113.9', failureLimiter };
+
+    for (let i = 0; i < 20; i++) {
+      const res = await handleIngest(`Bearer bp_bogus${i}`, body(BAIDURI_SAMPLE), counting, allowAll, opts);
+      expect(res.status).toBe(401);
+    }
+    expect(lookups).toBe(20);
+
+    // Budget spent: refused up front, no further lookups.
+    const blocked = await handleIngest('Bearer bp_bogus99', body(BAIDURI_SAMPLE), counting, allowAll, opts);
+    expect(blocked.status).toBe(429);
+    expect(lookups).toBe(20);
+  });
+
+  it('does not spend a peer failure budget on valid tokens', async () => {
+    const store = makeFakeStore();
+    const failureLimiter = createFailureLimiter(2, 60_000, () => 0);
+    const opts = { peerKey: '203.0.113.10', failureLimiter };
+
+    // A NAT-shared IP of legitimate devices must never be throttled.
+    for (let i = 0; i < 5; i++) {
+      const res = await handleIngest(auth, body(`Card No.: 4x0213 Amount: BND ${i + 1}.00 Merchant: SHOP ${i} Date: 10-07-2026 17:37:59`), store, allowAll, opts);
+      expect(res.status).toBe(200);
+    }
+  });
+
+  it('applies no peer limit when the client IP is unknown', async () => {
+    const store = makeFakeStore();
+    const failureLimiter = createFailureLimiter(1, 60_000, () => 0);
+    for (let i = 0; i < 3; i++) {
+      const res = await handleIngest('Bearer bp_wrong', body(BAIDURI_SAMPLE), store, allowAll, {
+        peerKey: null,
+        failureLimiter,
+      });
+      expect(res.status).toBe(401); // never 429
+    }
   });
 
   it('rejects empty text with 422 empty_text', async () => {

@@ -45,6 +45,21 @@ Your data is not sold, shared, or transferred to any third party. It is
 processed only by the app's own backend (Supabase infrastructure) to provide
 the service to you.
 
+### Password breach check
+
+When you choose a password — at sign-up or when resetting it — the app checks
+whether that password already appears in publicly known data breaches, using
+the [Have I Been Pwned](https://haveibeenpwned.com/Passwords) Pwned Passwords
+service.
+
+**Your password is never sent.** The app computes a cryptographic hash of the
+password on your device and transmits only the **first five characters** of
+that hash, which thousands of unrelated passwords also share. The service
+returns a list of candidate hashes and the comparison happens entirely on your
+device. The service cannot learn your password, and it receives nothing that
+identifies you or your account. If the check cannot be completed — no network,
+for example — it is skipped and does not block you.
+
 ## Your controls
 
 - **Export/inspect:** every transaction shows the original message it came from.

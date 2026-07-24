@@ -3,7 +3,11 @@
 **Status:** Phases 0–6 built and merged; app is live against hosted Supabase and field-tested on the owner's iPhone. §1–§14 are the original approved design (kept for reference); §15–§16 record what exists now and the adoption roadmap. **§16 is the current source of truth for what to build next.**
 
 **Branch:** `main` (GitHub Flow — feature branches off `main`, merged via pull request)
-**Date:** 2026-07-16 (original) · last updated 2026-07-20
+**Date:** 2026-07-16 (original) · last updated 2026-07-25
+
+**§18 is a security audit (2026-07-25)** — five issues found and fixed; two
+owner actions remain (apply migration 11 to the hosted project; enable
+leaked-password protection).
 
 ---
 
@@ -585,3 +589,133 @@ exhausted for July, so **CI is verified locally (tests + typecheck +
 sync-parsers --check) before every merge until the monthly reset**.
 Billed amount stays $0 with the $0 budget (GitHub blocks instead of
 charging). The launched app never depends on GitHub Actions.
+
+## 18. Security audit (2026-07-25)
+
+Full review of the security-relevant surfaces: RLS migrations, the ingest
+edge function, auth flows, client token storage, and deep-link handling.
+Five issues found; all fixed on branch `security-audit-fixes`. IDs below are
+referenced from the code comments at each fix site.
+
+**Reviewed and found sound** (recorded so a future session doesn't re-audit):
+RLS coverage on every table (the select/insert/update/delete quartets are
+correct and owner-scoped, both dashboard views are `security_invoker`); the
+three `security definer` functions (`handle_new_user`, `create_ingest_token`,
+`delete_account` — each pins `search_path` and null-checks `auth.uid()`);
+PKCE on the password-reset deep link (an app squatting the `bukitpennies://`
+scheme cannot exchange an intercepted code without the local verifier); the
+anon key committed in `eas.json` (public by design, RLS is the boundary); and
+the parser regexes (no catastrophic backtracking — input is capped at 4 KB
+and the lazy quantifiers are disambiguated by required separators).
+
+### SEC-1 — Ingest token survived sign-out, filing transactions under the previous account (High)
+
+`tokenStore.ts` kept the ingest token under one device-global key,
+`bukit.ingest_token`, and no sign-out path cleared it — `clearStoredToken`
+was called only from account deletion. So after user A signed out and user B
+signed in on the same device, `ensureIngestToken()` returned **A's** token,
+and the edge function resolves `user_id` from the token: every paste capture,
+bulk paste, and cash quick-add B made was written into A's account. B saw
+nothing appear and could not diagnose it — `useDevices()` is RLS-scoped, so
+the offending device was invisible to B. SecureStore values live in the iOS
+Keychain and survive app deletion, so the mismatch persisted across reinstall.
+
+Distinct from the "two accounts, one phone" note in §17: that one is about the
+*Shortcut* holding a single token and is a documented unsupported flow. This
+was the app itself misrouting, silently, with no user action.
+
+**Fix:** the token key is now scoped per user id
+(`bukit.ingest_token.<uid>`), so a token belongs to exactly one account and
+can never carry another account's captures. `ensureIngestToken` resolves the
+signed-in user first and throws if there is none. A token found under the old
+device-global key is adopted into the current user's scoped key on first read
+and the legacy key deleted — safe, because the upgrading user is the only
+account that has ever used that install's token.
+
+Scoping was chosen over clearing-on-sign-out deliberately: it fixes the leak
+*and* lets two accounts share a device without either re-running the ~3-minute
+Shortcut setup, and it avoids minting a throwaway `ingest_devices` row on
+every sign-out/in cycle.
+
+### SEC-2 — Per-token rate limit could not bound an anonymous flood (Medium)
+
+`handleIngest` keyed its limiter on the token hash *before* validating the
+token, commented "so invalid-token floods are bounded too". It did not: every
+invented token is a fresh key, hence a fresh 60/min quota and a database round
+trip each. `/ingest` runs with `verify_jwt = false`, so this was reachable
+unauthenticated — and §16.5 identifies egress as this project's first free-tier
+ceiling. Separately, `createSlidingWindowLimiter` pruned timestamps within a
+key but never removed keys, so attacker-chosen keys grew the map for the life
+of the edge instance.
+
+**Fix:** added a per-peer (client IP, from the first `x-forwarded-for` hop)
+budget of **20 failed auths/minute**, checked before the token lookup — a peer
+that has spent its budget gets 429 without the database being touched. It is
+keyed on *failures*, not on all requests, on purpose: Brunei mobile networks
+NAT heavily, so a blanket per-IP request cap would throttle unrelated real
+users, whereas a device with a valid token never records a failure. The peer
+limit is skipped entirely when no client IP is available, rather than lumping
+unknown-IP traffic into one shared bucket. Both limiters now share a window
+store with an amortised sweep (every 1,000 ops) that drops fully-expired keys.
+Three tests cover it, including an assertion that no store lookup happens once
+a peer is cut off.
+
+### SEC-3 — `ingest_devices` was client-writable, contradicting its own policy comment (Low)
+
+`02_rls.sql` granted `authenticated` the full insert/update quartet on
+`ingest_devices` while commenting that "token_hash is only ever written by the
+security-definer RPC". Nothing enforced that: a client could insert a row with
+a `token_hash` of its choosing — defeating the shown-once, 32-random-byte
+guarantee of `create_ingest_token` by substituting a weak or predictable token
+— or clear `revoked_at` to resurrect a revoked device. Owner-scoped, so the
+blast radius was the user's own account, but it made the RPC bypassable.
+
+**Fix:** migration `11_security_hardening.sql` drops the insert and update
+policies and revokes both privileges. Insert now belongs solely to
+`create_ingest_token`. Revocation moves to a new `revoke_ingest_device(uuid)`
+security-definer RPC that is one-way (`coalesce(revoked_at, now())`, so a
+revoked device can never be reactivated) and cannot touch `token_hash`.
+`useRevokeDevice` calls the RPC instead of writing the table. Select and
+delete policies are unchanged — both are owner-scoped and harmless.
+
+### SEC-4 — Password reset left existing sessions valid (Low)
+
+Settings → Account → reset password called `signOut({ scope: 'local' })`
+before mailing the link, which drops the local session but does not revoke the
+refresh token server-side. A refresh token captured from another device stayed
+usable across the reset — exactly the scenario a user resets a password to
+close.
+
+**Fix:** that path now uses `scope: 'global'`. Ordinary sign-out and
+switch-account deliberately stay `local` — revoking a user's other devices is
+surprising behaviour for a plain sign-out, and with SEC-1 fixed there is no
+data-isolation reason to force it.
+
+### SEC-5 — Bug reporting was silently broken (functional, found during the audit)
+
+`useSubmitBugReport` inserts `{short_id, app_version, description}`, but
+`bug_reports.user_id` is `not null` with no default — so every submission
+since the feature shipped failed on the not-null constraint. Not a
+vulnerability, but it means **no bug report has ever been received**.
+
+**Fix:** migration 11 sets `user_id default auth.uid()`. This is also the
+safer shape than populating it client-side (the RLS with-check already
+rejected a forged id, but now the client cannot state one at all).
+
+### Owner actions (not code — cannot be done from the repo)
+
+1. **Apply migration 11 to the hosted project** (`pzjroqwllrzcbpiugpxl`) when
+   this merges, and redeploy the ingest function for SEC-2. Until then the
+   hosted database still carries the SEC-3 policies.
+2. **Turn on leaked-password protection** (Supabase → Authentication →
+   Policies) and consider raising the minimum length. The client enforces 8
+   characters with no other requirement (`sign-up.tsx`, `reset-password.tsx`),
+   and §14 item 5 already lists signup abuse protection as pending — worth
+   doing together before TestFlight.
+3. **Accepted risk, no action:** the Shortcut's ingest token is passed through
+   a `shortcuts://run-shortcut?input=<token>` URL and persisted by the
+   Shortcut as plaintext `token.txt` in iCloud Drive (§15). It is a
+   long-lived, unscoped write credential to one account. This is inherent to
+   the Shortcut capture design and cannot be avoided while iOS automations
+   remain unshareable; revocation (Settings → Capture → devices) is the only
+   recovery, and the blast radius is writes to one account, never reads.

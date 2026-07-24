@@ -62,6 +62,19 @@ export interface RateLimiter {
   allow(key: string): boolean;
 }
 
+/** Per-peer failed-auth budget; see createFailureLimiter. */
+export interface FailureLimiter {
+  /** True when this peer has spent its failure budget for the window. */
+  blocked(key: string): boolean;
+  record(key: string): void;
+}
+
+export interface IngestOptions {
+  /** Client IP (or any stable peer identifier). Null disables the peer limit. */
+  peerKey?: string | null;
+  failureLimiter?: FailureLimiter;
+}
+
 export interface IngestResponse {
   status: number;
   body: Record<string, unknown>;
@@ -106,12 +119,31 @@ export async function handleIngest(
   rawBody: unknown,
   store: IngestStore,
   rateLimiter: RateLimiter,
+  options: IngestOptions = {},
 ): Promise<IngestResponse> {
+  const { peerKey = null, failureLimiter } = options;
+
+  // Peer failure budget, checked first. The per-token window below cannot
+  // bound an anonymous flood — every invented token is a fresh key, so it
+  // buys the attacker a fresh quota and a database round trip each time
+  // (HANDOFF §18, SEC-2). This endpoint runs with verify_jwt = false, so that
+  // flood is unauthenticated. A peer that has already burned its failure
+  // budget is refused before any lookup happens.
+  const peerBlocked = peerKey !== null && failureLimiter !== undefined;
+  if (peerBlocked && failureLimiter!.blocked(peerKey!)) return error(429, 'rate_limited');
+
+  const recordFailure = () => {
+    if (peerBlocked) failureLimiter!.record(peerKey!);
+  };
+
   const token = extractBearerToken(authorizationHeader);
-  if (!token) return error(401, 'invalid_token');
+  if (!token) {
+    recordFailure();
+    return error(401, 'invalid_token');
+  }
   const tokenHash = await sha256Hex(token);
 
-  // Limit keyed on the hash so invalid-token floods are bounded too.
+  // Per-token window: bounds damage if a real token leaks.
   if (!rateLimiter.allow(tokenHash)) return error(429, 'rate_limited');
 
   const validated = validateBody(rawBody);
@@ -119,7 +151,10 @@ export async function handleIngest(
   const body = validated as ValidBody;
 
   const device = await store.findActiveDeviceByTokenHash(tokenHash);
-  if (!device) return error(401, 'invalid_token');
+  if (!device) {
+    recordFailure();
+    return error(401, 'invalid_token');
+  }
   store.touchLastSeen(device.id);
 
   // OTPs/promos/balance alerts are never inserted.

@@ -456,13 +456,10 @@ export function useCreateIngestToken() {
 export function useRevokeDevice() {
   const qc = useQueryClient();
   return useMutation({
+    // Via RPC: direct writes to ingest_devices are no longer granted to
+    // clients (migration 11, HANDOFF §18 SEC-3).
     mutationFn: async (id: string) =>
-      unwrap(
-        supabase
-          .from('ingest_devices')
-          .update({ revoked_at: new Date().toISOString() })
-          .eq('id', id),
-      ),
+      unwrap(supabase.rpc('revoke_ingest_device', { p_device_id: id })),
     onSettled: () => qc.invalidateQueries({ queryKey: ['ingest_devices'] }),
   });
 }

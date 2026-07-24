@@ -3,19 +3,25 @@ import {
   handleIngest,
   NEAR_DUPE_WINDOW_MS,
   type IngestStore,
-  type RateLimiter,
   type TransactionInsert,
   type TransactionRow,
 } from '../_shared/handler.ts';
 import { sha256Hex } from '../_shared/auth.ts';
-import { createFailureLimiter, createSlidingWindowLimiter } from '../_shared/rate-limit.ts';
 
 const BAIDURI_SAMPLE =
   'Card No.: 4x0213 Amount: BND 21.00 Merchant: GALORIES SMOOTHIES BSB BN Date: 10-07-2026 17:37:59 If suspicious, please call 2449666.';
 const TOKEN = 'bp_testtoken';
 const USER_ID = 'user-a';
 
-function makeFakeStore(): IngestStore & { rows: TransactionRow[]; lastSeenTouches: string[] } {
+interface FakeStore extends IngestStore {
+  rows: TransactionRow[];
+  lastSeenTouches: string[];
+  resolveCalls: number;
+  /** Set to make resolveDevice report the caller as rate limited. */
+  blocked: boolean;
+}
+
+function makeFakeStore(): FakeStore {
   const rows: TransactionRow[] = [];
   const lastSeenTouches: string[] = [];
   let nextId = 1;
@@ -23,12 +29,19 @@ function makeFakeStore(): IngestStore & { rows: TransactionRow[]; lastSeenTouche
   // Resolve lazily so the fixture doesn't need top-level await.
   void sha256Hex(TOKEN).then((h) => (tokenHashForDevice = h));
 
-  return {
+  const self: FakeStore = {
     rows,
     lastSeenTouches,
-    async findActiveDeviceByTokenHash(tokenHash: string) {
+    resolveCalls: 0,
+    blocked: false,
+    async resolveDevice({ tokenHash }: { tokenHash: string; peerKey: string | null }) {
+      self.resolveCalls++;
+      if (self.blocked) return { device: null, blocked: true };
       tokenHashForDevice ??= await sha256Hex(TOKEN);
-      return tokenHash === tokenHashForDevice ? { id: 'device-1', user_id: USER_ID } : null;
+      return {
+        device: tokenHash === tokenHashForDevice ? { id: 'device-1', user_id: USER_ID } : null,
+        blocked: false,
+      };
     },
     touchLastSeen(deviceId: string) {
       lastSeenTouches.push(deviceId);
@@ -61,6 +74,7 @@ function makeFakeStore(): IngestStore & { rows: TransactionRow[]; lastSeenTouche
       return GLOBAL_CATEGORY_IDS[name] ?? null;
     },
   };
+  return self;
 }
 
 // Mirrors the global defaults seeded in migrations/01_schema.sql.
@@ -75,108 +89,79 @@ const GLOBAL_CATEGORY_IDS: Record<string, string> = {
   Other: 'cat-other',
 };
 
-const allowAll: RateLimiter = { allow: () => true };
 const auth = `Bearer ${TOKEN}`;
 const body = (text: string, extra: Record<string, unknown> = {}) => ({ text, source: 'paste', ...extra });
 
 describe('handleIngest', () => {
   it('rejects missing/malformed authorization with 401', async () => {
     const store = makeFakeStore();
-    expect((await handleIngest(null, body(BAIDURI_SAMPLE), store, allowAll)).status).toBe(401);
-    expect((await handleIngest('Token abc', body(BAIDURI_SAMPLE), store, allowAll)).status).toBe(401);
+    expect((await handleIngest(null, body(BAIDURI_SAMPLE), store)).status).toBe(401);
+    expect((await handleIngest('Token abc', body(BAIDURI_SAMPLE), store)).status).toBe(401);
   });
 
   it('rejects unknown tokens with 401 and inserts nothing', async () => {
     const store = makeFakeStore();
-    const res = await handleIngest('Bearer bp_wrong', body(BAIDURI_SAMPLE), store, allowAll);
+    const res = await handleIngest('Bearer bp_wrong', body(BAIDURI_SAMPLE), store);
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('invalid_token');
     expect(store.rows).toHaveLength(0);
   });
 
-  it('returns 429 when the rate limiter denies', async () => {
+  // Rate limiting itself now lives in Postgres (migration 12) — edge isolates
+  // do not survive between requests, so an in-memory limiter never applied
+  // (HANDOFF §18 SEC-2). What the handler owns is honouring the verdict, and
+  // asking for it in the same round trip as the device lookup.
+  it('returns 429 when the store reports the caller rate limited', async () => {
     const store = makeFakeStore();
-    const res = await handleIngest(auth, body(BAIDURI_SAMPLE), store, { allow: () => false });
+    store.blocked = true;
+    const res = await handleIngest(auth, body(BAIDURI_SAMPLE), store);
     expect(res.status).toBe(429);
+    expect(res.body.error).toBe('rate_limited');
+    expect(store.rows).toHaveLength(0);
   });
 
-  it('enforces the sliding window at 60 requests/minute per token', async () => {
+  it('resolves the device and the limits in a single round trip', async () => {
     const store = makeFakeStore();
-    let clock = 0;
-    const limiter = createSlidingWindowLimiter(60, 60_000, () => clock);
-    for (let i = 0; i < 60; i++) {
-      clock += 10;
-      expect(limiter.allow('k')).toBe(true);
-    }
-    expect(limiter.allow('k')).toBe(false);
-    clock += 61_000; // window rolls over
-    expect(limiter.allow('k')).toBe(true);
-    void store;
+    const res = await handleIngest(auth, body(BAIDURI_SAMPLE), store);
+    expect(res.status).toBe(200);
+    // The happy path must cost exactly one resolution — no separate limit call.
+    expect(store.resolveCalls).toBe(1);
   });
 
-  // SEC-2: the per-token window cannot bound an anonymous flood, because every
-  // invented token is a fresh key. The peer failure budget is what stops it.
-  it('cuts off a peer that floods invented tokens, before any store lookup', async () => {
+  it('passes the peer key through so the store can budget by client IP', async () => {
     const store = makeFakeStore();
-    let lookups = 0;
-    const counting: IngestStore = {
+    const seen: (string | null)[] = [];
+    const spy: IngestStore = {
       ...store,
-      async findActiveDeviceByTokenHash(hash: string) {
-        lookups++;
-        return store.findActiveDeviceByTokenHash(hash);
+      async resolveDevice(args) {
+        seen.push(args.peerKey);
+        return store.resolveDevice(args);
       },
     };
-    const failureLimiter = createFailureLimiter(20, 60_000, () => 0);
-    const opts = { peerKey: '203.0.113.9', failureLimiter };
-
-    for (let i = 0; i < 20; i++) {
-      const res = await handleIngest(`Bearer bp_bogus${i}`, body(BAIDURI_SAMPLE), counting, allowAll, opts);
-      expect(res.status).toBe(401);
-    }
-    expect(lookups).toBe(20);
-
-    // Budget spent: refused up front, no further lookups.
-    const blocked = await handleIngest('Bearer bp_bogus99', body(BAIDURI_SAMPLE), counting, allowAll, opts);
-    expect(blocked.status).toBe(429);
-    expect(lookups).toBe(20);
+    await handleIngest(auth, body(BAIDURI_SAMPLE), spy, { peerKey: '203.0.113.9' });
+    await handleIngest(auth, body(BAIDURI_SAMPLE), spy);
+    expect(seen).toEqual(['203.0.113.9', null]);
   });
 
-  it('does not spend a peer failure budget on valid tokens', async () => {
+  it('never reaches the store on a malformed authorization header', async () => {
     const store = makeFakeStore();
-    const failureLimiter = createFailureLimiter(2, 60_000, () => 0);
-    const opts = { peerKey: '203.0.113.10', failureLimiter };
-
-    // A NAT-shared IP of legitimate devices must never be throttled.
-    for (let i = 0; i < 5; i++) {
-      const res = await handleIngest(auth, body(`Card No.: 4x0213 Amount: BND ${i + 1}.00 Merchant: SHOP ${i} Date: 10-07-2026 17:37:59`), store, allowAll, opts);
-      expect(res.status).toBe(200);
-    }
-  });
-
-  it('applies no peer limit when the client IP is unknown', async () => {
-    const store = makeFakeStore();
-    const failureLimiter = createFailureLimiter(1, 60_000, () => 0);
-    for (let i = 0; i < 3; i++) {
-      const res = await handleIngest('Bearer bp_wrong', body(BAIDURI_SAMPLE), store, allowAll, {
-        peerKey: null,
-        failureLimiter,
-      });
-      expect(res.status).toBe(401); // never 429
-    }
+    await handleIngest('Token abc', body(BAIDURI_SAMPLE), store);
+    await handleIngest(null, body(BAIDURI_SAMPLE), store);
+    expect(store.resolveCalls).toBe(0);
   });
 
   it('rejects empty text with 422 empty_text', async () => {
     const store = makeFakeStore();
-    const res = await handleIngest(auth, body('   '), store, allowAll);
+    const res = await handleIngest(auth, body('   '), store);
     expect(res.status).toBe(422);
     expect(res.body.error).toBe('empty_text');
   });
 
   it('rejects oversized text and invalid source with 422', async () => {
     const store = makeFakeStore();
-    const big = await handleIngest(auth, body('x'.repeat(5000)), store, allowAll);
+    const big = await handleIngest(auth, body('x'.repeat(5000)), store);
     expect(big.status).toBe(422);
-    const badSource = await handleIngest(auth, { text: 'BND 5.00 at X', source: 'email' }, store, allowAll);
+    const badSource = await handleIngest(auth, { text: 'BND 5.00 at X', source: 'email' }, store);
     expect(badSource.status).toBe(422);
   });
 
@@ -186,7 +171,6 @@ describe('handleIngest', () => {
       auth,
       body('Your Baiduri OTP is 123456. Do not share this code.'),
       store,
-      allowAll,
     );
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ignored');
@@ -195,7 +179,7 @@ describe('handleIngest', () => {
 
   it('creates a parsed transaction from the real Baiduri sample', async () => {
     const store = makeFakeStore();
-    const res = await handleIngest(auth, body(BAIDURI_SAMPLE, { sender: 'Baiduri' }), store, allowAll);
+    const res = await handleIngest(auth, body(BAIDURI_SAMPLE, { sender: 'Baiduri' }), store);
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('created');
     const tx = res.body.transaction as TransactionRow;
@@ -218,7 +202,6 @@ describe('handleIngest', () => {
         'Dear Customer, Purchase of BND5.10 at HUA HO DEPARTME, has successfully been made on your card ending with 0298. Thank you for banking with BIBD.',
       ),
       store,
-      allowAll,
     );
     expect((bibd.body.transaction as TransactionRow).category_id).toBe('cat-groceries');
 
@@ -226,17 +209,16 @@ describe('handleIngest', () => {
       auth,
       body(BAIDURI_SAMPLE.replace('GALORIES SMOOTHIES BSB BN', 'ZYX TRADING')),
       store,
-      allowAll,
     );
     expect((unknown.body.transaction as TransactionRow).category_id).toBeNull();
   });
 
   it('returns duplicate on exact re-ingest (same normalized text)', async () => {
     const store = makeFakeStore();
-    const first = await handleIngest(auth, body(BAIDURI_SAMPLE), store, allowAll);
+    const first = await handleIngest(auth, body(BAIDURI_SAMPLE), store);
     const firstId = (first.body.transaction as TransactionRow).id;
     // Same message with different whitespace normalizes to the same hash.
-    const again = await handleIngest(auth, body(BAIDURI_SAMPLE.replace(' Amount', '   Amount')), store, allowAll);
+    const again = await handleIngest(auth, body(BAIDURI_SAMPLE.replace(' Amount', '   Amount')), store);
     expect(again.body.status).toBe('duplicate');
     expect(again.body.transaction_id).toBe(firstId);
     expect(store.rows).toHaveLength(1);
@@ -244,7 +226,7 @@ describe('handleIngest', () => {
 
   it('stores unparseable-but-plausible text as needs_review', async () => {
     const store = makeFakeStore();
-    const res = await handleIngest(auth, body('asdf qwerty zxcv payment thing'), store, allowAll);
+    const res = await handleIngest(auth, body('asdf qwerty zxcv payment thing'), store);
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('created');
     const tx = res.body.transaction as TransactionRow;
@@ -259,7 +241,6 @@ describe('handleIngest', () => {
       auth,
       body('You spent BND 12.30 at THE COFFEE BEAN on 12/07/26 using card ending 4321.'),
       store,
-      allowAll,
     );
     const tx = res.body.transaction as TransactionRow;
     expect(tx.bank).toBe('unknown');
@@ -269,13 +250,12 @@ describe('handleIngest', () => {
 
   it('flags near-duplicates (same amount/card within ±3 min, different text)', async () => {
     const store = makeFakeStore();
-    await handleIngest(auth, body(BAIDURI_SAMPLE), store, allowAll);
+    await handleIngest(auth, body(BAIDURI_SAMPLE), store);
     // Different wording, same spend, 2 minutes later — inside the window.
     const echo = await handleIngest(
       auth,
       body('BND 21.00 spent at GALORIES card ending 0213', { received_at: '2026-07-10T17:39:59+08:00' }),
       store,
-      allowAll,
     );
     expect(echo.body.status).toBe('created');
     const tx = echo.body.transaction as TransactionRow;

@@ -5,12 +5,11 @@
 **Branch:** `main` (GitHub Flow — feature branches off `main`, merged via pull request)
 **Date:** 2026-07-16 (original) · last updated 2026-07-25
 
-**§18 is a security audit (2026-07-25)** — five issues found; four fixed.
-Migration 11 is applied to the hosted project and the ingest function is
-redeployed. **SEC-2 (rate limiting) is REOPENED**: verified in production that
-Supabase Edge Functions give every request a fresh isolate, so no in-memory
-limiter works — including the pre-existing one from §6 step 7, which has never
-functioned. Remedy proposed in §18, not yet built.
+**§18 is a security audit (2026-07-25)** — five issues found, all fixed and
+deployed (migrations 11 and 12 applied to the hosted project, ingest function
+redeployed). SEC-2 took two attempts: in-memory rate limiting is inert on
+Supabase Edge Functions because every request gets a fresh isolate, so the
+limits now live in Postgres and are verified working against production.
 
 **§19 (2026-07-25):** the repo is **public, permanently** — never commit a
 secret. The `bukit-pennies-legal` repo is retired; policy pages are now served
@@ -143,11 +142,11 @@ Body: {
 4. Insert `on conflict (user_id, raw_hash) do nothing` → no row returned = `duplicate`.
 5. **Near-dupe pass** (listener + share can double-capture with different wording): same user + amount + card_last4, `occurred_at` ±3 min, different hash → set `possible_duplicate_of`; surfaced in review inbox with merge/dismiss, not dropped.
 6. `confidence < 0.75` or missing amount → `parse_status = 'needs_review'`.
-7. ~~Cheap rate limit: >60 req/min per token → 429 (tokens are long-lived secrets; bounds abuse on leak).~~
-   **Never worked — see §18 SEC-2.** The limiter is in instance memory, but
-   Supabase Edge Functions run every request in a fresh isolate, so the state
-   is always empty. Verified in production 2026-07-25. Do not cite this as a
-   control until it is moved to Postgres.
+7. Rate limit: >60 req/min per token, and >20 failed auths/min per client IP,
+   → 429. **Enforced in Postgres**, not in the edge function: the original
+   in-memory limiter never worked, because Supabase Edge Functions run every
+   request in a fresh isolate. See §18 SEC-2; migration 12 holds the
+   implementation.
 
 ## 7. Parser package (`@bukit/parsers`)
 
@@ -649,13 +648,14 @@ Scoping was chosen over clearing-on-sign-out deliberately: it fixes the leak
 Shortcut setup, and it avoids minting a throwaway `ingest_devices` row on
 every sign-out/in cycle.
 
-### SEC-2 — Rate limiting does not work at all on this runtime (Medium, REOPENED 2026-07-25)
+### SEC-2 — Rate limiting does not work at all on this runtime (Medium, FIXED 2026-07-25)
 
-> **Correction.** The fix described below was deployed and then found to be
-> ineffective in production, along with the pre-existing limiter it was
-> extending. **Treat SEC-2 as open.** See "What actually happens" at the end
-> of this subsection. The analysis of the flaw is still accurate; the remedy
-> is not.
+> **History.** The first fix was deployed and found ineffective in production,
+> along with the pre-existing limiter it extended. The second attempt moved the
+> limits into Postgres and **is verified working against production** — see
+> "The real fix" at the end of this subsection. The analysis below is retained
+> because the reasoning about *what* to limit still holds; only the mechanism
+> changed.
 
 #### Original finding — per-token rate limit could not bound an anonymous flood
 
@@ -721,6 +721,42 @@ table plus a periodic prune.
 
 **Do not "fix" this by adding more in-memory bookkeeping.** The constraint is
 the isolate lifecycle, not the algorithm.
+
+#### The real fix (migration 12, deployed and verified 2026-07-25)
+
+State moved to Postgres. `ingest_rate_limits(key, window_start, hits)` holds a
+fixed window per key (`peer:<ip>` / `token:<sha256>`), and
+`resolve_ingest_device(p_token_hash, p_peer)` — security definer, granted to
+`service_role` only — **resolves the token and applies both budgets in a
+single round trip**, replacing the lookup the function already did. The happy
+path therefore costs exactly what it did before; no latency was added to real
+captures. Budgets are unchanged: 20 failed auths/min per peer IP, 60
+requests/min per token.
+
+Design notes worth keeping:
+
+- **Fixed window, not sliding.** A sliding window needs per-hit timestamps;
+  the extra precision buys nothing when the goal is bounding abuse rather
+  than fairness.
+- **The counter table is invisible to clients.** RLS is on with *no* policies,
+  and grants are explicitly revoked from `anon`/`authenticated` — necessary
+  because 04_grants.sql's default privileges would otherwise hand it DML.
+  `rate_limit_bump`/`rate_limit_peek` are revoked from every client role too:
+  a client able to call them could probe token hashes and burn other peers'
+  budgets.
+- **Self-pruning.** `rate_limit_bump` sweeps keys older than a day on roughly
+  1 call in 1000 — cheaper than a scheduled job for pure scratch data.
+- The dead `_shared/rate-limit.ts` is deleted and `handleIngest` no longer
+  takes limiter arguments; the store returns `blocked` and the handler's only
+  job is to honour it.
+
+**Verified in production, not just in tests:** 26 requests with invented
+tokens from one IP returned `401 ×20` then `429 ×6`, exactly at the budget.
+A separate check confirmed the happy path still resolves a real active device
+(`resolved: true, has_user: true, blocked: false`). The unit tests deliberately
+no longer assert limiting behaviour — that now lives in SQL — and instead
+assert that the handler honours `blocked`, asks in one round trip, forwards
+the peer key, and never touches the store on a malformed header.
 
 ### SEC-3 — `ingest_devices` was client-writable, contradicting its own policy comment (Low)
 
@@ -883,7 +919,8 @@ legal repo's copy) with no sync mechanism, so an edit here silently failed to
 reach the published page.
 
 Now: **Pages is served from this repo's `docs/` folder** (`main` branch,
-`/docs` source), so `docs/privacy-policy.md` and `docs/terms.md` are both the
+`/docs` source; enabled and verified 2026-07-25 — all three URLs return 200
+and the published privacy policy carries the breach-check section), so `docs/privacy-policy.md` and `docs/terms.md` are both the
 engineering copy and the published page — one source of truth. `docs/index.md`
 is the landing page. The other files in `docs/` are engineering documentation
 and are rendered too; that is harmless in a public repo.
@@ -895,7 +932,14 @@ URLs changed, and `apps/mobile/src/lib/env.ts` was updated to match:
 | Privacy | `jaredoka.github.io/bukit-pennies-legal/privacy-policy` | `jaredoka.github.io/bukit-pennies/privacy-policy` |
 | Terms | `jaredoka.github.io/bukit-pennies-legal/terms` | `jaredoka.github.io/bukit-pennies/terms` |
 
-The old URLs now 404. That was safe only because the app is not yet in either
+⚠️ **The old repo is not deleted yet** — the CLI token lacks the
+`delete_repo` scope and refreshing it is interactive. Owner action:
+`gh auth refresh -h github.com -s delete_repo` then
+`gh repo delete jaredoka/bukit-pennies-legal --yes`, or delete it from the
+GitHub web UI. Until then the old URLs still resolve and serve a stale copy of
+the policy, which is the one real reason not to leave it lying around.
+
+Once deleted, the old URLs 404. That was safe only because the app is not yet in either
 store — **once a store listing cites a policy URL, it must not move.** If the
 `bukitpennies.com` domain of §15 ever happens, point it at these Pages rather
 than relocating the files again.

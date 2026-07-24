@@ -932,14 +932,11 @@ URLs changed, and `apps/mobile/src/lib/env.ts` was updated to match:
 | Privacy | `jaredoka.github.io/bukit-pennies-legal/privacy-policy` | `jaredoka.github.io/bukit-pennies/privacy-policy` |
 | Terms | `jaredoka.github.io/bukit-pennies-legal/terms` | `jaredoka.github.io/bukit-pennies/terms` |
 
-⚠️ **The old repo is not deleted yet** — the CLI token lacks the
-`delete_repo` scope and refreshing it is interactive. Owner action:
-`gh auth refresh -h github.com -s delete_repo` then
-`gh repo delete jaredoka/bukit-pennies-legal --yes`, or delete it from the
-GitHub web UI. Until then the old URLs still resolve and serve a stale copy of
-the policy, which is the one real reason not to leave it lying around.
+✅ **The old repo was deleted by the owner on 2026-07-25**; both old URLs now
+return 404 and the new ones 200 (verified). There is exactly one published
+policy again.
 
-Once deleted, the old URLs 404. That was safe only because the app is not yet in either
+The old URLs 404. That was safe only because the app is not yet in either
 store — **once a store listing cites a policy URL, it must not move.** If the
 `bukitpennies.com` domain of §15 ever happens, point it at these Pages rather
 than relocating the files again.

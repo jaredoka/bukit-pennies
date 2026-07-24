@@ -35,8 +35,16 @@ export interface TransactionRow extends TransactionInsert {
 }
 
 export interface IngestStore {
-  /** Active (non-revoked) device for this token hash, or null. */
-  findActiveDeviceByTokenHash(tokenHash: string): Promise<{ id: string; user_id: string } | null>;
+  /**
+   * Resolves a token hash to its owning device AND applies the rate limits, in
+   * one round trip (migration 12). `blocked` means the peer's failed-auth
+   * budget or the token's request budget is spent; `device` is null when the
+   * token does not match an active device.
+   */
+  resolveDevice(args: {
+    tokenHash: string;
+    peerKey: string | null;
+  }): Promise<{ device: { id: string; user_id: string } | null; blocked: boolean }>;
   /** Fire-and-forget; failures must not fail the request. */
   touchLastSeen(deviceId: string): void;
   /**
@@ -58,21 +66,9 @@ export interface IngestStore {
   findGlobalCategoryIdByName(name: string): Promise<string | null>;
 }
 
-export interface RateLimiter {
-  allow(key: string): boolean;
-}
-
-/** Per-peer failed-auth budget; see createFailureLimiter. */
-export interface FailureLimiter {
-  /** True when this peer has spent its failure budget for the window. */
-  blocked(key: string): boolean;
-  record(key: string): void;
-}
-
 export interface IngestOptions {
-  /** Client IP (or any stable peer identifier). Null disables the peer limit. */
+  /** Client IP (or any stable peer identifier). Null disables the peer budget. */
   peerKey?: string | null;
-  failureLimiter?: FailureLimiter;
 }
 
 export interface IngestResponse {
@@ -118,43 +114,29 @@ export async function handleIngest(
   authorizationHeader: string | null | undefined,
   rawBody: unknown,
   store: IngestStore,
-  rateLimiter: RateLimiter,
   options: IngestOptions = {},
 ): Promise<IngestResponse> {
-  const { peerKey = null, failureLimiter } = options;
-
-  // Peer failure budget, checked first. The per-token window below cannot
-  // bound an anonymous flood — every invented token is a fresh key, so it
-  // buys the attacker a fresh quota and a database round trip each time
-  // (HANDOFF §18, SEC-2). This endpoint runs with verify_jwt = false, so that
-  // flood is unauthenticated. A peer that has already burned its failure
-  // budget is refused before any lookup happens.
-  const peerBlocked = peerKey !== null && failureLimiter !== undefined;
-  if (peerBlocked && failureLimiter!.blocked(peerKey!)) return error(429, 'rate_limited');
-
-  const recordFailure = () => {
-    if (peerBlocked) failureLimiter!.record(peerKey!);
-  };
+  const { peerKey = null } = options;
 
   const token = extractBearerToken(authorizationHeader);
-  if (!token) {
-    recordFailure();
-    return error(401, 'invalid_token');
-  }
+  // A malformed Authorization header never reaches the database. It also never
+  // costs the peer any budget: there is nothing to brute-force here, and the
+  // budget exists to bound lookups, not to punish bad clients.
+  if (!token) return error(401, 'invalid_token');
   const tokenHash = await sha256Hex(token);
-
-  // Per-token window: bounds damage if a real token leaks.
-  if (!rateLimiter.allow(tokenHash)) return error(429, 'rate_limited');
 
   const validated = validateBody(rawBody);
   if ('status' in validated && typeof validated.status === 'number') return validated as IngestResponse;
   const body = validated as ValidBody;
 
-  const device = await store.findActiveDeviceByTokenHash(tokenHash);
-  if (!device) {
-    recordFailure();
-    return error(401, 'invalid_token');
-  }
+  // Resolution and both rate-limit budgets in one round trip (migration 12).
+  // This replaces the lookup the handler used to do, so the happy path costs
+  // no more than before. The limits live in Postgres because edge isolates do
+  // not survive between requests, which is why the previous in-memory limiter
+  // never applied at all (HANDOFF §18, SEC-2).
+  const { device, blocked } = await store.resolveDevice({ tokenHash, peerKey });
+  if (blocked) return error(429, 'rate_limited');
+  if (!device) return error(401, 'invalid_token');
   store.touchLastSeen(device.id);
 
   // OTPs/promos/balance alerts are never inserted.

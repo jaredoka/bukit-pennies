@@ -7,7 +7,6 @@ import {
   type TransactionInsert,
   type TransactionRow,
 } from '../_shared/handler.ts';
-import { createFailureLimiter, createSlidingWindowLimiter } from '../_shared/rate-limit.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -15,33 +14,33 @@ const supabase = createClient(
   { auth: { persistSession: false } },
 );
 
-const rateLimiter = createSlidingWindowLimiter(60, 60_000);
-
-// 20 failed auths per minute per IP, then the peer is refused before the
-// database is touched (HANDOFF §18, SEC-2).
-const failureLimiter = createFailureLimiter(20, 60_000);
-
 /**
- * Client IP. Supabase's edge proxy sets x-forwarded-for; the first hop is the
- * client. Null when absent, which disables the peer limit rather than lumping
- * every unknown-IP request into one shared bucket.
+ * Client IP. Supabase fronts functions with Cloudflare, so cf-connecting-ip is
+ * a single clean value; x-forwarded-for is the fallback and arrives as
+ * "<client>,<client>, <proxy>", hence the first hop. Null when neither is
+ * present, which disables the peer budget rather than lumping every
+ * unknown-IP request into one shared bucket.
  */
 function peerKeyOf(req: Request): string | null {
-  const forwarded = req.headers.get('x-forwarded-for');
-  const first = forwarded?.split(',')[0]?.trim();
+  const direct = req.headers.get('cf-connecting-ip')?.trim();
+  if (direct) return direct;
+  const first = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
   return first ? first : null;
 }
 
 const store: IngestStore = {
-  async findActiveDeviceByTokenHash(tokenHash) {
+  async resolveDevice({ tokenHash, peerKey }) {
     const { data, error } = await supabase
-      .from('ingest_devices')
-      .select('id, user_id')
-      .eq('token_hash', tokenHash)
-      .is('revoked_at', null)
-      .maybeSingle();
+      .rpc('resolve_ingest_device', { p_token_hash: tokenHash, p_peer: peerKey })
+      .maybeSingle<{ device_id: string | null; device_user_id: string | null; blocked: boolean }>();
     if (error) throw error;
-    return data;
+    if (!data) return { device: null, blocked: false };
+    return {
+      device: data.device_id && data.device_user_id
+        ? { id: data.device_id, user_id: data.device_user_id }
+        : null,
+      blocked: data.blocked,
+    };
   },
 
   touchLastSeen(deviceId) {
@@ -140,9 +139,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const result = await handleIngest(req.headers.get('authorization'), body, store, rateLimiter, {
+    const result = await handleIngest(req.headers.get('authorization'), body, store, {
       peerKey: peerKeyOf(req),
-      failureLimiter,
     });
     if (result.body.status === 'created' && result.body.transaction?.parse_status === 'needs_review') {
       console.warn(JSON.stringify({

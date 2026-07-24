@@ -12,11 +12,17 @@ export interface IngestResponse {
 }
 
 /**
- * Returns this device's ingest token, provisioning one through the
- * create_ingest_token RPC on first use (plaintext is returned exactly once).
+ * Returns the signed-in user's ingest token for this device, provisioning one
+ * through the create_ingest_token RPC on first use (plaintext is returned
+ * exactly once). The token is stored under a per-user key, so a token belongs
+ * to exactly one account and can never post another account's captures.
  */
 export async function ensureIngestToken(kind: TxSource = 'paste'): Promise<string> {
-  const stored = await getStoredToken();
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData.user?.id;
+  if (!userId) throw new Error('not signed in');
+
+  const stored = await getStoredToken(userId);
   if (stored) return stored;
   const { data, error } = await supabase.rpc('create_ingest_token', {
     p_name: 'This device (paste)',
@@ -24,7 +30,7 @@ export async function ensureIngestToken(kind: TxSource = 'paste'): Promise<strin
   });
   if (error) throw new Error(`could not create ingest token: ${error.message}`);
   const token = data as string;
-  await setStoredToken(token);
+  await setStoredToken(userId, token);
   return token;
 }
 

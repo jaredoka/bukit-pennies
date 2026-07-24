@@ -3,7 +3,19 @@
 **Status:** Phases 0–6 built and merged; app is live against hosted Supabase and field-tested on the owner's iPhone. §1–§14 are the original approved design (kept for reference); §15–§16 record what exists now and the adoption roadmap. **§16 is the current source of truth for what to build next.**
 
 **Branch:** `main` (GitHub Flow — feature branches off `main`, merged via pull request)
-**Date:** 2026-07-16 (original) · last updated 2026-07-20
+**Date:** 2026-07-16 (original) · last updated 2026-07-25
+
+**§18 is a security audit (2026-07-25)** — five issues found; four fixed.
+Migration 11 is applied to the hosted project and the ingest function is
+redeployed. **SEC-2 (rate limiting) is REOPENED**: verified in production that
+Supabase Edge Functions give every request a fresh isolate, so no in-memory
+limiter works — including the pre-existing one from §6 step 7, which has never
+functioned. Remedy proposed in §18, not yet built.
+
+**§19 (2026-07-25):** the repo is **public, permanently** — never commit a
+secret. The `bukit-pennies-legal` repo is retired; policy pages are now served
+by GitHub Pages from this repo's `docs/` folder. Also records why native
+dependencies force a fresh store build.
 
 ---
 
@@ -131,7 +143,11 @@ Body: {
 4. Insert `on conflict (user_id, raw_hash) do nothing` → no row returned = `duplicate`.
 5. **Near-dupe pass** (listener + share can double-capture with different wording): same user + amount + card_last4, `occurred_at` ±3 min, different hash → set `possible_duplicate_of`; surfaced in review inbox with merge/dismiss, not dropped.
 6. `confidence < 0.75` or missing amount → `parse_status = 'needs_review'`.
-7. Cheap rate limit: >60 req/min per token → 429 (tokens are long-lived secrets; bounds abuse on leak).
+7. ~~Cheap rate limit: >60 req/min per token → 429 (tokens are long-lived secrets; bounds abuse on leak).~~
+   **Never worked — see §18 SEC-2.** The limiter is in instance memory, but
+   Supabase Edge Functions run every request in a fresh isolate, so the state
+   is always empty. Verified in production 2026-07-25. Do not cite this as a
+   control until it is moved to Postgres.
 
 ## 7. Parser package (`@bukit/parsers`)
 
@@ -585,3 +601,352 @@ exhausted for July, so **CI is verified locally (tests + typecheck +
 sync-parsers --check) before every merge until the monthly reset**.
 Billed amount stays $0 with the $0 budget (GitHub blocks instead of
 charging). The launched app never depends on GitHub Actions.
+
+## 18. Security audit (2026-07-25)
+
+Full review of the security-relevant surfaces: RLS migrations, the ingest
+edge function, auth flows, client token storage, and deep-link handling.
+Five issues found; all fixed on branch `security-audit-fixes`. IDs below are
+referenced from the code comments at each fix site.
+
+**Reviewed and found sound** (recorded so a future session doesn't re-audit):
+RLS coverage on every table (the select/insert/update/delete quartets are
+correct and owner-scoped, both dashboard views are `security_invoker`); the
+three `security definer` functions (`handle_new_user`, `create_ingest_token`,
+`delete_account` — each pins `search_path` and null-checks `auth.uid()`);
+PKCE on the password-reset deep link (an app squatting the `bukitpennies://`
+scheme cannot exchange an intercepted code without the local verifier); the
+anon key committed in `eas.json` (public by design, RLS is the boundary); and
+the parser regexes (no catastrophic backtracking — input is capped at 4 KB
+and the lazy quantifiers are disambiguated by required separators).
+
+### SEC-1 — Ingest token survived sign-out, filing transactions under the previous account (High)
+
+`tokenStore.ts` kept the ingest token under one device-global key,
+`bukit.ingest_token`, and no sign-out path cleared it — `clearStoredToken`
+was called only from account deletion. So after user A signed out and user B
+signed in on the same device, `ensureIngestToken()` returned **A's** token,
+and the edge function resolves `user_id` from the token: every paste capture,
+bulk paste, and cash quick-add B made was written into A's account. B saw
+nothing appear and could not diagnose it — `useDevices()` is RLS-scoped, so
+the offending device was invisible to B. SecureStore values live in the iOS
+Keychain and survive app deletion, so the mismatch persisted across reinstall.
+
+Distinct from the "two accounts, one phone" note in §17: that one is about the
+*Shortcut* holding a single token and is a documented unsupported flow. This
+was the app itself misrouting, silently, with no user action.
+
+**Fix:** the token key is now scoped per user id
+(`bukit.ingest_token.<uid>`), so a token belongs to exactly one account and
+can never carry another account's captures. `ensureIngestToken` resolves the
+signed-in user first and throws if there is none. A token found under the old
+device-global key is adopted into the current user's scoped key on first read
+and the legacy key deleted — safe, because the upgrading user is the only
+account that has ever used that install's token.
+
+Scoping was chosen over clearing-on-sign-out deliberately: it fixes the leak
+*and* lets two accounts share a device without either re-running the ~3-minute
+Shortcut setup, and it avoids minting a throwaway `ingest_devices` row on
+every sign-out/in cycle.
+
+### SEC-2 — Rate limiting does not work at all on this runtime (Medium, REOPENED 2026-07-25)
+
+> **Correction.** The fix described below was deployed and then found to be
+> ineffective in production, along with the pre-existing limiter it was
+> extending. **Treat SEC-2 as open.** See "What actually happens" at the end
+> of this subsection. The analysis of the flaw is still accurate; the remedy
+> is not.
+
+#### Original finding — per-token rate limit could not bound an anonymous flood
+
+`handleIngest` keyed its limiter on the token hash *before* validating the
+token, commented "so invalid-token floods are bounded too". It did not: every
+invented token is a fresh key, hence a fresh 60/min quota and a database round
+trip each. `/ingest` runs with `verify_jwt = false`, so this was reachable
+unauthenticated — and §16.5 identifies egress as this project's first free-tier
+ceiling. Separately, `createSlidingWindowLimiter` pruned timestamps within a
+key but never removed keys, so attacker-chosen keys grew the map for the life
+of the edge instance.
+
+**Fix:** added a per-peer (client IP, from the first `x-forwarded-for` hop)
+budget of **20 failed auths/minute**, checked before the token lookup — a peer
+that has spent its budget gets 429 without the database being touched. It is
+keyed on *failures*, not on all requests, on purpose: Brunei mobile networks
+NAT heavily, so a blanket per-IP request cap would throttle unrelated real
+users, whereas a device with a valid token never records a failure. The peer
+limit is skipped entirely when no client IP is available, rather than lumping
+unknown-IP traffic into one shared bucket. Both limiters now share a window
+store with an amortised sweep (every 1,000 ops) that drops fully-expired keys.
+Three tests cover it, including an assertion that no store lookup happens once
+a peer is cut off.
+
+#### What actually happens (verified against production, 2026-07-25)
+
+The fix was deployed and then smoke-tested: **70 consecutive requests with
+invented tokens from one IP all returned 401. Not one 429.** Diagnosis, in
+order:
+
+1. The client IP is available — Supabase forwards both `x-forwarded-for`
+   (`<client>,<client>, <proxy>`) and `cf-connecting-ip`. `peerKeyOf` parses
+   the first hop correctly, so that is not the cause.
+2. A throwaway function with a module-level counter and a per-boot id was
+   deployed to test the real assumption. **Twelve consecutive requests each
+   returned a different boot id and `counter: 1`.**
+
+**Every request runs in a fresh isolate.** Module-level state on Supabase Edge
+Functions does not survive between requests, so *any* in-memory limiter is a
+no-op — mine and, importantly, the pre-existing one too.
+
+**This means HANDOFF §6 step 7 ("Cheap rate limit: >60 req/min per token →
+429") has never been true in production.** It was written as a design
+intention, the unit tests pass because they drive the limiter directly, and
+nothing ever verified it end-to-end. The in-memory code is harmless but
+inert; it should not be trusted or cited as a control.
+
+This matters more now than it did: per §19 the repo is public, so the ingest
+URL is discoverable, and the endpoint is `verify_jwt = false`. Each anonymous
+request costs an isolate spin-up plus one `ingest_devices` lookup — against a
+free tier of 500K invocations/month.
+
+**Recommended remedy (not yet built):** move the limit to shared state, which
+on this stack means Postgres. The cheap shape is a **single round trip that
+resolves the token and enforces the limit together** — a security-definer RPC
+`resolve_ingest_device(p_token_hash, p_peer)` that upserts a counter row,
+returns `blocked` when the peer's failure budget or the token's request budget
+is spent, and otherwise returns the device. The happy path then costs exactly
+what it costs today (one query), so no latency is added to real captures,
+while an anonymous flood is bounded by a tiny indexed upsert instead of
+reaching the parser. Needs a `ingest_rate_limits(key, window_start, count)`
+table plus a periodic prune.
+
+**Do not "fix" this by adding more in-memory bookkeeping.** The constraint is
+the isolate lifecycle, not the algorithm.
+
+### SEC-3 — `ingest_devices` was client-writable, contradicting its own policy comment (Low)
+
+`02_rls.sql` granted `authenticated` the full insert/update quartet on
+`ingest_devices` while commenting that "token_hash is only ever written by the
+security-definer RPC". Nothing enforced that: a client could insert a row with
+a `token_hash` of its choosing — defeating the shown-once, 32-random-byte
+guarantee of `create_ingest_token` by substituting a weak or predictable token
+— or clear `revoked_at` to resurrect a revoked device. Owner-scoped, so the
+blast radius was the user's own account, but it made the RPC bypassable.
+
+**Fix:** migration `11_security_hardening.sql` drops the insert and update
+policies and revokes both privileges. Insert now belongs solely to
+`create_ingest_token`. Revocation moves to a new `revoke_ingest_device(uuid)`
+security-definer RPC that is one-way (`coalesce(revoked_at, now())`, so a
+revoked device can never be reactivated) and cannot touch `token_hash`.
+`useRevokeDevice` calls the RPC instead of writing the table. Select and
+delete policies are unchanged — both are owner-scoped and harmless.
+
+### SEC-4 — Password reset left existing sessions valid (Low)
+
+Settings → Account → reset password called `signOut({ scope: 'local' })`
+before mailing the link, which drops the local session but does not revoke the
+refresh token server-side. A refresh token captured from another device stayed
+usable across the reset — exactly the scenario a user resets a password to
+close.
+
+**Fix:** that path now uses `scope: 'global'`. Ordinary sign-out and
+switch-account deliberately stay `local` — revoking a user's other devices is
+surprising behaviour for a plain sign-out, and with SEC-1 fixed there is no
+data-isolation reason to force it.
+
+### SEC-5 — Bug reporting was silently broken (functional, found during the audit)
+
+`useSubmitBugReport` inserts `{short_id, app_version, description}`, but
+`bug_reports.user_id` is `not null` with no default — so every submission
+since the feature shipped failed on the not-null constraint. Not a
+vulnerability, but it means **no bug report has ever been received**.
+
+**Fix:** migration 11 sets `user_id default auth.uid()`. This is also the
+safer shape than populating it client-side (the RLS with-check already
+rejected a forged id, but now the client cannot state one at all).
+
+### Owner actions (not code — cannot be done from the repo)
+
+1. ✅ **Migration 11 applied to the hosted project** (`pzjroqwllrzcbpiugpxl`,
+   2026-07-25) via `supabase db push`; verified on the remote DB that only the
+   select/delete policies remain on `ingest_devices`, that `authenticated` has
+   lost INSERT/UPDATE there, that `revoke_ingest_device` exists as security
+   definer, and that `bug_reports.user_id` defaults to `auth.uid()`.
+   **Still to do: redeploy the ingest function** for SEC-2 (do it at merge).
+   *Compatibility note:* builds predating this change revoke devices by
+   writing `ingest_devices` directly, which the migration now denies — the
+   Revoke button fails (closed, not open) on any older installed build until
+   it is replaced by one carrying the `revoke_ingest_device` RPC.
+2. **Leaked-password protection is Pro-only — not enabled** (owner decision
+   2026-07-25: no spend before real users, consistent with §16.5). See
+   "Password policy" below for what was done instead and the free path if it
+   becomes worth revisiting.
+
+### Password policy (decided 2026-07-25)
+
+Client minimum raised **8 → 10 characters**, now a single constant in
+`apps/mobile/src/lib/password.ts` shared by sign-up and reset so the two
+cannot drift.
+
+**No composition rules, deliberately** (no "must contain a symbol/digit").
+NIST SP 800-63B recommends against them and against forced rotation: they
+produce predictable mutations like `Password1!` while adding signup friction,
+which is the one thing this app can least afford given the onboarding
+drop-off watch in §17. Length plus breach screening is the modern guidance.
+
+**Threat model, for whoever revisits this:** a compromised account here cannot
+move money — the safety invariant means there is no bank connectivity. The
+exposure is *reading* one user's spending history and writing junk
+transactions. Real, but not funds-at-risk, which is what argues against
+heavy-handed rules.
+
+**Breach screening is implemented client-side, free** (2026-07-25). Supabase's
+built-in HIBP check is Pro-only, so `checkPasswordBreached()` in
+`apps/mobile/src/lib/password.ts` calls the Pwned Passwords range API directly
+from sign-up and reset. It SHA-1s the candidate password (`expo-crypto` — a
+new dependency; Hermes has no `crypto.subtle`) and sends only the **first 5
+hex characters** of the hash to `api.pwnedpasswords.com/range/<prefix>`,
+matching the returned suffixes locally. No API key, no account, no cost.
+`Add-Padding: true` is sent so every response is a uniform size and the real
+bucket isn't inferable from response length.
+
+Three properties that are load-bearing — do not "simplify" them away:
+
+- **k-anonymity.** The password, and any hash that could be reversed to it,
+  never leaves the device. Only a 5-char prefix shared by ~800 other hashes
+  goes out. This is what makes a third-party call acceptable in a product
+  whose pitch is that it doesn't ship your data anywhere.
+- **Fails open.** Network error, non-200, timeout (4 s) or malformed body all
+  return `inconclusive` and the signup proceeds. A reused password is a far
+  smaller harm than an unusable signup. `checkPasswordBreached` never throws.
+- **Advisory, not binding.** A client-side check cannot constrain anyone
+  calling the Supabase auth API directly. That is accepted: the purpose is
+  protecting users from their own password reuse, not stopping an attacker
+  from choosing to weaken their own account. Server-side enforcement would
+  need an auth hook and is not worth the plumbing at this scale.
+
+`docs/privacy-policy.md` gained a "Password breach check" subsection under
+Sharing, stating plainly that the password is never transmitted.
+
+Verified against the live API on 2026-07-25: `"password"` → 52,372,427 hits,
+`"Tr0ub4dor&3"` → 3,196, a random passphrase → 0; padding returned a uniform
+~2,120 rows in every case. `countInRangeResponse` is a pure function split out
+for that reason — note that **`apps/mobile` has no test harness** (it is the
+workspace project `pnpm -r test` skips), so this was checked with a throwaway
+Node script rather than a committed test. Adding vitest to `apps/mobile` is
+the obvious follow-up if that module grows.
+
+**Ranked above password strength for this app, both already tracked:** the
+Gmail-SMTP deliverability problem (§15 — a reset email lost to spam is a worse
+account-recovery risk than a 10-character minimum) and Sign in with Apple at
+the TestFlight stage, which removes passwords for most users entirely.
+3. **Accepted risk, no action:** the Shortcut's ingest token is passed through
+   a `shortcuts://run-shortcut?input=<token>` URL and persisted by the
+   Shortcut as plaintext `token.txt` in iCloud Drive (§15). It is a
+   long-lived, unscoped write credential to one account. This is inherent to
+   the Shortcut capture design and cannot be avoided while iOS automations
+   remain unshareable; revocation (Settings → Capture → devices) is the only
+   recovery, and the blast radius is writes to one account, never reads.
+
+## 19. Repo made public; legal repo retired; store-build notes (2026-07-25)
+
+### The repo is public, permanently
+
+`jaredoka/bukit-pennies` is **public now and forever** (owner decision,
+2026-07-25). Everything in the working tree *and in every past commit* is
+world-readable. Treat that as a standing constraint on all future work:
+
+- **Never commit a secret, not even briefly.** Rewriting history does not
+  help once a public repo has been cloned or indexed; the only real remedy is
+  rotating the exposed credential. The service-role key belongs in Supabase's
+  function secrets and nowhere else.
+- Audited at the time of the switch: **the full history contains exactly two
+  JWTs, both `role: anon`** (the local `supabase-demo` key in `env.ts` and the
+  hosted anon key in `eas.json`). Anon keys are public by design — RLS is the
+  boundary, not key secrecy. **No service-role key has ever been committed**;
+  `functions/ingest/index.ts` only ever referenced it via
+  `Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')`.
+- What is now public and is fine: the hosted project ref, the anon key, the
+  iCloud shortcut link (already shared deliberately), and §18's security
+  audit. Publishing fixed vulnerabilities is normal practice and the accepted
+  risks recorded there are honest limits, not exploitable secrets.
+- One mild personal-data note: `apps/mobile/eas.json` carries the owner's
+  personal Apple ID email in the `submit` block. Harmless but no longer
+  private; move it to an EAS secret if that matters.
+
+### `bukit-pennies-legal` is retired
+
+That repo existed for exactly one reason: GitHub Pages on a **private** repo
+requires a paid plan, so the policy pages needed a public home. With this repo
+public that reason is gone, and the split was actively harmful — the same
+privacy policy existed in two places (`docs/privacy-policy.md` here and the
+legal repo's copy) with no sync mechanism, so an edit here silently failed to
+reach the published page.
+
+Now: **Pages is served from this repo's `docs/` folder** (`main` branch,
+`/docs` source), so `docs/privacy-policy.md` and `docs/terms.md` are both the
+engineering copy and the published page — one source of truth. `docs/index.md`
+is the landing page. The other files in `docs/` are engineering documentation
+and are rendered too; that is harmless in a public repo.
+
+URLs changed, and `apps/mobile/src/lib/env.ts` was updated to match:
+
+| | Old (retired) | Current |
+|---|---|---|
+| Privacy | `jaredoka.github.io/bukit-pennies-legal/privacy-policy` | `jaredoka.github.io/bukit-pennies/privacy-policy` |
+| Terms | `jaredoka.github.io/bukit-pennies-legal/terms` | `jaredoka.github.io/bukit-pennies/terms` |
+
+The old URLs now 404. That was safe only because the app is not yet in either
+store — **once a store listing cites a policy URL, it must not move.** If the
+`bukitpennies.com` domain of §15 ever happens, point it at these Pages rather
+than relocating the files again.
+
+### Store builds: native dependencies need a fresh binary
+
+Recorded because the app is going to **both** the App Store and Google Play,
+and this trips people up: `expo-crypto` (added for §18's breach check) is an
+Expo **first-party** package, but first-party is not the same as JS-only. It
+ships native code, so it cannot arrive through an OTA/JS update — it needs a
+**new native build** (EAS build → TestFlight → App Store; and the equivalent
+AAB for Play). The same applies to every `expo-*` module already in
+`app.json`'s plugins array.
+
+Practical consequences to plan around:
+
+- A JS-only fix can ship over the air; adding or upgrading any native module
+  cannot. Batch native additions into the same build rather than discovering
+  them one at a time.
+- iOS builds require macOS. Per §16.4 the path of record is **EAS cloud
+  builds** run from Windows — do not attempt this locally.
+- After adding a native module, `expo prebuild` output changes; the Android
+  listener work in Stage B will need the same treatment.
+- Apple and Google both re-review a new binary. Native changes therefore cost
+  review latency that a JS update does not.
+
+### Revoked capture tokens can now be removed
+
+**Question raised by the owner:** revoked tokens stayed listed forever with no
+way to delete them. **Decision: yes, add removal — but only for
+already-revoked devices.** Settings → Capture → devices now shows a "Remove"
+button beside the `revoked` badge, behind a confirmation.
+
+Why that shape:
+
+- **Revoking stays the safety-critical, one-way step** (migration 11 made
+  `revoke_ingest_device` unable to un-revoke). Deletion afterwards is purely
+  clearing the list, so it can never be misread as "stop this token working" —
+  that is what Revoke is for.
+- **It costs no security.** A deleted row means the token hash no longer
+  resolves, which is the same outcome as revoked. Token hashes are 32 random
+  bytes, so freeing one for reuse is meaningless.
+- **The one real cost is the audit trail**, and it is why removal is not
+  automatic and not silent: `last_seen_at` on a revoked token is the evidence
+  of when it was last used, which matters most in exactly the situation you
+  revoked for (a token you think leaked). The confirmation dialog says so
+  explicitly, and the choice stays the user's.
+- **It matches the product's stated posture.** The privacy policy promises
+  user control over their data; "you may create rows but never remove them"
+  contradicts that.
+
+No migration was needed — migration 11 narrowed only insert and update on
+`ingest_devices`; the owner-scoped `ingest_devices_delete` policy and the
+DELETE grant were deliberately left in place.

@@ -7,7 +7,7 @@ import {
   type TransactionInsert,
   type TransactionRow,
 } from '../_shared/handler.ts';
-import { createSlidingWindowLimiter } from '../_shared/rate-limit.ts';
+import { createFailureLimiter, createSlidingWindowLimiter } from '../_shared/rate-limit.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -16,6 +16,21 @@ const supabase = createClient(
 );
 
 const rateLimiter = createSlidingWindowLimiter(60, 60_000);
+
+// 20 failed auths per minute per IP, then the peer is refused before the
+// database is touched (HANDOFF §18, SEC-2).
+const failureLimiter = createFailureLimiter(20, 60_000);
+
+/**
+ * Client IP. Supabase's edge proxy sets x-forwarded-for; the first hop is the
+ * client. Null when absent, which disables the peer limit rather than lumping
+ * every unknown-IP request into one shared bucket.
+ */
+function peerKeyOf(req: Request): string | null {
+  const forwarded = req.headers.get('x-forwarded-for');
+  const first = forwarded?.split(',')[0]?.trim();
+  return first ? first : null;
+}
 
 const store: IngestStore = {
   async findActiveDeviceByTokenHash(tokenHash) {
@@ -125,7 +140,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const result = await handleIngest(req.headers.get('authorization'), body, store, rateLimiter);
+    const result = await handleIngest(req.headers.get('authorization'), body, store, rateLimiter, {
+      peerKey: peerKeyOf(req),
+      failureLimiter,
+    });
     if (result.body.status === 'created' && result.body.transaction?.parse_status === 'needs_review') {
       console.warn(JSON.stringify({
         level: 'warn',

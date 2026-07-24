@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -10,7 +11,7 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Badge, Button, Card, Centered, Field, Muted, Title } from '@/components/ui';
-import { useCreateIngestToken, useDevices, useRevokeDevice } from '@/lib/queries';
+import { useCreateIngestToken, useDeleteDevice, useDevices, useRevokeDevice } from '@/lib/queries';
 import type { TxSource } from '@/lib/types';
 import { themedStyles, useTheme } from '@/lib/theme';
 
@@ -25,11 +26,37 @@ export default function Devices() {
   const { data, isLoading } = useDevices();
   const create = useCreateIngestToken();
   const revoke = useRevokeDevice();
+  const remove = useDeleteDevice();
 
   const [name, setName] = useState('');
   const [kind, setKind] = useState<TxSource>('ios_shortcut');
   const [revealed, setRevealed] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState(false);
+  // Which row a mutation is running for, so only that row shows a spinner.
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  // Removal is offered only on already-revoked devices, so it can never be
+  // mistaken for "stop this token working" — that is what Revoke is for. The
+  // warning is about the audit trail: last_seen_at on a revoked token is the
+  // evidence of when it was last used, which matters most in exactly the case
+  // you revoked for (HANDOFF §19).
+  function confirmRemove(id: string, name: string) {
+    Alert.alert(
+      'Remove this device?',
+      `"${name}" is already revoked and cannot log anything. Removing it also erases its record of when it was last used. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            setPendingId(id);
+            remove.mutate(id, { onSettled: () => setPendingId(null) });
+          },
+        },
+      ],
+    );
+  }
 
   function createToken() {
     create.mutate(
@@ -111,9 +138,25 @@ export default function Devices() {
               </Muted>
             </View>
             {d.revoked_at ? (
-              <Badge label="revoked" tone="danger" />
+              <View style={styles.revokedActions}>
+                <Badge label="revoked" tone="danger" />
+                <Button
+                  label="Remove"
+                  variant="secondary"
+                  onPress={() => confirmRemove(d.id, d.name)}
+                  busy={remove.isPending && pendingId === d.id}
+                />
+              </View>
             ) : (
-              <Button label="Revoke" variant="danger" onPress={() => revoke.mutate(d.id)} busy={revoke.isPending} />
+              <Button
+                label="Revoke"
+                variant="danger"
+                onPress={() => {
+                  setPendingId(d.id);
+                  revoke.mutate(d.id, { onSettled: () => setPendingId(null) });
+                }}
+                busy={revoke.isPending && pendingId === d.id}
+              />
             )}
           </View>
         ))}
@@ -157,4 +200,5 @@ const useStyles = themedStyles((colors) => ({
     borderBottomColor: colors.border,
   },
   deviceName: { fontWeight: '600', color: colors.text },
+  revokedActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 }));

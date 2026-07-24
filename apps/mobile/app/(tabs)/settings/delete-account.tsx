@@ -14,13 +14,17 @@ export default function DeleteAccount() {
   async function deleteAccount() {
     setBusy(true);
     setError(null);
+    // Captured before the RPC — afterwards the session is gone and the
+    // per-user token key can no longer be derived.
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
     const { error } = await supabase.rpc('delete_account');
     if (error) {
       setError(error.message);
       setBusy(false);
       return;
     }
-    await clearStoredToken();
+    if (userId) await clearStoredToken(userId);
     await supabase.auth.signOut();
     // The auth gate redirects to sign-in once the session is gone.
   }

@@ -737,19 +737,41 @@ exposure is *reading* one user's spending history and writing junk
 transactions. Real, but not funds-at-risk, which is what argues against
 heavy-handed rules.
 
-**If breach screening becomes worth doing without paying for Pro:** Supabase's
-built-in HIBP check is a Pro feature, but the same protection can be had free
-by calling the Pwned Passwords range API directly from the client at sign-up
-and reset — SHA-1 the candidate password, send only the **first 5 hex
-characters** of the hash to `api.pwnedpasswords.com/range/<prefix>`, and match
-the returned suffixes locally. No API key, no account, no cost, and
-k-anonymity means the password itself never leaves the device. Caveats to
-design around: it must **fail open** when the network is unavailable so signup
-is never blocked; it is advisory only, since a client-side check cannot bind
-someone calling the Supabase auth API directly (acceptable — the purpose is
-protecting users from their own reused passwords, not stopping an attacker
-from weakening their own account); and it introduces a new third-party
-outbound call, so `docs/privacy-policy.md` would need a line about it.
+**Breach screening is implemented client-side, free** (2026-07-25). Supabase's
+built-in HIBP check is Pro-only, so `checkPasswordBreached()` in
+`apps/mobile/src/lib/password.ts` calls the Pwned Passwords range API directly
+from sign-up and reset. It SHA-1s the candidate password (`expo-crypto` — a
+new dependency; Hermes has no `crypto.subtle`) and sends only the **first 5
+hex characters** of the hash to `api.pwnedpasswords.com/range/<prefix>`,
+matching the returned suffixes locally. No API key, no account, no cost.
+`Add-Padding: true` is sent so every response is a uniform size and the real
+bucket isn't inferable from response length.
+
+Three properties that are load-bearing — do not "simplify" them away:
+
+- **k-anonymity.** The password, and any hash that could be reversed to it,
+  never leaves the device. Only a 5-char prefix shared by ~800 other hashes
+  goes out. This is what makes a third-party call acceptable in a product
+  whose pitch is that it doesn't ship your data anywhere.
+- **Fails open.** Network error, non-200, timeout (4 s) or malformed body all
+  return `inconclusive` and the signup proceeds. A reused password is a far
+  smaller harm than an unusable signup. `checkPasswordBreached` never throws.
+- **Advisory, not binding.** A client-side check cannot constrain anyone
+  calling the Supabase auth API directly. That is accepted: the purpose is
+  protecting users from their own password reuse, not stopping an attacker
+  from choosing to weaken their own account. Server-side enforcement would
+  need an auth hook and is not worth the plumbing at this scale.
+
+`docs/privacy-policy.md` gained a "Password breach check" subsection under
+Sharing, stating plainly that the password is never transmitted.
+
+Verified against the live API on 2026-07-25: `"password"` → 52,372,427 hits,
+`"Tr0ub4dor&3"` → 3,196, a random passphrase → 0; padding returned a uniform
+~2,120 rows in every case. `countInRangeResponse` is a pure function split out
+for that reason — note that **`apps/mobile` has no test harness** (it is the
+workspace project `pnpm -r test` skips), so this was checked with a throwaway
+Node script rather than a committed test. Adding vitest to `apps/mobile` is
+the obvious follow-up if that module grows.
 
 **Ranked above password strength for this app, both already tracked:** the
 Gmail-SMTP deliverability problem (§15 — a reset email lost to spam is a worse

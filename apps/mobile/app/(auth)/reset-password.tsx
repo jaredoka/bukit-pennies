@@ -4,7 +4,12 @@ import { useEffect, useState } from 'react';
 import { Platform, Text, View } from 'react-native';
 import { HexBackground } from '@/components/HexBackground';
 import { Button, Card, Field, Muted, Title } from '@/components/ui';
-import { isPasswordLongEnough, PASSWORD_HINT } from '@/lib/password';
+import {
+  breachWarning,
+  checkPasswordBreached,
+  isPasswordLongEnough,
+  PASSWORD_HINT,
+} from '@/lib/password';
 import { supabase } from '@/lib/supabase';
 import { themedStyles } from '@/lib/theme';
 
@@ -18,7 +23,11 @@ export default function ResetPassword() {
   const url = Linking.useURL();
   const [ready, setReady] = useState(Platform.OS === 'web');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  // Two distinct failures with different remedies: `linkError` means the
+  // recovery link itself is bad (ask for a new one), `formError` means the
+  // chosen password was rejected (pick another) — so they can't share copy.
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -26,17 +35,26 @@ export default function ResetPassword() {
     const code = Linking.parse(url).queryParams?.code;
     if (typeof code !== 'string') return;
     supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-      if (error) setError(error.message);
+      if (error) setLinkError(error.message);
       else setReady(true);
     });
   }, [url]);
 
   async function submit() {
     setBusy(true);
-    setError(null);
+    setFormError(null);
+
+    // Same breach screening as sign-up; fails open (HANDOFF §18).
+    const breach = await checkPasswordBreached(password);
+    if (breach.breached) {
+      setFormError(breachWarning(breach.count));
+      setBusy(false);
+      return;
+    }
+
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
-      setError(error.message);
+      setFormError(error.message);
       setBusy(false);
       return;
     }
@@ -50,7 +68,7 @@ export default function ResetPassword() {
       <View style={styles.inner}>
         <Card>
           <Title>Choose a new password</Title>
-          {!ready && !error ? <Muted>Verifying your reset link…</Muted> : null}
+          {!ready && !linkError ? <Muted>Verifying your reset link…</Muted> : null}
           {ready ? (
             <>
               <Field
@@ -69,9 +87,10 @@ export default function ResetPassword() {
               />
             </>
           ) : null}
-          {error ? (
+          {formError ? <Text style={styles.error}>{formError}</Text> : null}
+          {linkError ? (
             <Text style={styles.error}>
-              {error}. Request a new link from the sign-in screen.
+              {linkError}. Request a new link from the sign-in screen.
             </Text>
           ) : null}
         </Card>

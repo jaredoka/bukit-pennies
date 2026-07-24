@@ -12,7 +12,12 @@ import { HornbillMascot } from '@/components/HornbillMascot';
 import { TraversingHornbill } from '@/components/TraversingHornbill';
 import { Button, Card, Field, Title } from '@/components/ui';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/env';
-import { isPasswordLongEnough, PASSWORD_HINT } from '@/lib/password';
+import {
+  breachWarning,
+  checkPasswordBreached,
+  isPasswordLongEnough,
+  PASSWORD_HINT,
+} from '@/lib/password';
 import { supabase } from '@/lib/supabase';
 import { themedStyles } from '@/lib/theme';
 
@@ -28,6 +33,16 @@ export default function SignUp() {
   async function submit() {
     setBusy(true);
     setError(null);
+
+    // Breach screening before the account is created. Fails open by design:
+    // an inconclusive lookup lets the signup through (HANDOFF §18).
+    const breach = await checkPasswordBreached(password);
+    if (breach.breached) {
+      setError(breachWarning(breach.count));
+      setBusy(false);
+      return;
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,

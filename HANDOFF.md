@@ -6,8 +6,12 @@
 **Date:** 2026-07-16 (original) · last updated 2026-07-25
 
 **§18 is a security audit (2026-07-25)** — five issues found and fixed;
-migration 11 is applied to the hosted project. One owner action remains:
-redeploy the ingest function at merge.
+migration 11 applied to the hosted project and the ingest function redeployed.
+
+**§19 (2026-07-25):** the repo is **public, permanently** — never commit a
+secret. The `bukit-pennies-legal` repo is retired; policy pages are now served
+by GitHub Pages from this repo's `docs/` folder. Also records why native
+dependencies force a fresh store build.
 
 ---
 
@@ -784,3 +788,107 @@ the TestFlight stage, which removes passwords for most users entirely.
    the Shortcut capture design and cannot be avoided while iOS automations
    remain unshareable; revocation (Settings → Capture → devices) is the only
    recovery, and the blast radius is writes to one account, never reads.
+
+## 19. Repo made public; legal repo retired; store-build notes (2026-07-25)
+
+### The repo is public, permanently
+
+`jaredoka/bukit-pennies` is **public now and forever** (owner decision,
+2026-07-25). Everything in the working tree *and in every past commit* is
+world-readable. Treat that as a standing constraint on all future work:
+
+- **Never commit a secret, not even briefly.** Rewriting history does not
+  help once a public repo has been cloned or indexed; the only real remedy is
+  rotating the exposed credential. The service-role key belongs in Supabase's
+  function secrets and nowhere else.
+- Audited at the time of the switch: **the full history contains exactly two
+  JWTs, both `role: anon`** (the local `supabase-demo` key in `env.ts` and the
+  hosted anon key in `eas.json`). Anon keys are public by design — RLS is the
+  boundary, not key secrecy. **No service-role key has ever been committed**;
+  `functions/ingest/index.ts` only ever referenced it via
+  `Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')`.
+- What is now public and is fine: the hosted project ref, the anon key, the
+  iCloud shortcut link (already shared deliberately), and §18's security
+  audit. Publishing fixed vulnerabilities is normal practice and the accepted
+  risks recorded there are honest limits, not exploitable secrets.
+- One mild personal-data note: `apps/mobile/eas.json` carries the owner's
+  personal Apple ID email in the `submit` block. Harmless but no longer
+  private; move it to an EAS secret if that matters.
+
+### `bukit-pennies-legal` is retired
+
+That repo existed for exactly one reason: GitHub Pages on a **private** repo
+requires a paid plan, so the policy pages needed a public home. With this repo
+public that reason is gone, and the split was actively harmful — the same
+privacy policy existed in two places (`docs/privacy-policy.md` here and the
+legal repo's copy) with no sync mechanism, so an edit here silently failed to
+reach the published page.
+
+Now: **Pages is served from this repo's `docs/` folder** (`main` branch,
+`/docs` source), so `docs/privacy-policy.md` and `docs/terms.md` are both the
+engineering copy and the published page — one source of truth. `docs/index.md`
+is the landing page. The other files in `docs/` are engineering documentation
+and are rendered too; that is harmless in a public repo.
+
+URLs changed, and `apps/mobile/src/lib/env.ts` was updated to match:
+
+| | Old (retired) | Current |
+|---|---|---|
+| Privacy | `jaredoka.github.io/bukit-pennies-legal/privacy-policy` | `jaredoka.github.io/bukit-pennies/privacy-policy` |
+| Terms | `jaredoka.github.io/bukit-pennies-legal/terms` | `jaredoka.github.io/bukit-pennies/terms` |
+
+The old URLs now 404. That was safe only because the app is not yet in either
+store — **once a store listing cites a policy URL, it must not move.** If the
+`bukitpennies.com` domain of §15 ever happens, point it at these Pages rather
+than relocating the files again.
+
+### Store builds: native dependencies need a fresh binary
+
+Recorded because the app is going to **both** the App Store and Google Play,
+and this trips people up: `expo-crypto` (added for §18's breach check) is an
+Expo **first-party** package, but first-party is not the same as JS-only. It
+ships native code, so it cannot arrive through an OTA/JS update — it needs a
+**new native build** (EAS build → TestFlight → App Store; and the equivalent
+AAB for Play). The same applies to every `expo-*` module already in
+`app.json`'s plugins array.
+
+Practical consequences to plan around:
+
+- A JS-only fix can ship over the air; adding or upgrading any native module
+  cannot. Batch native additions into the same build rather than discovering
+  them one at a time.
+- iOS builds require macOS. Per §16.4 the path of record is **EAS cloud
+  builds** run from Windows — do not attempt this locally.
+- After adding a native module, `expo prebuild` output changes; the Android
+  listener work in Stage B will need the same treatment.
+- Apple and Google both re-review a new binary. Native changes therefore cost
+  review latency that a JS update does not.
+
+### Revoked capture tokens can now be removed
+
+**Question raised by the owner:** revoked tokens stayed listed forever with no
+way to delete them. **Decision: yes, add removal — but only for
+already-revoked devices.** Settings → Capture → devices now shows a "Remove"
+button beside the `revoked` badge, behind a confirmation.
+
+Why that shape:
+
+- **Revoking stays the safety-critical, one-way step** (migration 11 made
+  `revoke_ingest_device` unable to un-revoke). Deletion afterwards is purely
+  clearing the list, so it can never be misread as "stop this token working" —
+  that is what Revoke is for.
+- **It costs no security.** A deleted row means the token hash no longer
+  resolves, which is the same outcome as revoked. Token hashes are 32 random
+  bytes, so freeing one for reuse is meaningless.
+- **The one real cost is the audit trail**, and it is why removal is not
+  automatic and not silent: `last_seen_at` on a revoked token is the evidence
+  of when it was last used, which matters most in exactly the situation you
+  revoked for (a token you think leaked). The confirmation dialog says so
+  explicitly, and the choice stays the user's.
+- **It matches the product's stated posture.** The privacy policy promises
+  user control over their data; "you may create rows but never remove them"
+  contradicts that.
+
+No migration was needed — migration 11 narrowed only insert and update on
+`ingest_devices`; the owner-scoped `ingest_devices_delete` policy and the
+DELETE grant were deliberately left in place.

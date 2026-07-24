@@ -464,6 +464,21 @@ export function useRevokeDevice() {
   });
 }
 
+/**
+ * Removes a revoked device row for good. Only ever offered on already-revoked
+ * devices (HANDOFF §19): revoking is the safety-critical step and stays
+ * one-way, while deleting is just clearing the list afterwards. Delete is
+ * still granted to clients — migration 11 narrowed only insert and update.
+ */
+export function useDeleteDevice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      unwrap(supabase.from('ingest_devices').delete().eq('id', id)),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['ingest_devices'] }),
+  });
+}
+
 export function useSubmitBugReport() {
   return useMutation({
     mutationFn: async (report: { short_id: string; app_version: string; description: string }) =>

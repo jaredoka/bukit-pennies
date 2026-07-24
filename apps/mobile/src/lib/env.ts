@@ -17,8 +17,11 @@ export const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? '';
 export const SHORTCUT_DOWNLOAD_URL =
   'https://www.icloud.com/shortcuts/92fe37ee63e04a4785d69517f0c1635e';
 
-// Public policy pages (GitHub Pages, served from the public
-// jaredoka/bukit-pennies-legal repo — this repo is private).
-export const PRIVACY_POLICY_URL = 'https://jaredoka.github.io/bukit-pennies-legal/privacy-policy';
-export const TERMS_URL = 'https://jaredoka.github.io/bukit-pennies-legal/terms';
+// Public policy pages — GitHub Pages, served from this repo's `docs/` folder.
+// They used to live in a separate public `bukit-pennies-legal` repo only
+// because Pages on a private repo needs a paid plan; this repo is public now,
+// so the pages are served from the same `docs/*.md` files the repo already
+// carried, and the duplicate repo is gone (HANDOFF §19).
+export const PRIVACY_POLICY_URL = 'https://jaredoka.github.io/bukit-pennies/privacy-policy';
+export const TERMS_URL = 'https://jaredoka.github.io/bukit-pennies/terms';
 export const SUPPORT_EMAIL = 'bukitpennies@gmail.com';

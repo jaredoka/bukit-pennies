@@ -5,9 +5,9 @@
 **Branch:** `main` (GitHub Flow — feature branches off `main`, merged via pull request)
 **Date:** 2026-07-16 (original) · last updated 2026-07-25
 
-**§18 is a security audit (2026-07-25)** — five issues found and fixed; two
-owner actions remain (apply migration 11 to the hosted project; enable
-leaked-password protection).
+**§18 is a security audit (2026-07-25)** — five issues found and fixed;
+migration 11 is applied to the hosted project. One owner action remains:
+redeploy the ingest function at merge.
 
 ---
 
@@ -704,14 +704,57 @@ rejected a forged id, but now the client cannot state one at all).
 
 ### Owner actions (not code — cannot be done from the repo)
 
-1. **Apply migration 11 to the hosted project** (`pzjroqwllrzcbpiugpxl`) when
-   this merges, and redeploy the ingest function for SEC-2. Until then the
-   hosted database still carries the SEC-3 policies.
-2. **Turn on leaked-password protection** (Supabase → Authentication →
-   Policies) and consider raising the minimum length. The client enforces 8
-   characters with no other requirement (`sign-up.tsx`, `reset-password.tsx`),
-   and §14 item 5 already lists signup abuse protection as pending — worth
-   doing together before TestFlight.
+1. ✅ **Migration 11 applied to the hosted project** (`pzjroqwllrzcbpiugpxl`,
+   2026-07-25) via `supabase db push`; verified on the remote DB that only the
+   select/delete policies remain on `ingest_devices`, that `authenticated` has
+   lost INSERT/UPDATE there, that `revoke_ingest_device` exists as security
+   definer, and that `bug_reports.user_id` defaults to `auth.uid()`.
+   **Still to do: redeploy the ingest function** for SEC-2 (do it at merge).
+   *Compatibility note:* builds predating this change revoke devices by
+   writing `ingest_devices` directly, which the migration now denies — the
+   Revoke button fails (closed, not open) on any older installed build until
+   it is replaced by one carrying the `revoke_ingest_device` RPC.
+2. **Leaked-password protection is Pro-only — not enabled** (owner decision
+   2026-07-25: no spend before real users, consistent with §16.5). See
+   "Password policy" below for what was done instead and the free path if it
+   becomes worth revisiting.
+
+### Password policy (decided 2026-07-25)
+
+Client minimum raised **8 → 10 characters**, now a single constant in
+`apps/mobile/src/lib/password.ts` shared by sign-up and reset so the two
+cannot drift.
+
+**No composition rules, deliberately** (no "must contain a symbol/digit").
+NIST SP 800-63B recommends against them and against forced rotation: they
+produce predictable mutations like `Password1!` while adding signup friction,
+which is the one thing this app can least afford given the onboarding
+drop-off watch in §17. Length plus breach screening is the modern guidance.
+
+**Threat model, for whoever revisits this:** a compromised account here cannot
+move money — the safety invariant means there is no bank connectivity. The
+exposure is *reading* one user's spending history and writing junk
+transactions. Real, but not funds-at-risk, which is what argues against
+heavy-handed rules.
+
+**If breach screening becomes worth doing without paying for Pro:** Supabase's
+built-in HIBP check is a Pro feature, but the same protection can be had free
+by calling the Pwned Passwords range API directly from the client at sign-up
+and reset — SHA-1 the candidate password, send only the **first 5 hex
+characters** of the hash to `api.pwnedpasswords.com/range/<prefix>`, and match
+the returned suffixes locally. No API key, no account, no cost, and
+k-anonymity means the password itself never leaves the device. Caveats to
+design around: it must **fail open** when the network is unavailable so signup
+is never blocked; it is advisory only, since a client-side check cannot bind
+someone calling the Supabase auth API directly (acceptable — the purpose is
+protecting users from their own reused passwords, not stopping an attacker
+from weakening their own account); and it introduces a new third-party
+outbound call, so `docs/privacy-policy.md` would need a line about it.
+
+**Ranked above password strength for this app, both already tracked:** the
+Gmail-SMTP deliverability problem (§15 — a reset email lost to spam is a worse
+account-recovery risk than a 10-character minimum) and Sign in with Apple at
+the TestFlight stage, which removes passwords for most users entirely.
 3. **Accepted risk, no action:** the Shortcut's ingest token is passed through
    a `shortcuts://run-shortcut?input=<token>` URL and persisted by the
    Shortcut as plaintext `token.txt` in iCloud Drive (§15). It is a

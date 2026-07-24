@@ -12,6 +12,7 @@ import { HornbillMascot } from '@/components/HornbillMascot';
 import { TraversingHornbill } from '@/components/TraversingHornbill';
 import { Button, Card, Field, Title } from '@/components/ui';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/env';
+import { isPasswordLongEnough, PASSWORD_HINT } from '@/lib/password';
 import { supabase } from '@/lib/supabase';
 import { themedStyles } from '@/lib/theme';
 
@@ -58,7 +59,7 @@ export default function SignUp() {
             placeholder="you@example.com"
           />
           <Field
-            label="Password (min 8 characters)"
+            label={`Password (${PASSWORD_HINT})`}
             secureTextEntry
             value={password}
             onChangeText={setPassword}
@@ -72,7 +73,7 @@ export default function SignUp() {
               <Text style={styles.info}>{info}</Text>
             </View>
           ) : null}
-          {!info ? <Button label="Sign up" onPress={submit} busy={busy} disabled={!email || password.length < 8} /> : null}
+          {!info ? <Button label="Sign up" onPress={submit} busy={busy} disabled={!email || !isPasswordLongEnough(password)} /> : null}
           <Text style={styles.legal}>
             By signing up you agree to the{' '}
             <Text style={styles.legalLink} onPress={() => RNLinking.openURL(TERMS_URL)}>

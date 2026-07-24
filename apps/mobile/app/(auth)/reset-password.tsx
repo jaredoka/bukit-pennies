@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Platform, Text, View } from 'react-native';
 import { HexBackground } from '@/components/HexBackground';
 import { Button, Card, Field, Muted, Title } from '@/components/ui';
+import { isPasswordLongEnough, PASSWORD_HINT } from '@/lib/password';
 import { supabase } from '@/lib/supabase';
 import { themedStyles } from '@/lib/theme';
 
@@ -53,7 +54,7 @@ export default function ResetPassword() {
           {ready ? (
             <>
               <Field
-                label="New password (min 8 characters)"
+                label={`New password (${PASSWORD_HINT})`}
                 secureTextEntry
                 value={password}
                 onChangeText={setPassword}
@@ -64,7 +65,7 @@ export default function ResetPassword() {
                 label="Set new password"
                 onPress={submit}
                 busy={busy}
-                disabled={password.length < 8}
+                disabled={!isPasswordLongEnough(password)}
               />
             </>
           ) : null}

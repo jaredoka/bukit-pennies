@@ -7,10 +7,9 @@ Developer Program enrolment (US$99/yr, developer.apple.com, approval takes
 
 ## One-time setup (after enrolment is approved)
 
-1. **Fill the three placeholders** marked `FILL-ME` in `apps/mobile/eas.json`:
-   - `EXPO_PUBLIC_SUPABASE_ANON_KEY` — Supabase dashboard → Settings →
-     API Keys → `anon` / `publishable` key. (Safe to commit: it is a public
-     client key; RLS is the security boundary.)
+1. **Fill the two remaining placeholders** marked `FILL-ME` in
+   `apps/mobile/eas.json` (the anon key is already filled in — it is a public
+   client key and RLS is the security boundary):
    - `appleTeamId` — developer.apple.com → Membership details → Team ID.
    - `ascAppId` — after step 4 below (numeric App ID from App Store Connect).
 

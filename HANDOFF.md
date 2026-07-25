@@ -1458,9 +1458,10 @@ The list, verbatim from Settings → Capture devices:
 | Jared bukit pennies shortcut | ios_shortcut | 2026-07-20 |
 | Jared iphone shorcut | ios_shortcut | never |
 
-Six of the ten have **never been used** — they are abandoned attempts from
-Shortcut setup iterations, which is exactly the shape §22 predicted when it
-called setup a multi-attempt flow. That is the real lesson here: **a cap of 10
+Five of the ten active devices have **never been used** (a sixth never-used
+one, `test`, was already revoked) — abandoned attempts from Shortcut setup
+iterations, which is exactly the shape §22 predicted when it called setup a
+multi-attempt flow. That is the real lesson here: **a cap of 10
 is not generous for a flow whose failure mode is minting another token.** A
 first-time user who fumbles setup a few times could plausibly reach it, and the
 error message points at revocation without saying where to do it.
@@ -1476,3 +1477,50 @@ impression.
 token button submits and surfaces the raw Postgres exception. If the cap stays,
 the devices screen should count active devices and disable the button with a
 "revoke one first" hint before the round trip.
+
+**Resolved 2026-07-26** — see §26. The five never-used devices were revoked
+through the app (which incidentally proved migration 11's
+`revoke_ingest_device` RPC works against production), leaving the five that
+have actually captured. The cap itself was then changed so this cannot recur.
+
+---
+
+## 26. Device cap split: used vs. never-used (2026-07-26)
+
+Migration 13's cap of 10 active devices counted setup debris against the same
+budget as working ones, which §25 caught the hard way. Migration 15 splits it:
+
+| Bucket | Cap | Reasoning |
+|---|---|---|
+| `last_seen_at is not null` (has actually captured) | **10** | A device that has posted a transaction is real. Ten is already unusual. |
+| `last_seen_at is null` (minted, never used) | **20** | Setup debris. Loose enough that no plausible run of failed Shortcut attempts hits it. |
+
+Both stay bounded on purpose. An unbounded device list is an unbounded
+client-driven write into `ingest_devices`, and that half of migration 13's
+reasoning still holds. What no longer needs this cap is the *rate-limit*
+argument: the per-user 120/min budget from migration 13 bounds abuse
+regardless of how many tokens exist, which is what makes it safe to be generous
+with unused ones.
+
+Error messages now name the screen (`Settings > Capture > Capture devices`)
+instead of saying "revoke an existing capture device first" and leaving the
+user to find it.
+
+**Verified locally** (`supabase db reset`, 01–15 clean): 25 attempted mints on
+a fresh account stop at the 21st with the unused-cap message, 20 having
+succeeded; marking 10 of them used then makes the next mint fail with the
+used-cap message. Final state 10 used / 10 unused.
+
+**Owner cleanup, same day:** the five never-used devices on the owner's account
+were revoked through the app, leaving five that have actually captured (`My
+iPhone` 07-24, `jarjar ongs` 07-21, `Bibd bp test` 07-18, `This device (paste)`
+07-17, `Jared bukit pennies shortcut` 07-20). Under the new rule that is 5/10
+used and 0/20 unused.
+
+### Still not done
+
+The client has no awareness of either cap. `Create token` submits and surfaces
+the raw Postgres exception rather than disabling itself with a count. Much less
+likely to be hit now, so it was left alone deliberately — but if the devices
+screen is ever touched again, showing "5 of 10 devices" is a ten-minute job
+that turns an error into a fact the user can see coming.

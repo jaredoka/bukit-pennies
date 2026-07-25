@@ -38,7 +38,14 @@ import {
   type ReminderDays,
   type ReminderPrefs,
 } from '@/lib/notifications';
-import { onboardedKey } from '@/lib/onboarding';
+import {
+  dismissSetupCard,
+  getCompletedSteps,
+  isSetupCardDismissed,
+  nextIncompleteStep,
+  onboardedKey,
+  SETUP_STEP_COUNT,
+} from '@/lib/onboarding';
 import { usePrivacy } from '@/lib/privacy';
 import { usePrimaryCurrency } from '@/lib/primaryCurrency';
 import { detectRecurring } from '@/lib/recurring';
@@ -86,12 +93,40 @@ export default function Dashboard() {
   const chartWidth = Math.min(width, 720) - 88;
   const router = useRouter();
   const { session } = useSession();
-  const [onboarded, setOnboarded] = useState(true); // optimistic: hide banner until confirmed
+  // Optimistic: assume set up, so the card never flashes for existing users.
+  const [onboarded, setOnboarded] = useState(true);
+  const [cardDismissed, setCardDismissed] = useState(true);
+  const [setupSteps, setSetupSteps] = useState<number[]>([]);
 
   useEffect(() => {
-    if (!session?.user.id) return;
-    kvGet(onboardedKey(session.user.id)).then((v) => setOnboarded(v === '1'));
+    const uid = session?.user.id;
+    if (!uid) return;
+    let live = true;
+    void (async () => {
+      const [flag, dismissed, steps] = await Promise.all([
+        kvGet(onboardedKey(uid)),
+        isSetupCardDismissed(uid),
+        getCompletedSteps(uid),
+      ]);
+      if (!live) return;
+      setOnboarded(flag === '1');
+      setCardDismissed(dismissed);
+      setSetupSteps(steps);
+    })();
+    return () => {
+      live = false;
+    };
   }, [session?.user.id]);
+
+  // Capture setup is the reason to use this app, so the prompt stays — but as
+  // a card the user can dismiss for good, not a gate (HANDOFF §22).
+  const showSetupCard = !onboarded && !cardDismissed;
+  const setupResumeAt = nextIncompleteStep(setupSteps);
+
+  async function dismissSetup() {
+    setCardDismissed(true);
+    if (session?.user.id) await dismissSetupCard(session.user.id);
+  }
 
   const { currency: primaryCurrency } = usePrimaryCurrency();
   const profile = useProfile();
@@ -309,18 +344,36 @@ export default function Dashboard() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      {/* ---- Capture nudge: shown until setup is complete ---- */}
-      {!onboarded ? (
-        <Pressable
+      {/* ---- Capture setup: prominent, resumable, dismissible ---- */}
+      {showSetupCard ? (
+        <View
           style={[styles.captureBanner, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '40' }]}
-          onPress={() => router.push('/(tabs)/settings/shortcut-setup')}
         >
-          <Ionicons name="flash-outline" size={15} color={colors.primary} />
-          <Text style={[styles.captureBannerText, { color: colors.primary }]}>
-            Set up automatic capture — every bank SMS logs itself
-          </Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.primary} />
-        </Pressable>
+          <Pressable
+            style={styles.captureBannerMain}
+            onPress={() => router.push('/(tabs)/settings/shortcut-setup')}
+          >
+            <Ionicons name="flash-outline" size={15} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.captureBannerText, { color: colors.primary }]}>
+                {setupResumeAt && setupSteps.length > 0
+                  ? `Finish automatic capture — step ${setupResumeAt} of ${SETUP_STEP_COUNT}`
+                  : 'Set up automatic capture — every bank SMS logs itself'}
+              </Text>
+              <Text style={[styles.captureBannerSub, { color: colors.primary }]}>
+                {setupSteps.length > 0 ? 'Your progress is saved' : 'About 5 minutes, one time'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+          </Pressable>
+          <Pressable
+            onPress={dismissSetup}
+            hitSlop={10}
+            accessibilityLabel="Dismiss capture setup prompt"
+          >
+            <Ionicons name="close" size={16} color={colors.primary} />
+          </Pressable>
+        </View>
       ) : null}
 
       {/* ---- Hero: interactive donut + period wheels ---- */}
@@ -649,6 +702,8 @@ const useStyles = themedStyles((colors) => ({
     paddingHorizontal: 14,
     marginBottom: 12,
   },
+  captureBannerMain: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  captureBannerSub: { fontSize: 11, opacity: 0.8, marginTop: 1 },
   captureBannerText: { flex: 1, fontSize: 13, fontWeight: '600' },
   heroHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   heroActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },

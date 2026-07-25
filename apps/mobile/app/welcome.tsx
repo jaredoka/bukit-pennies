@@ -170,9 +170,10 @@ export default function Welcome() {
     };
   }, [userId, router]);
 
-  // After the paste hero, first-timers go straight into the setup guide.
-  // The onboarded flag is set only when they tap "Setup complete" there —
-  // AuthGate holds them on the guide until then.
+  // After the paste hero, first-timers go straight into the setup guide —
+  // the moment right after seeing their own SMS parse is when they are most
+  // willing to spend five minutes on it. They are free to leave from there;
+  // nothing holds them, and the dashboard card brings them back (§22).
   function toSetup() {
     router.replace('/(tabs)/settings/shortcut-setup');
   }

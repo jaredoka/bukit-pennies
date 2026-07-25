@@ -10,7 +10,7 @@ import { ThemeProvider, useTheme } from '@/lib/theme';
 import { PrivacyProvider } from '@/lib/privacy';
 import { PrimaryCurrencyProvider } from '@/lib/primaryCurrency';
 import { kvGet, kvSet } from '@/lib/kvStore';
-import { isSetupDeferred, onboardedKey } from '@/lib/onboarding';
+import { onboardedKey } from '@/lib/onboarding';
 import { supabase } from '@/lib/supabase';
 
 initSentry();
@@ -53,15 +53,15 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         }
       }
       if (!live) return;
-      const onWelcome = segments[0] === 'welcome';
-      const onSetupScreen = (segments as string[]).includes('shortcut-setup');
       if (inAuthGroup && !onResetScreen) {
+        // First run still lands on /welcome for the paste-your-SMS hero; from
+        // there the user is free to move around the app.
         router.replace(onboarded ? '/(tabs)' : '/welcome');
-      } else if (!onboarded && !onWelcome && !onSetupScreen && !isSetupDeferred()) {
-        // Users who haven't completed setup are sent to the guide. "I'll do
-        // it later" defers for this launch only — next open re-prompts.
-        router.replace('/(tabs)/settings/shortcut-setup');
       }
+      // Deliberately no redirect into the setup guide. Capture setup is the
+      // point of the app, but it is promoted by a dismissible dashboard card
+      // and a permanent Settings entry, not enforced by a gate that a user who
+      // cannot finish it has no way past (HANDOFF §22).
     })();
     return () => {
       live = false;

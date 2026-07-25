@@ -1374,5 +1374,35 @@ on any public table; `authenticated` is untouched — 64 seeded transactions
 still visible, insert and delete still work, the eight global categories still
 readable.
 
-**Verified in production** after `supabase db push`: see the deploy record
-below.
+**Verified in production** after `supabase db push` (2026-07-25): every table
+that previously answered `200 []` to a logged-out select now answers
+`401 42501 permission denied` — `transactions`, `profiles`, `ingest_devices`,
+`bug_reports`, `categories`, `user_cards`, `budgets`, `savings_goals`, and both
+dashboard views. A forged anonymous insert into `transactions` is refused the
+same way. The denial moved from the RLS layer to the grant layer, which is the
+whole point: RLS is now the second gate rather than the only one.
+
+A follow-up `supabase db diff --linked` shows **no remaining grant drift**. It
+still emits `create or replace` for `rate_limit_bump`, `rate_limit_peek` and
+`revoke_ingest_device`; the emitted bodies are byte-identical to migrations 11
+and 12, so this is migra failing to prove equality rather than real drift —
+the same three appeared before this migration and the functions actually
+replaced by migration 13 did not. Do not "fix" it by rewriting those
+functions.
+
+**Not verified in production: the signed-in app.** `authenticated` is untouched
+by design (migration 14 names only `anon`) and this was proven on the local
+stack — 64 seeded transactions readable, insert/delete working, global
+categories readable, and both `security_invoker` dashboard views returning
+rows. Reproducing that against the hosted project needs real credentials.
+Opening the app once and loading the dashboard is the confirmation.
+
+### Deploy record (2026-07-25)
+
+| Step | Result |
+|---|---|
+| `supabase db push` (migration 13) | applied; `migration list` 13/13 local↔remote |
+| `supabase functions deploy ingest` | deployed, 754 kB bundle |
+| Peer-budget smoke test, 26 invented tokens from one IP | `401 x20` then `429 x6` — exactly the budget |
+| `supabase db diff --linked` | `resolve_ingest_device` and `create_ingest_token` show no diff — the SEC-6 versions are live |
+| `supabase db push` (migration 14) | applied; anon DML gone, verified by probe above |

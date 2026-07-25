@@ -1315,3 +1315,64 @@ the ingest function redeployed**, same as §18's item 1. The device cap changes
 a user-visible outcome: an account already holding 10 active capture devices
 will see token creation fail with `device limit reached` until it revokes one.
 No existing account is near that.
+
+---
+
+## 24. SEC-8 — production granted `anon` full DML on every table (2026-07-25)
+
+Found immediately after deploying §23: `supabase db diff --linked` reported
+`grant select/insert/update/delete ... to "anon"` on `transactions`,
+`profiles`, `ingest_devices`, `budgets`, `bug_reports`, `categories`,
+`savings_goals` and `user_cards` — present on the hosted project, absent from a
+local `supabase db reset`.
+
+**Nothing was exposed.** RLS is enabled on all of them with owner-scoped
+policies, and a logged-out write is refused with *"new row violates row-level
+security policy"* — the policy talking, not the grant. This is the tell worth
+remembering, because both denials look the same from a status code:
+
+| Response | Meaning |
+|---|---|
+| `401 42501 permission denied for table X` | no GRANT — the outer layer stopped it |
+| `401 42501 new row violates row-level security policy` | GRANT exists, RLS policy stopped it |
+| `200 []` on a select | GRANT exists, RLS filtered every row |
+
+`ingest_rate_limits` gave the first; every other table gave the second or
+third. That difference is what exposed the drift.
+
+**Cause:** the project was created on a Supabase image that still auto-granted
+DML to `anon`. `04_grants.sql` was written for the *opposite* problem — newer
+images stopped granting `authenticated`/`service_role`, so it adds those back
+— and it never revoked what the older image had already issued. Local stacks
+run the newer image, so local never had the anon grants to begin with.
+
+**Why it mattered even though nothing leaked:** production ran on one layer
+where this repo intends two, and — worse — **local was stricter than
+production**. A table shipped without `enable row level security` would pass
+local testing (anon has no grant → "permission denied") and be world-writable
+in production (anon has the grant, no RLS means no second gate). That
+asymmetry is the actual defect; the missing layer is the symptom.
+
+**Fix (migration 14):** revoke SELECT/INSERT/UPDATE/DELETE on all public tables
+and sequences from `anon`, plus matching `alter default privileges` so new
+tables do not inherit it. Schema USAGE stays — PostgREST needs it to
+introspect and it conveys no data access.
+
+Two constraints found while writing it, both now comments in the migration:
+
+- `alter default privileges for role supabase_admin` fails as `postgres` with
+  *"permission denied to change default privileges"* — you may only alter them
+  for a role you are a member of. It is not needed: default privileges key off
+  whichever role **creates** an object, and every table here is created by a
+  migration running as postgres. **Tables created by hand in the dashboard are
+  the gap** — check grants if you ever make one there.
+- This does not substitute for RLS. It restores the second layer; the policy
+  quartet is still the boundary.
+
+**Verified locally** (`supabase db reset`, 01–14 clean): `anon` retains no DML
+on any public table; `authenticated` is untouched — 64 seeded transactions
+still visible, insert and delete still work, the eight global categories still
+readable.
+
+**Verified in production** after `supabase db push`: see the deploy record
+below.

@@ -37,15 +37,41 @@ The Sentry plugin in `app.json` is already configured. Update the
 
 ## 3. Source maps (EAS builds)
 
-For source-map uploads (readable stack traces), set the Sentry auth token as
-an EAS secret:
+**`eas.json`'s production profile ships `SENTRY_DISABLE_AUTO_UPLOAD=true`.**
+That is deliberate: the `@sentry/react-native/expo` plugin otherwise tries to
+upload source maps during the build and **fails the build** when
+`SENTRY_AUTH_TOKEN` is absent. A first TestFlight build that dies 20 minutes in
+over missing source maps is a worse outcome than one that succeeds with
+unminified stack traces.
+
+To turn uploads on — worth doing once you are past the first successful build:
 
 ```bash
 eas secret:create --name SENTRY_AUTH_TOKEN --value "sntrys_..."
 ```
 
-The `@sentry/react-native/expo` plugin handles source-map upload
-automatically during EAS builds when this token is present.
+then delete the `SENTRY_DISABLE_AUTO_UPLOAD` line from `eas.json`. Without it
+crashes still report; the stack traces are just minified.
+
+## 3a. Preflight before every production build
+
+Two Sentry switches fail *quietly* in opposite directions — no DSN means the
+app ships with reporting silently off, and auto-upload left on means the build
+dies. Neither is visible until it bites, so:
+
+```bash
+pnpm release:check
+```
+
+It reads `eas.json` and `app.json` and reports both switches, along with
+leftover `FILL-ME` placeholders, a missing EAS `projectId`, an unbumped
+version, and — the one it treats as an outright error — a
+non-`anon` Supabase key, which would ship an RLS-bypassing credential inside
+the app binary. Errors exit non-zero; warnings do not, because some are
+legitimate choices and a gate you learn to ignore is worthless.
+
+It cannot see EAS secrets (those live server-side), so if it warns about a
+missing DSN, confirm with `eas secret:list` before worrying.
 
 ## 4. What gets reported
 

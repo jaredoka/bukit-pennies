@@ -1406,3 +1406,73 @@ Opening the app once and loading the dashboard is the confirmation.
 | Peer-budget smoke test, 26 invented tokens from one IP | `401 x20` then `429 x6` — exactly the budget |
 | `supabase db diff --linked` | `resolve_ingest_device` and `create_ingest_token` show no diff — the SEC-6 versions are live |
 | `supabase db push` (migration 14) | applied; anon DML gone, verified by probe above |
+
+---
+
+## 25. Post-deploy app verification (2026-07-26) — and the device cap is already full
+
+§24 closed with "the signed-in app was not verified against production". It has
+been now: `expo start --web` on port 8082 with `apps/mobile/.env` pointing at
+`pzjroqwllrzcbpiugpxl`, owner signing in themselves.
+
+**Everything renders. Migration 14 broke nothing.** Every PostgREST call the
+app makes came back **200**, read straight off the network panel after a hard
+reload:
+
+| Request | Status |
+|---|---|
+| `profiles?select=*` | 200 |
+| `monthly_totals?select=*&order=month.desc` | 200 |
+| `merchant_totals?select=*&currency=eq.BND&order=total.desc&limit=6` | 200 |
+| `transactions` (three variants: month, year, current-month windows) | 200 |
+| `categories?select=*&order=name.asc` | 200 |
+| `budgets?select=*` | 200 |
+
+Both `security_invoker` views are in that list, which was the specific
+regression risk: `revoke ... on all tables` covers views too, and had the
+revoke caught `authenticated` the dashboard donut would have gone blank.
+Screens checked by eye: Dashboard (donut, category breakdown, "Saved/Spent
+this month"), Transactions (day-sectioned with per-day totals), Goals,
+Settings → Capture → Capture devices. No console errors.
+
+### The device cap needs attention — my "no existing account is close" was wrong
+
+I wrote in §23 that no account was near the 10-active-device cap added in
+migration 13. **The owner's account has 11 devices, 1 revoked — exactly 10
+active.** It is *at* the cap, so "Create token" now fails with `device limit
+reached` until something is revoked.
+
+The list, verbatim from Settings → Capture devices:
+
+| Device | Kind | Last used |
+|---|---|---|
+| My iPhone | ios_shortcut | 2026-07-24 |
+| Jarjar ongs | ios_shortcut | never |
+| jarjar ongs | ios_shortcut | never |
+| My iPhone | ios_shortcut | never |
+| jarjar ongs | ios_shortcut | 2026-07-21 |
+| jarjar ongs | ios_shortcut | never |
+| Bibd bp test | ios_shortcut | 2026-07-18 |
+| test | android_listener | never (**revoked**) |
+| This device (paste) | paste | 2026-07-17 |
+| Jared bukit pennies shortcut | ios_shortcut | 2026-07-20 |
+| Jared iphone shorcut | ios_shortcut | never |
+
+Six of the ten have **never been used** — they are abandoned attempts from
+Shortcut setup iterations, which is exactly the shape §22 predicted when it
+called setup a multi-attempt flow. That is the real lesson here: **a cap of 10
+is not generous for a flow whose failure mode is minting another token.** A
+first-time user who fumbles setup a few times could plausibly reach it, and the
+error message points at revocation without saying where to do it.
+
+Not changed yet — the options are the owner revoking the six dead entries
+(one-way, safe: `revoke_ingest_device` cannot resurrect, and never-used tokens
+are by definition not in any Shortcut), raising the cap, or having the cap skip
+never-used devices. Decide before TestFlight; a paying-attention first user
+hitting `device limit reached` during onboarding would be a bad first
+impression.
+
+**Also worth wiring in:** the cap has no client-side awareness. The Create
+token button submits and surfaces the raw Postgres exception. If the cap stays,
+the devices screen should count active devices and disable the button with a
+"revoke one first" hint before the round trip.

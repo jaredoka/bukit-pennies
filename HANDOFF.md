@@ -469,9 +469,22 @@ trend/insight screens, no widgets, no shared/household budgets.
    Windows (Xcode/macOS only). Path of record is **EAS cloud builds**
    (run from Windows, built on Expo's Macs, free ~30 builds/mo; device
    builds require the paid Apple account for signing).
-   `ios-unsigned-ipa.yml` (GitHub macOS runner → Sideloadly) is the
-   obsolete pre-enrolment stopgap — macOS runners bill at 10× minutes,
-   ~300 min per build, so avoid it once enrolled.
+   `ios-unsigned-ipa.yml` (GitHub macOS runner → Sideloadly) was written
+   off here as an expensive stopgap — macOS runners bill at 10× minutes,
+   ~300 min per build. **That reasoning assumed a private repo and no
+   longer holds** (§19: the repo is public, and standard GitHub-hosted
+   runners are free for public repos). A full unsigned-IPA build ran
+   successfully on 2026-07-25 with July's minute allowance already spent,
+   which is the practical confirmation. Caveat: this was not verified
+   against the billing API — reading it needs an interactive `gh auth
+   refresh -s user` — so treat it as strong evidence rather than a
+   settled fact, and glance at the billing page before relying on it for
+   anything expensive.
+
+   So the workflow is a genuinely useful pre-enrolment path, not a
+   grudging one. EAS remains the path of record **after** enrolment,
+   because only it produces signed builds that TestFlight accepts;
+   unsigned IPAs still carry the 7-day free-signing expiry.
 
 **Stage B — Android (starts only once Stage A ships on the App Store):**
 
@@ -593,13 +606,25 @@ Transaction logging is independent of app login state: the shortcut runs as
 an iOS background automation and POSTs directly to the edge function; the
 user does not need the app open or any account signed in for capture to work.
 
-**GitHub note (2026-07-19):** repo is **private** (policy pages moved to
-the public `bukit-pennies-legal` repo). Private-repo Actions draws from
-the account's 2,000 free min/mo, shared with the owner's other projects —
-exhausted for July, so **CI is verified locally (tests + typecheck +
-sync-parsers --check) before every merge until the monthly reset**.
-Billed amount stays $0 with the $0 budget (GitHub blocks instead of
-charging). The launched app never depends on GitHub Actions.
+**GitHub note (2026-07-19, superseded 2026-07-25):** this recorded that the
+repo was **private**, that private-repo Actions drew from the account's 2,000
+free min/mo shared with the owner's other projects, that July's allowance was
+exhausted, and that **CI was therefore verified locally** (tests + typecheck +
+sync-parsers --check) before every merge.
+
+**All of that is obsolete: the repo is public (§19)**, and standard
+GitHub-hosted runners are free for public repositories. A macOS unsigned-IPA
+build ran to completion on 2026-07-25 despite July's allowance being spent,
+which is the practical confirmation — though the billing API itself was not
+readable from the CLI session (needs an interactive `gh auth refresh -s user`),
+so confirm on the billing page before leaning on it heavily.
+
+Consequences: CI can run in Actions again rather than only locally, and the
+`ios-unsigned-ipa.yml` cost objection in §16.4 is void. Local verification
+(`pnpm -r test`, `pnpm -r typecheck`, `sync-parsers --check`) remains a good
+habit before pushing, but is no longer the *only* gate. Billed amount stays $0
+with the $0 budget in place (GitHub blocks rather than charges). The launched
+app never depends on GitHub Actions.
 
 ## 18. Security audit (2026-07-25)
 
@@ -1064,3 +1089,44 @@ spam. Revisit before inviting anyone else. Two related decisions are recorded
 in the runbook: raising Supabase's conservative custom-SMTP rate limits, and
 re-enabling email confirmations (currently off per §15) so a typo'd signup is
 not an unrecoverable account.
+
+## 21. First unsigned IPA carrying the 2026-07-25 work
+
+Built via `ios-unsigned-ipa.yml` (workflow_dispatch, run 30136862359) on a
+`macos-26` runner. 12 MB artifact, retained 14 days; also saved to
+`build/ios-unsigned/` locally.
+
+| | |
+|---|---|
+| Bundle | `Payload/BukitPennies.app` |
+| Identifier | `com.bukitpennies.app` |
+| Version | 0.1.0 (build 1) |
+| Minimum iOS | 16.4 |
+| Signature | none — no `_CodeSignature`, no `embedded.mobileprovision` |
+
+**Verify the artifact, not just the green check.** A build can succeed and
+still produce an app that installs and does nothing, because the Supabase
+config is baked in at build time from workflow inputs. What was checked
+inside the IPA, and is worth repeating on future builds:
+
+- `main.jsbundle` contains the **hosted** Supabase URL and *not* the
+  `127.0.0.1:54321` dev fallback from `env.ts`. This is the failure that
+  would otherwise look like "the app is broken" on device.
+- It contains `api.pwnedpasswords.com` (§18 breach check shipped) and the
+  **new** `jaredoka.github.io/bukit-pennies/privacy-policy` URL, with no
+  trace of the deleted `bukit-pennies-legal` host — so the in-app policy
+  links do not point at a dead page (§19).
+- The main binary is present and the bundle is genuinely unsigned, which is
+  what Sideloadly requires.
+
+This is the first build containing the whole 2026-07-25 batch: per-user
+ingest-token scoping, Postgres-backed rate limiting, breach screening, the
+10-character password minimum, and the remove-revoked-token button. Migrations
+11 and 12 are already applied to the hosted project, so app and backend match.
+
+**Crash reporting is off in this build** — no `EXPO_PUBLIC_SENTRY_DSN` exists
+yet, so `initSentry` early-returns. Expected, not a regression, and exactly
+what `pnpm release:check` warns about (§20).
+
+Free-signing expiry still applies: Sideloadly re-signs with a free Apple ID and
+the result stops launching after **7 days**. See `docs/ios-sideloadly.md`.

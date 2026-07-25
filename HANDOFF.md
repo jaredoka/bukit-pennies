@@ -1045,6 +1045,20 @@ exists, no magic links). A reset mail in spam is therefore an unrecoverable
 account for anyone who is not the owner, which is a worse practical risk than
 a weak password.
 
+**Cost, since it was asked (2026-07-25): the domain and nothing else.**
+Sending needs no mailbox — Resend sends as `noreply@<domain>` on the strength
+of DNS verification alone, with no inbox behind it. Receiving is worth setting
+up for the store support contact and is also free: Cloudflare Email Routing
+forwards `support@<domain>` into the existing Gmail, and Gmail's "send mail
+as" pointed at Resend's SMTP makes replies leave from the right address. A
+paid mailbox (~US$1–7/user/mo) would only add a second inbox to check. Total
+is ~US$12/yr.
+
+The runbook also records the one choice that is painful to undo: **only one
+SPF TXT record may exist per name**, so Cloudflare Email Routing plus
+root-domain sending collide and silently invalidate each other. Sending from a
+`send.` subdomain avoids it entirely and is what Resend recommends.
+
 Interim position while the owner is the only tester: keep Gmail SMTP and check
 spam. Revisit before inviting anyone else. Two related decisions are recorded
 in the runbook: raising Supabase's conservative custom-SMTP rate limits, and

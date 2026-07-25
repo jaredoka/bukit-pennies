@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { parseBankMessage, splitBankMessages } from '@bukit/parsers';
+import { MAX_TEXT_BYTES, parseBankMessage, splitBankMessages } from '@bukit/parsers';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useMemo, useState } from 'react';
@@ -828,8 +828,6 @@ function AddSheet({ onClose }: { onClose: () => void }) {
 }
 
 // ---- Capture sheet ----------------------------------------------------------
-
-const MAX_TEXT_BYTES = 4096;
 
 type Outcome = 'created' | 'needs review' | 'duplicate' | 'ignored' | 'error';
 

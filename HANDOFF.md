@@ -991,3 +991,62 @@ Why that shape:
 No migration was needed — migration 11 narrowed only insert and update on
 `ingest_devices`; the owner-scoped `ingest_devices_delete` policy and the
 DELETE grant were deliberately left in place.
+
+## 20. Pre-TestFlight launch ops (2026-07-25)
+
+Both items below were flagged as things that bite *during* the first EAS build
+or the first week of beta, so they were done ahead of Apple enrolment.
+
+### Sentry: two switches that both fail quietly
+
+The production build had neither Sentry variable set, and the two failure
+modes point in opposite directions:
+
+- **No `EXPO_PUBLIC_SENTRY_DSN`** → the app builds and runs fine with crash
+  reporting silently off, which is worst precisely when it matters (real
+  testers, real crashes, no reports).
+- **Auto-upload left on** → the `@sentry/react-native/expo` plugin tries to
+  upload source maps and **fails the build** unless `SENTRY_AUTH_TOKEN` exists
+  as an EAS secret. §15 already recorded hitting this on the old unsigned-IPA
+  workflow.
+
+**Decision: `SENTRY_DISABLE_AUTO_UPLOAD=true` is now in `eas.json`'s
+production env.** A first build that succeeds with minified stack traces beats
+one that dies 20 minutes in over source maps. Turn uploads on after the first
+successful build by creating the `SENTRY_AUTH_TOKEN` secret and deleting that
+line. The DSN deliberately stays **out** of the repo — it belongs in
+`eas secret:create --name EXPO_PUBLIC_SENTRY_DSN`.
+
+**`pnpm release:check`** (`scripts/check-release-config.mjs`) exists so this
+class of mistake is visible before a build rather than after. It reports both
+Sentry switches, leftover `FILL-ME` placeholders, a missing EAS `projectId`,
+and an unbumped version. It treats exactly one thing as a hard error besides
+placeholders: a Supabase key whose decoded `role` is not `anon`, since
+shipping a service-role key inside an app binary would hand every user an
+RLS-bypassing credential. Warnings do not fail the run — several are
+legitimate choices, and a gate people learn to ignore is worse than no gate.
+It cannot see EAS secrets, so a DSN warning should be checked against
+`eas secret:list` before acting on it.
+
+### Resend migration: written up, blocked on a domain
+
+`docs/email-deliverability.md` is the runbook. **It has not been executed**,
+because it cannot be: Resend's free tier only delivers to the account owner's
+own address until a **sending domain is verified**, and no domain is owned
+yet. Domain verification is not incidental — SPF and DKIM are the actual
+reason Gmail-relayed mail scores badly, so the domain *is* the fix.
+
+Cost is ~US$12/yr and §15 already anticipated `bukitpennies.com` doubling as
+the App Store support URL and public site.
+
+**Why this outranks the password work in §18:** password reset is the only
+account-recovery path in the app (no social login until the Apple account
+exists, no magic links). A reset mail in spam is therefore an unrecoverable
+account for anyone who is not the owner, which is a worse practical risk than
+a weak password.
+
+Interim position while the owner is the only tester: keep Gmail SMTP and check
+spam. Revisit before inviting anyone else. Two related decisions are recorded
+in the runbook: raising Supabase's conservative custom-SMTP rate limits, and
+re-enabling email confirmations (currently off per §15) so a typo'd signup is
+not an unrecoverable account.

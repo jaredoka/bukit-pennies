@@ -1130,3 +1130,62 @@ what `pnpm release:check` warns about (§20).
 
 Free-signing expiry still applies: Sideloadly re-signs with a free Apple ID and
 the result stops launching after **7 days**. See `docs/ios-sideloadly.md`.
+
+## 22. Capture setup: gate → prompt (2026-07-25)
+
+**Why.** Automatic capture *is* the product — without it the app competes with
+Money Lover and Spendee on their terms and loses. That is not in question and
+this change does not soften it. What changed is the mechanism.
+
+Setup was enforced: `AuthGate` redirected anyone not onboarded into the guide,
+and the "I'll do it later" escape (`isSetupDeferred`) was **in-memory**, so it
+lasted one app launch and the guide reappeared on every open. The step people
+abandon is step 4 — seven substeps inside the Shortcuts app, which iOS makes
+unshareable. A user who cannot complete it was therefore nagged forever with
+no way past. That loses the user, not the setup.
+
+**Now:** no redirect. A dismissible dashboard card and a permanent
+Settings → Capture entry carry the prompt.
+
+### What changed
+
+- `src/lib/onboarding.ts` rewritten. In-memory `deferSetup`/`isSetupDeferred`
+  and the once-per-launch prompt flags are gone. Added persistent
+  `dismissSetupCard`/`isSetupCardDismissed`, and per-step progress
+  (`getCompletedSteps`, `setStepCompleted`, `markAllStepsCompleted`,
+  `nextIncompleteStep`).
+- `app/_layout.tsx` — the redirect-into-setup branch is deleted. First run
+  still lands on `/welcome` for the paste hero.
+- `settings/shortcut-setup.tsx` — the "One-time setup" `Alert` is gone; it
+  existed only because users were trapped. Each `StepHeader` badge is now a
+  checkbox, completed steps recede to muted with a struck-through title, and a
+  banner names the step to resume at. Completing setup ticks all five.
+- `(tabs)/index.tsx` — the nudge became a card showing
+  "Finish automatic capture — step N of 5" plus "Your progress is saved" once
+  progress exists, with an explicit dismiss.
+
+### Decisions worth keeping
+
+- **Progress is user-ticked, not inferred.** Only token creation and the final
+  test are observable; step 4 happens in another app where we see nothing.
+  Guessing would produce a progress bar that lies.
+- **Dismissal is permanent, per user.** "Later" has to mean later or it is not
+  an escape. Settings → Capture is always there.
+- **The paste hero still hands off to the guide**, because immediately after
+  watching their own SMS parse is when someone is most willing to spend five
+  minutes. That was always the right moment; the trap was the problem.
+- No `success` colour exists in the theme and module-level colour constants
+  are banned (§15), so a done step uses `colors.muted` — finished work
+  recedes, pending work stays primary.
+
+### Still open — the real lever
+
+`settings/shortcut-visual-guide.tsx` renders **"Screenshot coming soon"**. For
+a non-technical user, pictures or a 30-second screen recording of the step-4
+automation is worth more to completion than everything above. **Owner is
+providing them**; wire them in when they arrive.
+
+Related, from §17's post-launch watch: the funnel is measurable from the
+database alone — accounts created vs. `ingest_devices` rows created vs. tokens
+with `last_seen_at` set. Those three counts now mean something more precise,
+since nobody is force-marched into creating a token.

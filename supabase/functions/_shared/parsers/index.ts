@@ -53,8 +53,31 @@ export function detectBank(text: string, senderHint?: string): BankId {
   return 'unknown';
 }
 
+/**
+ * Largest message the parsers will look at, in UTF-8 bytes. This is the same
+ * limit the ingest function enforces (`text_too_large`, 422) — anything bigger
+ * is refused there before parsing, so refusing it here keeps client previews
+ * and the server in agreement instead of previewing something the server will
+ * reject.
+ *
+ * It is also a *performance* bound, and a load-bearing one: the bank
+ * fingerprints are multi-wildcard patterns whose backtracking cost grows
+ * superlinearly (measured: ~1 ms at 1 KB, 46 ms at 4 KB, 2.8 s at 16 KB on
+ * crafted input carrying many label anchors and no terminator). The server has
+ * always had this cap; the app called `parseBankMessage` on uncapped paste
+ * input synchronously inside a `useMemo`, where a large enough blob would
+ * freeze the UI thread. See HANDOFF §23 (SEC-7).
+ */
+export const MAX_TEXT_BYTES = 4096;
+
+function byteLength(text: string): number {
+  return new TextEncoder().encode(text).length;
+}
+
 export function parseBankMessage(text: string, opts?: ParseOptions): ParseResult {
   if (!text || !text.trim()) return { tx: null, isTransactional: false };
+  // Size gate before any regex touches the input — see MAX_TEXT_BYTES.
+  if (byteLength(text) > MAX_TEXT_BYTES) return { tx: null, isTransactional: false };
   if (isNonTransactional(text)) return { tx: null, isTransactional: false };
 
   const bank = detectBank(text, opts?.senderHint);

@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { Button, Card, Field, Muted } from '@/components/ui';
 import { SHORTCUT_DOWNLOAD_URL } from '@/lib/env';
 import { kvGet, kvSet } from '@/lib/kvStore';
 import {
-  deferSetup,
-  markSetupPromptShown,
+  getCompletedSteps,
+  markAllStepsCompleted,
+  nextIncompleteStep,
   onboardedKey,
-  wasSetupPromptShown,
+  SETUP_STEP_COUNT,
+  setStepCompleted,
 } from '@/lib/onboarding';
 import { useCreateIngestToken, useDevices } from '@/lib/queries';
 import { useSession } from '@/lib/session';
@@ -17,15 +19,44 @@ import { themedStyles, useTheme } from '@/lib/theme';
 
 // ─── Reusable sub-components ────────────────────────────────────────────────
 
-function StepHeader({ number, title }: { number: number; title: string }) {
+// The badge doubles as a checkbox. Progress is user-driven rather than
+// inferred: only step 1 and the final test can be detected automatically, and
+// the step people abandon (the iOS automation) happens in another app entirely
+// where we can see nothing.
+function StepHeader({
+  number,
+  title,
+  done,
+  onToggle,
+}: {
+  number: number;
+  title: string;
+  done?: boolean;
+  onToggle?: () => void;
+}) {
   const styles = useStyles();
   const { colors } = useTheme();
+  const badge = (
+    <View style={[styles.stepBadge, { backgroundColor: done ? colors.muted : colors.primary }]}>
+      <Text style={styles.stepBadgeText}>{done ? '✓' : number}</Text>
+    </View>
+  );
   return (
     <View style={styles.stepHeader}>
-      <View style={[styles.stepBadge, { backgroundColor: colors.primary }]}>
-        <Text style={styles.stepBadgeText}>{number}</Text>
-      </View>
-      <Text style={styles.stepTitle}>{title}</Text>
+      {onToggle ? (
+        <Pressable
+          onPress={onToggle}
+          hitSlop={10}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: !!done }}
+          accessibilityLabel={`Step ${number}, ${done ? 'done' : 'not done'}`}
+        >
+          {badge}
+        </Pressable>
+      ) : (
+        badge
+      )}
+      <Text style={[styles.stepTitle, done && styles.stepTitleDone]}>{title}</Text>
     </View>
   );
 }
@@ -143,9 +174,10 @@ export default function ShortcutSetup() {
   const router = useRouter();
   const { session } = useSession();
   const [token, setToken] = useState<string | null>(null);
-  // Onboarding mode: first-time users are held here by AuthGate until they
-  // tap "Setup complete", which flips the flag and releases them.
+  // Onboarding mode: this user has not completed setup yet. It changes the
+  // copy and polls for capture verification — it no longer traps anyone here.
   const [onboarding, setOnboarding] = useState(false);
+  const [completed, setCompleted] = useState<number[]>([]);
 
   const userId = session?.user.id;
   useEffect(() => {
@@ -154,10 +186,20 @@ export default function ShortcutSetup() {
     kvGet(onboardedKey(userId)).then((v) => {
       if (live) setOnboarding(v !== '1');
     });
+    getCompletedSteps(userId).then((s) => {
+      if (live) setCompleted(s);
+    });
     return () => {
       live = false;
     };
   }, [userId]);
+
+  async function toggleStep(step: number) {
+    if (!userId) return;
+    setCompleted(await setStepCompleted(userId, step, !completed.includes(step)));
+  }
+
+  const resumeAt = nextIncompleteStep(completed);
 
   // Capture-verified completion: the server stamps last_seen_at on the token
   // whenever the Shortcut delivers a message, so a used ios_shortcut token
@@ -177,39 +219,19 @@ export default function ShortcutSetup() {
   }
 
   async function completeSetup() {
-    if (userId) await kvSet(onboardedKey(userId), '1');
+    if (userId) {
+      await kvSet(onboardedKey(userId), '1');
+      await markAllStepsCompleted(userId);
+    }
     leaveToDashboard();
   }
 
-  // Called from the bottom-of-page button (user is already on the setup page,
-  // so land them on the Settings index rather than jumping to the Dashboard).
+  // Called from the bottom-of-page button. Nothing is deferred or suppressed —
+  // the user simply leaves, and their ticked steps are waiting when they
+  // return. The dashboard card remains the way back in.
   function skipForNow() {
-    deferSetup();
     router.replace('/(tabs)/settings');
   }
-
-  // Offer browse-without-setup up front, so users don't have to scroll to the
-  // bottom of the guide to discover "I'll do it later".
-  useEffect(() => {
-    if (!onboarding || wasSetupPromptShown()) return;
-    markSetupPromptShown();
-    Alert.alert(
-      'One-time setup',
-      'Setting up automatic capture takes 3 to 5 minutes and makes every card payment log itself. Prefer to look around the app first? You can come back anytime.',
-      [
-        {
-          text: "I'll do it later",
-          style: 'cancel',
-          // Pop-up appears on the setup page: land the user on Settings index,
-          // not the Dashboard. If the pop-up later moves to other screens,
-          // remove this navigation entirely so the user stays where they were.
-          onPress: skipForNow,
-        },
-        { text: 'Complete setup now' },
-      ],
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onboarding]);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -250,9 +272,19 @@ export default function ShortcutSetup() {
         </View>
       </Card>
 
+      {completed.length > 0 && resumeAt !== null ? (
+        <View
+          style={[styles.resumeBanner, { borderColor: colors.primary, backgroundColor: colors.primary + '14' }]}
+        >
+          <Text style={[styles.resumeText, { color: colors.primary }]}>
+            {`Picking up where you left off — step ${resumeAt} of ${SETUP_STEP_COUNT}. Tap a numbered circle to tick a step off.`}
+          </Text>
+        </View>
+      ) : null}
+
       {/* Step 1: inline token creation, no navigating away */}
       <Card>
-        <StepHeader number={1} title="Create your token" />
+        <StepHeader number={1} title="Create your token" done={completed.includes(1)} onToggle={() => toggleStep(1)} />
         <Instruction>
           {'1. Tap "Create my token".\n2. Tap "Copy token".'}
         </Instruction>
@@ -261,7 +293,7 @@ export default function ShortcutSetup() {
 
       {/* Step 2 */}
       <Card>
-        <StepHeader number={2} title="Download the Shortcut" />
+        <StepHeader number={2} title="Download the Shortcut" done={completed.includes(2)} onToggle={() => toggleStep(2)} />
         <Instruction>
           {'1. Tap the button below.\n2. When iOS asks, tap "Add Shortcut".'}
         </Instruction>
@@ -275,7 +307,7 @@ export default function ShortcutSetup() {
 
       {/* Step 3: one-tap token handoff via shortcuts:// deep link */}
       <Card>
-        <StepHeader number={3} title="Connect the app to the Shortcut" />
+        <StepHeader number={3} title="Connect the app to the Shortcut" done={completed.includes(3)} onToggle={() => toggleStep(3)} />
         <Instruction>
           Tap the button below. When you see the notification "Connected. Capture is ready."
           this step is done.
@@ -302,7 +334,7 @@ export default function ShortcutSetup() {
 
       {/* Step 4: the Message automation, per bank or per card */}
       <Card>
-        <StepHeader number={4} title="Turn on capture: per bank or per card" />
+        <StepHeader number={4} title="Turn on capture: per bank or per card" done={completed.includes(4)} onToggle={() => toggleStep(4)} />
         <Instruction>
           {'1. Open the Shortcuts app.\n' +
             '2. Tap "Automation" at the bottom, then tap "+".\n' +
@@ -340,7 +372,7 @@ export default function ShortcutSetup() {
       {/* Step 5: test run. Also teaches the trigger logic: it fires on the
           SMS arriving in Messages, not on the physical card tap. */}
       <Card>
-        <StepHeader number={5} title="Test it" />
+        <StepHeader number={5} title="Test it" done={completed.includes(5)} onToggle={() => toggleStep(5)} />
         <Instruction>
           The Shortcut runs when a bank message arrives in the Messages app, not when you tap
           your card. So you can trigger it yourself right now:
@@ -463,6 +495,9 @@ const useStyles = themedStyles((colors) => ({
     flexShrink: 0,
   },
   stepBadgeText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  stepTitleDone: { textDecorationLine: 'line-through', opacity: 0.6 },
+  resumeBanner: { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 4 },
+  resumeText: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
   stepTitle: { fontSize: 16, fontWeight: '700', color: colors.text, flex: 1 },
 
   instruction: { color: colors.text, lineHeight: 22, fontSize: 14 },

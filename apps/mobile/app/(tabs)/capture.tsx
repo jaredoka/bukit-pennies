@@ -1,4 +1,4 @@
-import { parseBankMessage, splitBankMessages } from '@bukit/parsers';
+import { MAX_TEXT_BYTES, parseBankMessage, splitBankMessages } from '@bukit/parsers';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -6,8 +6,6 @@ import { Badge, Button, Card, Field, Muted, Title } from '@/components/ui';
 import { formatMoney } from '@/lib/format';
 import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
 import { themedStyles, useTheme } from '@/lib/theme';
-
-const MAX_TEXT_BYTES = 4096; // server-side limit per message
 
 export default function Capture() {
   const styles = useStyles();
@@ -24,6 +22,13 @@ export default function Capture() {
   const bulk = messages.length > 1;
   const preview = useMemo(
     () => (messages.length === 1 ? parseBankMessage(messages[0]!) : null),
+    [messages],
+  );
+  // Oversized single messages are refused by the parser (and 422'd by the
+  // server), so the preview must say *why* rather than fall through to the
+  // "doesn't look like a transaction" copy.
+  const previewOversized = useMemo(
+    () => messages.length === 1 && new TextEncoder().encode(messages[0]!).length > MAX_TEXT_BYTES,
     [messages],
   );
   const bulkPreview = useMemo(
@@ -196,9 +201,11 @@ export default function Capture() {
             </View>
           ) : (
             <Muted>
-              {preview.isTransactional
-                ? 'Could not extract a transaction from this text.'
-                : 'This does not look like a transaction message (OTP, promo, or balance alert). It will be ignored.'}
+              {previewOversized
+                ? 'This message is over 4 KB — too long to process. Paste one bank message at a time.'
+                : preview.isTransactional
+                  ? 'Could not extract a transaction from this text.'
+                  : 'This does not look like a transaction message (OTP, promo, or balance alert). It will be ignored.'}
             </Muted>
           )}
         </Card>

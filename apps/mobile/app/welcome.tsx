@@ -1,4 +1,4 @@
-import { parseBankMessage, splitBankMessages } from '@bukit/parsers';
+import { MAX_TEXT_BYTES, parseBankMessage, splitBankMessages } from '@bukit/parsers';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -67,6 +67,12 @@ function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void 
 
   const message = useMemo(() => splitBankMessages(text)[0] ?? '', [text]);
   const preview = useMemo(() => (message ? parseBankMessage(message) : null), [message]);
+  // Parser and server both refuse anything over the limit; say so explicitly
+  // rather than letting it read as "not a bank message".
+  const oversized = useMemo(
+    () => new TextEncoder().encode(message).length > MAX_TEXT_BYTES,
+    [message],
+  );
 
   async function saveAndContinue() {
     setBusy(true);
@@ -124,9 +130,11 @@ function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void 
           </View>
         ) : preview ? (
           <Muted>
-            {preview.isTransactional
-              ? 'Could not extract a transaction. You can still save it and fix it in Review.'
-              : 'This does not look like a purchase message (OTP, promo, or balance alert).'}
+            {oversized
+              ? 'That is over 4 KB — too long to process. Paste a single bank message.'
+              : preview.isTransactional
+                ? 'Could not extract a transaction. You can still save it and fix it in Review.'
+                : 'This does not look like a purchase message (OTP, promo, or balance alert).'}
           </Muted>
         ) : null}
         <Button

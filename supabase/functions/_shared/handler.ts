@@ -1,14 +1,22 @@
 // Pure ingest handler (HANDOFF.md §6) — no Deno/Supabase imports so it unit
 // tests under vitest and runs unchanged in the edge runtime. All I/O goes
 // through the injected IngestStore.
-import { categorizeMerchant, isNonTransactional, normalizeText, parseBankMessage } from './parsers/index.ts';
+import {
+  categorizeMerchant,
+  isNonTransactional,
+  MAX_TEXT_BYTES,
+  normalizeText,
+  parseBankMessage,
+} from './parsers/index.ts';
 import type { BankId } from './parsers/index.ts';
 import { extractBearerToken, sha256Hex } from './auth.ts';
 
 export const INGEST_SOURCES = ['android_listener', 'ios_shortcut', 'share', 'paste'] as const;
 export type IngestSource = (typeof INGEST_SOURCES)[number];
 
-export const MAX_TEXT_BYTES = 4096;
+// Single source of truth: the parsers own this limit so the client preview and
+// this gate cannot drift apart (they are the same check on the same input).
+export { MAX_TEXT_BYTES };
 export const REVIEW_CONFIDENCE_THRESHOLD = 0.75;
 export const NEAR_DUPE_WINDOW_MS = 3 * 60 * 1000;
 

@@ -1189,3 +1189,129 @@ Related, from §17's post-launch watch: the funnel is measurable from the
 database alone — accounts created vs. `ingest_devices` rows created vs. tokens
 with `last_seen_at` set. Those three counts now mean something more precise,
 since nobody is force-marched into creating a token.
+
+---
+
+## 23. Second security pass (2026-07-25) — surfaces §18 did not cover
+
+§18 audited RLS, the ingest function, auth flows, token storage and deep links.
+This pass covered what it left: the anonymous attack surface as actually
+deployed, the rate limiter's *arithmetic* (not just its mechanism), and parser
+behaviour on hostile input. Both findings are fixed on branch
+`security-followup-budgets-and-parse-cap` (migration 13 + a parser size gate).
+
+### First: the checks anyone can repeat
+
+Ran against the hosted project with nothing but the public anon key from
+`eas.json` and **no session** — the "test your permissions while logged out"
+advice this pass started from. Recorded because it is the cheapest regression
+test that exists for this app, and it takes a minute:
+
+- `GET` on `transactions`, `profiles`, `ingest_devices`, `bug_reports`,
+  `user_cards`, `budgets`, `savings_goals`, `monthly_totals`, `merchant_totals`
+  → `200 []` every one. `categories` returns the eight global seed rows
+  (`user_id is null`), by design. `ingest_rate_limits` → `401 42501`.
+- `POST` to `transactions` / `profiles` / `bug_reports` / `ingest_devices` with
+  correctly-shaped payloads, forging a `user_id` and a `token_hash` →
+  `401 42501 new row violates row-level security policy` on all four.
+- Unfiltered `PATCH` / `DELETE` on `transactions` → `204`, which *looks* like
+  success but is PostgREST reporting zero rows; with `Prefer:
+  return=representation` both return `[]`. **Do not read a bare 204 here as a
+  breach** — that is a five-minute panic waiting to happen for a future
+  reviewer.
+- RPCs: `delete_account` → `401 permission denied for function`;
+  `create_ingest_token`, `revoke_ingest_device`, `resolve_ingest_device`,
+  `rate_limit_bump` → `404 PGRST202` (execute revoked, so they are not in
+  anon's schema cache). `/ingest` with an invented bearer token → `401`.
+
+### SEC-6 — the per-token rate limit was multipliable by any account (Medium)
+
+Migration 12 (§18) fixed the *mechanism* — the limiter moved from dead
+in-memory state to Postgres and was verified working. It did not bound an
+authenticated user, because of how the two budgets are keyed:
+
+- `token:<sha256>` gives **each token** its own 60/min bucket, and
+  `create_ingest_token` capped nothing, so a user could mint tokens without
+  limit;
+- `peer:<ip>` counts **failed auths only** — deliberately, since Brunei mobile
+  networks NAT heavily — so a stream of *valid* requests never touches it.
+
+One free account could therefore mint N tokens and sustain N × 60 valid
+requests/minute, entirely unseen by the limiter. Signup is free and
+unrestricted, so "needs an account" is not a meaningful barrier. Exposure is
+invocation count and egress against the free tier (§16.5 names egress as the
+first ceiling), not data — every request still writes only to its own user's
+rows.
+
+**Fix (migration 13), two layers:**
+
+1. A **per-user budget of 120 requests/minute** (`user:<uid>`) that no amount
+   of minting can widen, applied inside `resolve_ingest_device` — still one
+   round trip, so the §12 no-added-latency invariant holds. The number: bulk
+   paste posts at a 1,200 ms interval (`postIngestMany`) ≈ 50/min per device,
+   so 120 covers two devices bulk-pasting plus Shortcut traffic. The token
+   budget is bumped and checked first, so one runaway device is reported
+   against itself rather than quietly eating the account's allowance.
+2. A **cap of 10 active devices** per user in `create_ingest_token`. Revoked
+   devices do not count, so revoking frees a slot. Real usage is 1–2. This also
+   stops `ingest_devices` being an unbounded client-driven write, and keeps
+   Settings → Capture usable as a revocation screen.
+
+**Verified on a full `supabase db reset` (migrations 01–13 clean):** three
+tokens on one user, 150 alternating calls → **first block at request #121**
+while the highest per-token counter was only 50, i.e. every one of those
+requests would have passed before. Minting stopped at attempt 11 with `device
+limit reached`; revoking one device let the next mint succeed (46-char token,
+`bp_` + 43 base62). `create or replace` preserved the grants —
+`resolve_ingest_device` is service_role-only, `create_ingest_token`
+authenticated-only, `rate_limit_bump` postgres-only, all still
+`security definer`.
+
+### SEC-7 — parser fingerprints are superlinear; only the server was capped (Low)
+
+§18 recorded "no catastrophic backtracking … input is capped at 4 KB". The
+first half is too generous. `baiduri.ts`'s `FINGERPRINT` has three greedy `.*`
+under the `s` flag, and on input carrying many `Amount:`/`Merchant:` anchors
+with no trailing `Date:` the cost grows roughly ×8 per doubling — measured in
+Node: **0.9 ms @ 1 KB → 6 ms @ 2 KB → 46 ms @ 4 KB → 355 ms @ 8 KB → 2.8 s
+@ 16 KB**. So the second half of that sentence was doing all the work: the
+4 KB cap is not incidental, it is the control. Note also that parsing happens
+*after* `resolveDevice`, so the parser sits behind both auth and the rate
+limit — that ordering is load-bearing too, and SEC-6 was what let it be
+multiplied.
+
+The gap: the cap existed **only on the server**. `capture.tsx`,
+`transactions/index.tsx` and `welcome.tsx` all call `parseBankMessage`
+synchronously inside a `useMemo` on uncapped paste input, where a large enough
+blob freezes the UI thread. Reaching the pathological case needs contrived
+text (ordinary prose lacks the `Card No.:` prefix and fails fast), so this is
+robustness rather than an attack — but it is free to close.
+
+**Fix:** `MAX_TEXT_BYTES` now lives in `@bukit/parsers` and `parseBankMessage`
+refuses anything larger **before any regex touches the input**, mirroring the
+server's `422 text_too_large` — the client can no longer preview something the
+server will reject. `handler.ts` imports the constant instead of declaring its
+own, and the two UI copies of the literal are gone, so the three cannot drift.
+The single-message previews in `capture.tsx` and `welcome.tsx` gained explicit
+"over 4 KB" copy; the bulk list already had an `oversized` badge.
+
+Three tests pin it (`parsers.test.ts`), including a **byte**-length case
+(multi-byte input must not slip past a character count) and a timing assertion
+that the 64 KB adversarial string completes in under 250 ms — without the gate
+it takes minutes.
+
+### Not fixed, deliberately
+
+The regexes themselves were left alone. Anchoring or bounding the `.*` runs
+would change matching behaviour on real messages, which per §7 of the playbook
+means golden fixtures first — and the size gate already bounds the cost. If
+the fingerprints are ever rewritten, the timing test is the thing that will
+tell you whether the rewrite helped.
+
+### Owner action at merge
+
+Migration 13 must be pushed to the hosted project (`supabase db push`) **and
+the ingest function redeployed**, same as §18's item 1. The device cap changes
+a user-visible outcome: an account already holding 10 active capture devices
+will see token creation fail with `device limit reached` until it revokes one.
+No existing account is near that.

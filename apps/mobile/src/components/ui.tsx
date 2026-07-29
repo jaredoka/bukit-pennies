@@ -168,15 +168,14 @@ export function WheelPicker({
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pad = WHEEL_ITEM_H * Math.floor(visibleCount / 2);
 
-  // Initial scroll — delay exceeds the Modal slide animation (~300ms).
-  useEffect(() => {
-    const t = setTimeout(() => {
-      ref.current?.scrollTo({ y: selectedIndex * WHEEL_ITEM_H, animated: false });
-      lastIdx.current = selectedIndex;
-    }, 350);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Where the wheel starts. Positioned declaratively via `contentOffset` and
+  // again from `onContentSizeChange` below, rather than by a timer sized to
+  // outlast the sheet animation — the wheel used to sit on the wrong row for
+  // 350ms after the sheet had already arrived, which is exactly the moment you
+  // are looking at it. `initialOffset` is captured once, on purpose: later
+  // changes to selectedIndex belong to the sync effect.
+  const initialOffset = useRef(selectedIndex * WHEEL_ITEM_H).current;
+  const positioned = useRef(false);
 
   // Sync when selectedIndex changes externally (e.g. reset).
   useEffect(() => {
@@ -210,7 +209,18 @@ export function WheelPicker({
         ref={ref}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
+        contentOffset={{ x: 0, y: initialOffset }}
         contentContainerStyle={{ paddingTop: pad, paddingBottom: pad }}
+        // Belt and braces for `contentOffset`, which platforms honour
+        // inconsistently. Fires as soon as the rows have been measured, which
+        // is what the old timer was really waiting for. Guarded so a later
+        // change to `items` — the Insights year list grows once its query
+        // lands — does not yank the wheel back to where it started.
+        onContentSizeChange={(_w, h) => {
+          if (positioned.current || h <= 0) return;
+          positioned.current = true;
+          ref.current?.scrollTo({ y: initialOffset, animated: false });
+        }}
         // Universal: debounce every scroll event. Works on web (no
         // onMomentumScrollEnd) and on native iOS/Android alike.
         onScroll={(e) => {

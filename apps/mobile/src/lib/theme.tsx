@@ -183,6 +183,13 @@ export function useStackTheme() {
     headerTitleStyle: { fontWeight: '700' as const, color: colors.text },
     headerTitleAlign: 'center' as const,
     contentStyle: { backgroundColor: colors.bg },
+    // No-op on native, where the stack header is a real navigation bar with
+    // its own 16pt trailing inset. It matters on web, where the stack falls
+    // back to the same JS header the Tabs use — that one puts headerRight
+    // flush against the edge, so without this the `+` on Transactions and the
+    // Edit button on Goals (which sets the same inset in (tabs)/_layout.tsx)
+    // would sit 16pt apart.
+    headerRightContainerStyle: { paddingRight: 16 },
   };
 }
 

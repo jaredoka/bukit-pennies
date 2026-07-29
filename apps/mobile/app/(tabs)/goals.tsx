@@ -40,12 +40,18 @@ export default function GoalsTab() {
     <>
       <Stack.Screen
         options={{
+          // 26pt to match the `+` on Transactions; the 16pt trailing inset that
+          // pairs with it is set on the Tabs screen in _layout.tsx.
           headerRight: () =>
             (data ?? []).length > 0 ? (
-              <Pressable onPress={() => setEditing((e) => !e)} hitSlop={8}>
+              <Pressable
+                onPress={() => setEditing((e) => !e)}
+                hitSlop={8}
+                accessibilityLabel={editing ? 'Done editing goals' : 'Edit goals'}
+              >
                 <Ionicons
                   name={editing ? 'checkmark' : 'pencil'}
-                  size={22}
+                  size={26}
                   color={colors.primary}
                 />
               </Pressable>

@@ -20,6 +20,14 @@ const KINDS: { value: TxSource; label: string }[] = [
   { value: 'android_listener', label: 'Android Listener' },
 ];
 
+// Mirrors create_ingest_token in migration 15: a device that has actually
+// captured something counts against a tight cap, one that never has against a
+// loose one (abandoned Shortcut setups are the common case). The function is
+// still the one that enforces this — these constants exist so the screen can
+// show the count coming rather than surface a raw Postgres exception.
+const USED_CAP = 10;
+const UNUSED_CAP = 20;
+
 export default function Devices() {
   const styles = useStyles();
   const { colors } = useTheme();
@@ -79,6 +87,14 @@ export default function Devices() {
     );
   }
 
+  // Revoked devices are free — the caps count what is still live.
+  const active = (data ?? []).filter((d) => !d.revoked_at);
+  const usedCount = active.filter((d) => d.last_seen_at).length;
+  const unusedCount = active.length - usedCount;
+  const usedFull = usedCount >= USED_CAP;
+  const unusedFull = unusedCount >= UNUSED_CAP;
+  const atCap = usedFull || unusedFull;
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Card>
@@ -101,7 +117,19 @@ export default function Devices() {
               </Pressable>
             ))}
           </View>
-          <Button label="Create token" onPress={createToken} disabled={!name.trim()} busy={create.isPending} />
+          <Button
+            label="Create token"
+            onPress={createToken}
+            disabled={!name.trim() || atCap}
+            busy={create.isPending}
+          />
+          {atCap ? (
+            <Text style={styles.error}>
+              {usedFull
+                ? `You have ${usedCount} of ${USED_CAP} capture devices in use. Revoke one you no longer use to create another.`
+                : `You have ${unusedCount} of ${UNUSED_CAP} devices still awaiting their first capture. Revoke the ones you never finished setting up to create another.`}
+            </Text>
+          ) : null}
           {create.error ? <Text style={styles.error}>{create.error.message}</Text> : null}
         </View>
       </Card>
@@ -127,7 +155,14 @@ export default function Devices() {
 
       <Card>
         <Title>Devices</Title>
-        {(data ?? []).length === 0 ? <Muted>No devices yet.</Muted> : null}
+        {(data ?? []).length === 0 ? (
+          <Muted>No devices yet.</Muted>
+        ) : (
+          <Muted>
+            {`${usedCount} of ${USED_CAP} devices in use`}
+            {unusedCount > 0 ? `  ·  ${unusedCount} of ${UNUSED_CAP} awaiting first capture` : ''}
+          </Muted>
+        )}
         {(data ?? []).map((d) => (
           <View key={d.id} style={styles.deviceRow}>
             <View style={{ flex: 1 }}>

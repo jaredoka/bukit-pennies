@@ -1,7 +1,7 @@
 import { normalizeMerchant } from '@bukit/parsers';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
-import { bruneiMonthStartIso } from './format';
+import { bruneiMonthStartIso, bruneiParts } from './format';
 import { supabase } from './supabase';
 import type {
   BudgetRow,
@@ -131,6 +131,28 @@ export function useTransactionsForPeriod(year: number, month: number | null) {
           .gte('occurred_at', start)
           .lt('occurred_at', end),
       ),
+  });
+}
+
+/** Brunei year of the oldest transaction, or null when there are none. Bounds
+ *  the Insights year picker so it offers only years the account could have
+ *  data for. One row, so it stays cheap as history grows. */
+export function useEarliestTransactionYear() {
+  return useQuery({
+    queryKey: ['transactions', 'earliest-year'],
+    queryFn: async () => {
+      const rows = await unwrap<{ occurred_at: string | null }[]>(
+        supabase
+          .from('transactions')
+          .select('occurred_at')
+          .eq('parse_status', 'parsed')
+          .not('occurred_at', 'is', null)
+          .order('occurred_at', { ascending: true })
+          .limit(1),
+      );
+      const iso = rows?.[0]?.occurred_at;
+      return iso ? bruneiParts(iso).year : null;
+    },
   });
 }
 

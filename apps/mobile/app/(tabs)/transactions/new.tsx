@@ -136,7 +136,9 @@ const useStyles = themedStyles((colors) => ({
     backgroundColor: colors.card,
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  // Both states share the font weight: a heavier selected label measures wider
+  // and re-wraps the row, so the pill you just tapped jumps to another line.
   chipText: { color: colors.text },
-  chipActiveText: { color: colors.onPrimary, fontWeight: '600' },
+  chipActiveText: { color: colors.onPrimary },
   error: { color: colors.danger, marginBottom: 8 },
 }));

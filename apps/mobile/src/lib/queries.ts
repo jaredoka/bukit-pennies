@@ -486,6 +486,17 @@ export function useSubmitBugReport() {
   });
 }
 
+export function useSubmitFeatureRequest() {
+  return useMutation({
+    mutationFn: async (request: {
+      short_id: string;
+      app_version: string;
+      area: string;
+      description: string;
+    }) => unwrap(supabase.from('feature_requests').insert(request)),
+  });
+}
+
 // ---------------------------------------------------------------- realtime
 
 /** Invalidate transaction queries on any realtime insert/update — Shortcut

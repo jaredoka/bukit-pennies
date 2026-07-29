@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, type ReactNode, type RefObject } from 'react';
+import React, { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -253,6 +253,33 @@ export function WheelPicker({
 
 /** Bottom-sheet modal wrapper for wheel pickers and other compact dialogs. */
 /**
+ * How long a Modal's slide takes. React Native does not expose the duration,
+ * so anything that has to outlast an exit animation is timed against this.
+ */
+export const SHEET_ANIM_MS = 300;
+
+/**
+ * Keeps the last non-null value alive for `SHEET_ANIM_MS` after it clears, so
+ * a conditionally-rendered sheet stays mounted long enough to animate out.
+ *
+ * Deferring the unmount rather than removing it is deliberate: unmounting is
+ * what resets a sheet's internal state — pasted text, capture results, which
+ * sub-view it was showing — and callers rely on reopening a clean sheet.
+ */
+export function useSheetPresence<T>(value: T | null): T | null {
+  const [rendered, setRendered] = useState<T | null>(value);
+  useEffect(() => {
+    if (value !== null) {
+      setRendered(value);
+      return;
+    }
+    const timer = setTimeout(() => setRendered(null), SHEET_ANIM_MS);
+    return () => clearTimeout(timer);
+  }, [value]);
+  return rendered;
+}
+
+/**
  * Bottom-sheet chrome: an instant dim plus a panel that rides the platform's
  * own slide animation.
  *
@@ -282,7 +309,7 @@ export function SheetShell({
   const styles = useStyles();
   return (
     <>
-      <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
         {/* Dim only — it can never be tapped, see above. */}
         <View style={styles.sheetOverlay} />
       </Modal>

@@ -4,8 +4,8 @@ import { Image, Platform, View } from 'react-native';
 const SHEET_COLS = 6;
 const SHEET_ROWS = 9;
 // Transparent gutter between sprite-sheet cells, as a fraction of the cell.
-// Must match GUTTER / (G*SCALE) in art/scripts/hornbill_animate.py (16 / 256).
-const GUTTER_FRAC = 16 / 256;
+// Must match GUTTER / (G*SCALE) in art/scripts/hornbill_animate.py (16 / 320).
+const GUTTER_FRAC = 16 / 320;
 
 const ANIMATIONS = {
   idle:        { row: 0, frames: 4, durations: [120, 120, 120, 120] },

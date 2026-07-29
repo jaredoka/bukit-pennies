@@ -74,11 +74,17 @@ export default function Settings() {
           label="How the app works"
           note="Using the app and where your data is stored"
         />
-<Row
+        <Row
           href="/(tabs)/settings/report-bug"
           icon="bug"
           label="Report a bug"
           note="Let us know if something isn't working"
+        />
+        <Row
+          href="/(tabs)/settings/feature-request"
+          icon="bulb"
+          label="Request a feature"
+          note="Tell us what you'd like the app to do"
         />
         <Row
           href="/(tabs)/settings/about"

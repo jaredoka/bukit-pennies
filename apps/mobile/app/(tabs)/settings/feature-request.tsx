@@ -1,15 +1,25 @@
 import { useState } from 'react';
 import { Alert, ScrollView, View } from 'react-native';
 import Constants from 'expo-constants';
-import { Button, Card, Field, Muted, Title } from '@/components/ui';
-import { MAX_FEEDBACK_DESCRIPTION, useSubmitBugReport } from '@/lib/queries';
+import { Button, Card, Chip, Field, Muted, Title } from '@/components/ui';
+import { MAX_FEEDBACK_DESCRIPTION, useSubmitFeatureRequest } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { themedStyles } from '@/lib/theme';
 
-export default function ReportBug() {
+const AREAS = [
+  'Capture',
+  'Transactions',
+  'Budgets & goals',
+  'Insights',
+  'Notifications',
+  'Something else',
+] as const;
+
+export default function FeatureRequest() {
   const styles = useStyles();
   const { session } = useSession();
-  const submit = useSubmitBugReport();
+  const submit = useSubmitFeatureRequest();
+  const [area, setArea] = useState<string>(AREAS[0]);
   const [description, setDescription] = useState('');
   const [sent, setSent] = useState(false);
 
@@ -19,10 +29,10 @@ export default function ReportBug() {
     : '';
   const appVersion = Constants.expoConfig?.version ?? '';
 
-  async function handleSubmit() {
+  function handleSubmit() {
     if (!description.trim()) return;
     submit.mutate(
-      { short_id: shortId, app_version: appVersion, description: description.trim() },
+      { short_id: shortId, app_version: appVersion, area, description: description.trim() },
       {
         onSuccess: () => {
           setSent(true);
@@ -39,10 +49,14 @@ export default function ReportBug() {
         <Card>
           <Title>Thank you</Title>
           <Muted>
-            Your report has been submitted. We'll look into it as soon as possible.
+            Your request has been sent. We read every one — it helps us decide what to build next.
           </Muted>
           <View style={{ marginTop: 12 }}>
-            <Button label="Submit another report" variant="secondary" onPress={() => setSent(false)} />
+            <Button
+              label="Request another feature"
+              variant="secondary"
+              onPress={() => setSent(false)}
+            />
           </View>
         </Card>
       </ScrollView>
@@ -52,22 +66,29 @@ export default function ReportBug() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Card>
-        <Title>Report a bug</Title>
+        <Title>Request a feature</Title>
         <Muted>
-          Describe what happened, what you expected, and any steps to reproduce.
+          Tell us what you wish the app could do. The more you say about how you'd use it, the
+          better.
         </Muted>
         <View style={{ marginTop: 12 }}>
+          <Muted>Which part of the app?</Muted>
+          <View style={styles.chips}>
+            {AREAS.map((a) => (
+              <Chip key={a} label={a} active={area === a} onPress={() => setArea(a)} />
+            ))}
+          </View>
           <Field
-            label="What went wrong?"
+            label="What would you like to see?"
             multiline
             value={description}
             onChangeText={setDescription}
-            placeholder="I tapped … and then …"
+            placeholder="It would help if the app could …"
             maxLength={MAX_FEEDBACK_DESCRIPTION}
             style={{ minHeight: 120, textAlignVertical: 'top' }}
           />
           <Button
-            label="Submit report"
+            label="Send request"
             onPress={handleSubmit}
             busy={submit.isPending}
             disabled={!description.trim()}
@@ -81,4 +102,5 @@ export default function ReportBug() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 16 },
 }));

@@ -479,10 +479,44 @@ export function useDeleteDevice() {
   });
 }
 
+/** Mirrors MAX_DESCRIPTION in supabase/functions/_shared/feedback.ts, which is
+ *  the cap that actually counts — this one just stops the keyboard before the
+ *  server has to refuse the submission. */
+export const MAX_FEEDBACK_DESCRIPTION = 4000;
+
+/**
+ * Bug reports and feature requests both go through the `feedback` edge
+ * function rather than a direct table insert: the function writes the row
+ * under the caller's JWT (RLS unchanged) and then emails a copy. The row is
+ * the source of truth — `emailed: false` means the notification did not go
+ * out, not that the submission was lost, so it is not surfaced to the user.
+ */
+async function submitFeedback(payload: {
+  kind: 'bug' | 'feature';
+  short_id: string;
+  app_version: string;
+  area?: string;
+  description: string;
+}) {
+  const { error } = await supabase.functions.invoke('feedback', { body: payload });
+  if (error) throw new Error(error.message);
+}
+
 export function useSubmitBugReport() {
   return useMutation({
-    mutationFn: async (report: { short_id: string; app_version: string; description: string }) =>
-      unwrap(supabase.from('bug_reports').insert(report)),
+    mutationFn: (report: { short_id: string; app_version: string; description: string }) =>
+      submitFeedback({ kind: 'bug', ...report }),
+  });
+}
+
+export function useSubmitFeatureRequest() {
+  return useMutation({
+    mutationFn: (request: {
+      short_id: string;
+      app_version: string;
+      area: string;
+      description: string;
+    }) => submitFeedback({ kind: 'feature', ...request }),
   });
 }
 

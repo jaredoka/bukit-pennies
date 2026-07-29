@@ -334,8 +334,13 @@ export function SheetShell({
   const dim = useRef(new Animated.Value(visible ? 1 : 0)).current;
   const panelH = useRef(screenH);
   const entered = useRef(false);
+  // Read by the exit callback, which can land after a reopen.
+  const visibleRef = useRef(visible);
 
   useEffect(() => {
+    visibleRef.current = visible;
+    y.stopAnimation();
+    dim.stopAnimation();
     if (visible) {
       entered.current = false;
       y.setValue(screenH);
@@ -355,7 +360,11 @@ export function SheetShell({
         duration: SHEET_ANIM_MS,
         useNativeDriver: true,
       }),
-    ]).start(() => setMounted(false));
+    ]).start(({ finished }) => {
+      // Reopening within the 300ms exit interrupts this; unmounting then would
+      // tear down the sheet the user just asked for.
+      if (finished && !visibleRef.current) setMounted(false);
+    });
   }, [visible, screenH, y, dim]);
 
   // Every layout updates the exit distance (a sheet can grow — the capture

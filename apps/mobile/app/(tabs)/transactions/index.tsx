@@ -5,7 +5,6 @@ import { Link, Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,

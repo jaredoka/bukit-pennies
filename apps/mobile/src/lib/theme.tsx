@@ -55,6 +55,16 @@ export interface Palette {
   danger: string;
   warning: string;
   border: string;
+  /**
+   * Text-input fill and border. Separate tokens because `card` cannot serve
+   * here: inputs sit *on* cards, so reusing it left every field the exact
+   * colour of its container, and the only thing distinguishing them was a
+   * border faint enough to disappear. The border does most of the work — the
+   * search field on Transactions sits on `bg`, not on a card, so the fill
+   * alone cannot be relied on to separate an input from what is behind it.
+   */
+  inputBg: string;
+  inputBorder: string;
   chartCategories: string[];
   chartOther: string;
 }
@@ -70,6 +80,8 @@ export const palettes: Record<'light' | 'dark', Palette> = {
     danger: '#C0392B',
     warning: '#B7791F',
     border: '#F5F0CC',        // very faint yellow-tinted border
+    inputBg: '#FFFFFF',       // white against the pale yellow card
+    inputBorder: '#DDD5B4',   // warm greige; carries the edge on white too
     chartCategories: CATEGORY_COLORS.light,
     chartOther: CATEGORY_COLOR_OTHER.light,
   },
@@ -83,6 +95,8 @@ export const palettes: Record<'light' | 'dark', Palette> = {
     danger: '#E2604F',
     warning: '#D99C42',
     border: '#263240',
+    inputBg: '#1F2A37',       // lifted off the card, as white is in light mode
+    inputBorder: '#3A4A5C',
     chartCategories: CATEGORY_COLORS.dark,
     chartOther: CATEGORY_COLOR_OTHER.dark,
   },

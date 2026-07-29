@@ -313,9 +313,9 @@ const useStyles = themedStyles((colors) => ({
   buttonLabel: { color: colors.onPrimary, fontWeight: '600' as const },
   fieldLabel: { color: colors.muted, fontSize: 13, marginBottom: 4 },
   input: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.inputBg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.inputBorder,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,

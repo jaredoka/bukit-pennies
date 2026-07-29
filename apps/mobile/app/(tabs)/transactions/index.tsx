@@ -14,7 +14,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { HornbillMascot } from '@/components/HornbillMascot';
 import { Badge, Button, Centered, Field, Muted, Sheet, SheetShell, useSheetPresence } from '@/components/ui';
 import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
 import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
@@ -708,7 +707,6 @@ export default function TransactionsList() {
               </Centered>
             ) : (
               <Centered>
-                <HornbillMascot animation="idle" size={64} />
                 <Muted>No transactions yet.</Muted>
                 <Muted>Capture a bank message or add one manually.</Muted>
               </Centered>

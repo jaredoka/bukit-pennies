@@ -252,36 +252,88 @@ export function WheelPicker({
 }
 
 /** Bottom-sheet modal wrapper for wheel pickers and other compact dialogs. */
-export function PickerSheet({
+/**
+ * Bottom-sheet chrome: an instant dim plus a panel that rides the platform's
+ * own slide animation.
+ *
+ * Two Modals, not one, because the dim has to appear at once while only the
+ * panel moves — a single sliding Modal drags its whole container up, so the
+ * dim would rise like a curtain.
+ *
+ * The dismiss area lives in the *sliding* Modal, above `children`. It has to:
+ * that Modal is on top, so a tap on the dark area never reaches the overlay
+ * Modal beneath it. Putting the handler on the overlay looked right and did
+ * nothing at all — tapping outside simply failed to close the sheet.
+ *
+ * Animation is the platform's, deliberately. The hand-rolled version this
+ * replaced started its slide from a `useEffect`, so the panel mounted
+ * offscreen, painted, and only then began a 300ms tween: tap, dead pause,
+ * slow slide.
+ */
+export function SheetShell({
   visible,
   onClose,
-  title,
   children,
 }: {
   visible: boolean;
   onClose: () => void;
-  title?: string;
   children: ReactNode;
 }) {
   const styles = useStyles();
   return (
     <>
-      {/* Overlay appears instantly */}
       <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-        <Pressable style={styles.sheetOverlay} onPress={onClose} />
+        {/* Dim only — it can never be tapped, see above. */}
+        <View style={styles.sheetOverlay} />
       </Modal>
-      {/* Sheet panel slides up */}
       <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
         <View style={styles.sheetSlide}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
-            <View style={styles.sheetHandle} />
-            {title ? <Text style={styles.sheetTitle}>{title}</Text> : null}
-            {children}
-            <Button label="Done" onPress={onClose} />
-          </Pressable>
+          <Pressable
+            style={styles.sheetDismissArea}
+            onPress={onClose}
+            accessibilityLabel="Close"
+          />
+          {children}
         </View>
       </Modal>
     </>
+  );
+}
+
+/** Standard sheet: handle, optional title and Clear, content, Done. */
+export function Sheet({
+  visible,
+  onClose,
+  title,
+  onClear,
+  children,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  title?: string;
+  onClear?: () => void;
+  children: ReactNode;
+}) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  return (
+    <SheetShell visible={visible} onClose={onClose}>
+      <View style={styles.sheet}>
+        <View style={styles.sheetHandle} />
+        {title || onClear ? (
+          <View style={[styles.sheetHeader, !onClear && { justifyContent: 'center' }]}>
+            {title ? <Text style={styles.sheetTitle}>{title}</Text> : null}
+            {onClear ? (
+              <Pressable onPress={onClear} hitSlop={8}>
+                <Text style={{ color: colors.danger, fontWeight: '600' }}>Clear</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+        {children}
+        <Button label="Done" onPress={onClose} />
+      </View>
+    </SheetShell>
   );
 }
 
@@ -343,7 +395,7 @@ const useStyles = themedStyles((colors) => ({
   // another line. Selection reads from the filled background.
   chipText: { color: colors.text, fontSize: 13 },
   chipActiveText: { color: colors.onPrimary, fontSize: 13 },
-  // PickerSheet
+  // Sheet
   sheetOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -352,6 +404,8 @@ const useStyles = themedStyles((colors) => ({
     flex: 1,
     justifyContent: 'flex-end' as const,
   },
+  // Everything above the panel: tapping it closes the sheet.
+  sheetDismissArea: { flex: 1 },
   sheet: {
     backgroundColor: colors.card,
     borderTopLeftRadius: 20,
@@ -368,11 +422,15 @@ const useStyles = themedStyles((colors) => ({
     alignSelf: 'center' as const,
     marginBottom: 16,
   },
+  sheetHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    marginBottom: 12,
+  },
   sheetTitle: {
     fontSize: 16,
     fontWeight: '600' as const,
     color: colors.text,
-    textAlign: 'center' as const,
-    marginBottom: 4,
   },
 }));

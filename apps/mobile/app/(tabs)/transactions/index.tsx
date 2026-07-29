@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Link, Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useMemo, useState } from 'react';
 import {
-  Animated,
   ActivityIndicator,
   Modal,
   Pressable,
@@ -16,7 +15,7 @@ import {
   View,
 } from 'react-native';
 import { HornbillMascot } from '@/components/HornbillMascot';
-import { Badge, Button, Centered, Field, Muted } from '@/components/ui';
+import { Badge, Button, Centered, Field, Muted, Sheet, SheetShell } from '@/components/ui';
 import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
 import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
 import { useCategories, usePullToRefresh, useTransactions } from '@/lib/queries';
@@ -97,59 +96,6 @@ function applyFilters(tx: TransactionRow, f: TxFilters, search: string): boolean
   if (f.categoryIds.length > 0 && !f.categoryIds.includes(tx.category_id)) return false;
   if (f.cards.length > 0 && (!tx.card_last4 || !f.cards.includes(tx.card_last4))) return false;
   return true;
-}
-
-// ---- Shared sheet wrapper --------------------------------------------------
-
-function useSheetSlide(visible: boolean) {
-  const translateY = useRef(new Animated.Value(600)).current;
-  useEffect(() => {
-    Animated.timing(translateY, {
-      toValue: visible ? 0 : 600,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [visible, translateY]);
-  return translateY;
-}
-
-function Sheet({
-  visible,
-  title,
-  onClose,
-  onClear,
-  children,
-}: {
-  visible: boolean;
-  title: string;
-  onClose: () => void;
-  onClear?: () => void;
-  children: React.ReactNode;
-}) {
-  const styles = useStyles();
-  const { colors } = useTheme();
-  const translateY = useSheetSlide(visible);
-  return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <Pressable style={styles.overlaySlide} onPress={onClose}>
-        <Animated.View style={{ transform: [{ translateY }] }}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
-            <View style={styles.sheetHandle} />
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>{title}</Text>
-              {onClear ? (
-                <Pressable onPress={onClear} hitSlop={8}>
-                  <Text style={{ color: colors.danger, fontWeight: '600' }}>Clear</Text>
-                </Pressable>
-              ) : null}
-            </View>
-            {children}
-            <Button label="Done" onPress={onClose} />
-          </Pressable>
-        </Animated.View>
-      </Pressable>
-    </Modal>
-  );
 }
 
 // ---- Selectable row (replaces chips) ---------------------------------------
@@ -789,12 +735,9 @@ function AddSheet({ onClose }: { onClose: () => void }) {
     return <CaptureSheet onClose={onClose} />;
   }
 
-  const translateY = useSheetSlide(true);
   return (
-    <Modal visible transparent animationType="none" onRequestClose={onClose}>
-      <Pressable style={styles.overlaySlide} onPress={onClose}>
-        <Animated.View style={{ transform: [{ translateY }] }}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
+    <SheetShell visible onClose={onClose}>
+        <View style={styles.sheet}>
           <View style={styles.sheetHandle} />
           <Text style={styles.sheetTitle}>Add transaction manually</Text>
           <Pressable
@@ -820,10 +763,8 @@ function AddSheet({ onClose }: { onClose: () => void }) {
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.muted} />
           </Pressable>
-        </Pressable>
-        </Animated.View>
-      </Pressable>
-    </Modal>
+        </View>
+    </SheetShell>
   );
 }
 
@@ -899,11 +840,8 @@ function CaptureSheet({ onClose }: { onClose: () => void }) {
     ? result.status === 'created' ? colors.primary : result.status === 'error' ? colors.danger : colors.warning
     : colors.text;
 
-  const translateY = useSheetSlide(true);
   return (
-    <Modal visible transparent animationType="none" onRequestClose={onClose}>
-      <Pressable style={styles.overlaySlide} onPress={onClose}>
-        <Animated.View style={{ transform: [{ translateY }] }}>
+    <SheetShell visible onClose={onClose}>
         <ScrollView
           style={styles.sheet}
           contentContainerStyle={{ paddingBottom: 36 }}
@@ -969,9 +907,7 @@ function CaptureSheet({ onClose }: { onClose: () => void }) {
             ) : null}
             <Button label="Done" onPress={onClose} />
           </ScrollView>
-        </Animated.View>
-      </Pressable>
-    </Modal>
+    </SheetShell>
   );
 }
 
@@ -1074,11 +1010,6 @@ const useStyles = themedStyles((colors) => ({
   merchant: { fontWeight: '600', color: colors.text },
   amount: { fontWeight: '700', color: colors.text },
   // Sheet
-  overlaySlide: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
   sheet: {
     backgroundColor: colors.card,
     borderTopLeftRadius: 20,

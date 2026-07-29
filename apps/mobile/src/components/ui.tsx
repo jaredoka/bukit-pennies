@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  Dimensions,
+  Easing,
   Modal,
   Pressable,
   ScrollView,
@@ -8,6 +11,7 @@ import {
   Text,
   TextInput,
   View,
+  type LayoutChangeEvent,
   type TextInputProps,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -290,22 +294,26 @@ export function useSheetPresence<T>(value: T | null): T | null {
 }
 
 /**
- * Bottom-sheet chrome: an instant dim plus a panel that rides the platform's
- * own slide animation.
+ * Bottom-sheet chrome: an instant dim plus a panel that slides up under it.
  *
- * Two Modals, not one, because the dim has to appear at once while only the
- * panel moves — a single sliding Modal drags its whole container up, so the
- * dim would rise like a curtain.
+ * Exactly **one** Modal. The previous version stacked two — a fading one for
+ * the dim and a sliding one for the panel — so that the dim could appear at
+ * once while only the panel moved. iOS cannot do that: a view controller
+ * presents one modal at a time, so the second present() is dropped on the
+ * floor. What shipped was a grey screen with no panel, no dismiss area and no
+ * reachable `onRequestClose` — every filter and the Add button froze the app
+ * until it was force-quit.
  *
- * The dismiss area lives in the *sliding* Modal, above `children`. It has to:
- * that Modal is on top, so a tap on the dark area never reaches the overlay
- * Modal beneath it. Putting the handler on the overlay looked right and did
- * nothing at all — tapping outside simply failed to close the sheet.
+ * So the panel is animated here instead of by the platform. The hand-rolled
+ * version that predated the two-Modal split was slow because it started its
+ * slide from a `useEffect` after mounting offscreen at full screen height:
+ * tap, dead pause, long travel. This one measures the panel on layout and
+ * slides it exactly its own height, on the native driver — no dead distance,
+ * and the dim is at full strength on the first frame.
  *
- * Animation is the platform's, deliberately. The hand-rolled version this
- * replaced started its slide from a `useEffect`, so the panel mounted
- * offscreen, painted, and only then began a 300ms tween: tap, dead pause,
- * slow slide.
+ * `visible` going false animates out and *then* unmounts the Modal, so callers
+ * get the exit animation whether or not they gate rendering with
+ * `useSheetPresence` (which exists to reset sheet state, not to animate).
  */
 export function SheetShell({
   visible,
@@ -317,23 +325,71 @@ export function SheetShell({
   children: ReactNode;
 }) {
   const styles = useStyles();
+  const screenH = Dimensions.get('window').height;
+  // Held open across the exit animation, then released.
+  const [mounted, setMounted] = useState(visible);
+  // Starts a full screen down: wherever the panel turns out to sit, it is
+  // offscreen until the first layout tells us its real height.
+  const y = useRef(new Animated.Value(screenH)).current;
+  const dim = useRef(new Animated.Value(visible ? 1 : 0)).current;
+  const panelH = useRef(screenH);
+  const entered = useRef(false);
+
+  useEffect(() => {
+    if (visible) {
+      entered.current = false;
+      y.setValue(screenH);
+      dim.setValue(1);
+      setMounted(true);
+      return;
+    }
+    Animated.parallel([
+      Animated.timing(y, {
+        toValue: panelH.current,
+        duration: SHEET_ANIM_MS,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(dim, {
+        toValue: 0,
+        duration: SHEET_ANIM_MS,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setMounted(false));
+  }, [visible, screenH, y, dim]);
+
+  // Every layout updates the exit distance (a sheet can grow — the capture
+  // sheet sprouts results); only the first one starts the entrance.
+  function onPanelLayout(e: LayoutChangeEvent) {
+    const h = e.nativeEvent.layout.height;
+    if (h <= 0) return;
+    panelH.current = h;
+    if (entered.current) return;
+    entered.current = true;
+    y.setValue(h);
+    Animated.timing(y, {
+      toValue: 0,
+      duration: SHEET_ANIM_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }
+
+  if (!mounted && !visible) return null;
+
   return (
-    <>
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-        {/* Dim only — it can never be tapped, see above. */}
-        <View style={styles.sheetOverlay} />
-      </Modal>
-      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-        <View style={styles.sheetSlide}>
-          <Pressable
-            style={styles.sheetDismissArea}
-            onPress={onClose}
-            accessibilityLabel="Close"
-          />
+    <Modal visible transparent animationType="none" onRequestClose={onClose}>
+      <View style={styles.sheetSlide}>
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.sheetOverlay, StyleSheet.absoluteFill, { opacity: dim }]}
+        />
+        <Pressable style={styles.sheetDismissArea} onPress={onClose} accessibilityLabel="Close" />
+        <Animated.View onLayout={onPanelLayout} style={{ transform: [{ translateY: y }] }}>
           {children}
-        </View>
-      </Modal>
-    </>
+        </Animated.View>
+      </View>
+    </Modal>
   );
 }
 
@@ -433,10 +489,9 @@ const useStyles = themedStyles((colors) => ({
   chipText: { color: colors.text, fontSize: 13 },
   chipActiveText: { color: colors.onPrimary, fontSize: 13 },
   // Sheet
-  sheetOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
+  // Absolutely filled by SheetShell; it must not take part in the column
+  // layout, or it would push the panel off the bottom.
+  sheetOverlay: { backgroundColor: 'rgba(0,0,0,0.45)' },
   sheetSlide: {
     flex: 1,
     justifyContent: 'flex-end' as const,

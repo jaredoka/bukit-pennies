@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Link, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -97,25 +97,30 @@ export default function Dashboard() {
   const [cardDismissed, setCardDismissed] = useState(true);
   const [setupSteps, setSetupSteps] = useState<number[]>([]);
 
-  useEffect(() => {
-    const uid = session?.user.id;
-    if (!uid) return;
-    let live = true;
-    void (async () => {
-      const [flag, dismissed, steps] = await Promise.all([
-        kvGet(onboardedKey(uid)),
-        isSetupCardDismissed(uid),
-        getCompletedSteps(uid),
-      ]);
-      if (!live) return;
-      setOnboarded(flag === '1');
-      setCardDismissed(dismissed);
-      setSetupSteps(steps);
-    })();
-    return () => {
-      live = false;
-    };
-  }, [session?.user.id]);
+  // On focus, not just on mount: the flag and the step ticks are written on
+  // the setup screen, so a card read once at mount would still be advertising
+  // "step 3 of 5" after the user came back having finished all five.
+  useFocusEffect(
+    useCallback(() => {
+      const uid = session?.user.id;
+      if (!uid) return;
+      let live = true;
+      void (async () => {
+        const [flag, dismissed, steps] = await Promise.all([
+          kvGet(onboardedKey(uid)),
+          isSetupCardDismissed(uid),
+          getCompletedSteps(uid),
+        ]);
+        if (!live) return;
+        setOnboarded(flag === '1');
+        setCardDismissed(dismissed);
+        setSetupSteps(steps);
+      })();
+      return () => {
+        live = false;
+      };
+    }, [session?.user.id]),
+  );
 
   // Capture setup is the reason to use this app, so the prompt stays — but as
   // a card the user can dismiss for good, not a gate (HANDOFF §22).

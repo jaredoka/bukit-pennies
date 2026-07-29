@@ -1587,17 +1587,33 @@ Migration 16 pushed to production 2026-07-29; `supabase db diff --linked`
 afterwards shows no table or grant drift, only the three `create or replace`
 false positives §24 already documents.
 
+### Deployed and verified in production (same day)
+
+`supabase functions deploy feedback` — live as version 1, `verify_jwt: true`
+(`supabase functions list` shows it next to `ingest`'s `false`). Both secrets
+set: `FEEDBACK_EMAIL_TO=bukitpennies@gmail.com` and `RESEND_API_KEY`.
+
+Smoke-tested against the hosted project by creating a throwaway auth user,
+submitting one of each kind through the deployed function, and deleting the
+user afterwards (every table cascades on `auth.users`, so the rows went with
+it — production data unchanged). Both returned `200 {emailed: true}`, an
+unauthenticated call `401 UNAUTHORIZED_NO_AUTH_HEADER` from the gateway, an
+empty description `422`. **Both emails arrived at bukitpennies@gmail.com**,
+which is the only part of the chain the CLI cannot prove — `emailed: true`
+means Resend accepted the send, not that it delivered. The script is
+disposable but the shape is worth repeating if this is ever touched: admin
+create user → password sign-in → call → admin delete user.
+
+One process note. The first `RESEND_API_KEY` was pasted into an agent
+transcript, so it was rotated the same day: revoked in Resend, replaced
+through the dashboard. Supabase's `secrets list` returns SHA-256 digests of
+the values, which is how the rotation was confirmed rather than assumed —
+compare the digest against the hash of the key you expect to be gone. Do not
+paste the next one into a chat; `supabase secrets set` from a local shell, or
+the dashboard, keeps it out.
+
 ### Still not done
 
-**The function is not deployed and the secrets are not set** — `supabase
-functions deploy feedback` was blocked in the session that wrote this. Until
-it runs, the app's next release would call an endpoint that does not exist.
-Deploy before shipping a build that contains these screens:
-
-```
-supabase functions deploy feedback
-supabase secrets set RESEND_API_KEY=... FEEDBACK_EMAIL_TO=bukitpennies@gmail.com
-```
-
-There is also still no way to read requests back in-app; they are read in the
-Supabase dashboard or in the inbox.
+There is no way to read requests back in-app; they are read in the Supabase
+dashboard or in the inbox. Fine at this scale, and a `select` policy plus a
+status column is the obvious next step if it stops being fine.

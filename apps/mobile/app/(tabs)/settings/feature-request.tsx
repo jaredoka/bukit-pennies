@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, ScrollView, View } from 'react-native';
 import Constants from 'expo-constants';
 import { Button, Card, Chip, Field, Muted, Title } from '@/components/ui';
-import { useSubmitFeatureRequest } from '@/lib/queries';
+import { MAX_FEEDBACK_DESCRIPTION, useSubmitFeatureRequest } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { themedStyles } from '@/lib/theme';
 
@@ -84,6 +84,7 @@ export default function FeatureRequest() {
             value={description}
             onChangeText={setDescription}
             placeholder="It would help if the app could …"
+            maxLength={MAX_FEEDBACK_DESCRIPTION}
             style={{ minHeight: 120, textAlignVertical: 'top' }}
           />
           <Button

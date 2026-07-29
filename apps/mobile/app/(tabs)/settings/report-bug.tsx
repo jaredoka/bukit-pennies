@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, ScrollView, View } from 'react-native';
 import Constants from 'expo-constants';
 import { Button, Card, Field, Muted, Title } from '@/components/ui';
-import { useSubmitBugReport } from '@/lib/queries';
+import { MAX_FEEDBACK_DESCRIPTION, useSubmitBugReport } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { themedStyles } from '@/lib/theme';
 
@@ -63,6 +63,7 @@ export default function ReportBug() {
             value={description}
             onChangeText={setDescription}
             placeholder="I tapped … and then …"
+            maxLength={MAX_FEEDBACK_DESCRIPTION}
             style={{ minHeight: 120, textAlignVertical: 'top' }}
           />
           <Button

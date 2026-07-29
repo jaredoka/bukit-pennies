@@ -11,7 +11,6 @@ import {
   View,
 } from 'react-native';
 import { BarChart, LineChart, PieChart } from 'react-native-gifted-charts';
-import { HornbillMascot } from '@/components/HornbillMascot';
 import { Card, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
 import {
   bruneiDayKey,
@@ -467,7 +466,6 @@ export default function Dashboard() {
           </View>
         ) : (
           <View style={styles.emptyState}>
-            <HornbillMascot animation="idle" size={64} />
             <Muted>No spending this {isYearMode ? 'year' : 'month'} yet.</Muted>
             <Muted>Capture a bank message or add one manually.</Muted>
           </View>

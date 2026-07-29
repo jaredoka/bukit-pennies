@@ -8,8 +8,6 @@ import {
   View,
 } from 'react-native';
 import { HexBackground } from '@/components/HexBackground';
-import { HornbillMascot } from '@/components/HornbillMascot';
-import { TraversingHornbill } from '@/components/TraversingHornbill';
 import { Button, Card, Field, Title } from '@/components/ui';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/env';
 import {
@@ -61,7 +59,6 @@ export default function SignUp() {
       <HexBackground />
       <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
-        <TraversingHornbill size={44} />
         <Card>
           <Title>Create account</Title>
           <Field label="Display name" value={displayName} onChangeText={setDisplayName} placeholder="Your name" />
@@ -84,7 +81,6 @@ export default function SignUp() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {info ? (
             <View style={styles.verifyWrap}>
-              <HornbillMascot animation="blink" size={64} />
               <Text style={styles.info}>{info}</Text>
             </View>
           ) : null}

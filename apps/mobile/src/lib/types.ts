@@ -41,6 +41,14 @@ export interface TransactionRow {
   updated_at: string;
 }
 
+/** One distinct combination from the `transaction_facets` view (migration 17). */
+export interface TransactionFacetRow {
+  user_id: string;
+  bank: BankId;
+  card_last4: string | null;
+  currency: string;
+}
+
 export interface CategoryRow {
   id: string;
   user_id: string | null; // null = global default

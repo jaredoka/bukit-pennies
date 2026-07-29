@@ -1,8 +1,16 @@
 import { normalizeMerchant } from '@bukit/parsers';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { bruneiMonthStartIso, bruneiParts } from './format';
 import { supabase } from './supabase';
+import { buildTransactionOps, type TxFilters } from './txFilters';
 import type {
   BudgetRow,
   CategoryRow,
@@ -11,6 +19,7 @@ import type {
   MonthlyTotalRow,
   ProfileRow,
   SavingsGoalRow,
+  TransactionFacetRow,
   TransactionRow,
 } from './types';
 
@@ -26,18 +35,68 @@ async function unwrap<T>(promise: PromiseLike<{ data: T | null; error: { message
 
 // ------------------------------------------------------------------ queries
 
-export function useTransactions() {
+export const TX_PAGE_SIZE = 50;
+
+/**
+ * Everything derived from the transactions table. One helper because the list
+ * of derived caches keeps growing — `transaction_facets` is the fourth — and
+ * six call sites each repeating the set is how one of them gets missed.
+ */
+export function invalidateTransactionQueries(qc: QueryClient): void {
+  for (const key of ['transactions', 'monthly_totals', 'merchant_totals', 'transaction_facets']) {
+    qc.invalidateQueries({ queryKey: [key] });
+  }
+}
+
+/**
+ * Distinct bank / card / currency combinations for this user, for the filter
+ * pickers. A separate query because the list is paged now: the options cannot
+ * be derived from the rows currently loaded without a bank the user last spent
+ * at 600 transactions ago quietly disappearing from the Bank sheet.
+ */
+export function useTransactionFacets() {
   return useQuery({
-    queryKey: ['transactions'],
+    queryKey: ['transaction_facets'],
     queryFn: () =>
-      unwrap<TransactionRow[]>(
-        supabase
-          .from('transactions')
-          .select('*')
+      unwrap<TransactionFacetRow[]>(supabase.from('transaction_facets').select('*')),
+  });
+}
+
+/**
+ * The transactions list: filtered and ordered by the database, one page at a
+ * time. Replaces a flat `limit(500)` that the client then filtered — which
+ * quietly answered "matches, among the newest 500" (see txFilters.ts).
+ *
+ * The key stays under `['transactions', …]` so the existing
+ * `invalidateQueries({ queryKey: ['transactions'] })` calls after an ingest or
+ * an edit still match it by prefix.
+ */
+export function useFilteredTransactions(filters: TxFilters, search: string) {
+  return useInfiniteQuery({
+    queryKey: ['transactions', 'list', filters, search],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
+      let q = supabase.from('transactions').select('*');
+      for (const op of buildTransactionOps(filters, search)) {
+        if (op.op === 'in') q = q.in(op.column, op.values);
+        else if (op.op === 'or') q = q.or(op.expr);
+        else if (op.op === 'isNull') q = q.is(op.column, null);
+        else q = q[op.op](op.column, op.value);
+      }
+      return unwrap<TransactionRow[]>(
+        q
           .order('occurred_at', { ascending: false, nullsFirst: false })
           .order('created_at', { ascending: false })
-          .limit(500),
-      ),
+          .range(pageParam, pageParam + TX_PAGE_SIZE - 1),
+      );
+    },
+    // A short page means the end; no count(*) on every scroll to learn it.
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length < TX_PAGE_SIZE ? undefined : allPages.length * TX_PAGE_SIZE,
+    // Changing a filter changes the query key, which would otherwise empty the
+    // list and throw the whole screen — filter bar included — behind a spinner
+    // on every tap. Hold the previous rows until the new ones arrive.
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -299,9 +358,7 @@ export function usePullToRefresh() {
 function useInvalidateTx() {
   const qc = useQueryClient();
   return () => {
-    qc.invalidateQueries({ queryKey: ['transactions'] });
-    qc.invalidateQueries({ queryKey: ['monthly_totals'] });
-    qc.invalidateQueries({ queryKey: ['merchant_totals'] });
+    invalidateTransactionQueries(qc);
   };
 }
 
@@ -552,9 +609,7 @@ export function useRealtimeTransactions() {
     const channel = supabase
       .channel('tx-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        qc.invalidateQueries({ queryKey: ['transactions'] });
-        qc.invalidateQueries({ queryKey: ['monthly_totals'] });
-        qc.invalidateQueries({ queryKey: ['merchant_totals'] });
+        invalidateTransactionQueries(qc);
       })
       .subscribe();
     return () => {

@@ -124,6 +124,13 @@ structure in §8, Sideloadly constraints in §10).
   automation.
 - Amounts are `numeric(12,2)` server-side; dedup key is
   `sha256(user_id || ':' || normalized(raw_text))`.
+- **Never render two `Modal`s at once.** iOS presents one per view controller
+  and silently drops the second — the app freezes with no way out. All sheets
+  go through the single-Modal `SheetShell` (HANDOFF §28).
+- Device-local storage keys must match SecureStore's `/^[\w.-]+$/` — no colons
+  — and must be scoped per user id whenever the value derives from account
+  data rather than from the handset. `test/kvStore.test.ts` asserts both;
+  add new key builders to its list (HANDOFF §28).
 
 ## 6. Decision log (do not re-open without user say-so)
 
@@ -135,6 +142,8 @@ structure in §8, Sideloadly constraints in §10).
 | 2026-07-16 | Build Baiduri-first (only real sample); BIBD/SCB stay UNVERIFIED skeletons; review inbox is the sample-collection loop. |
 | 2026-07-16 | Scope this effort through "fully functional on iOS for testing"; Android listener module deferred. |
 | 2026-07-16 | Phase-by-phase cadence: stop after each merged phase and ask the user before continuing. |
+| 2026-07-30 | Transaction filters run in the database and the list pages (50/page); the client no longer filters a capped array. Filter pickers read the `transaction_facets` view, not the loaded rows. |
+| 2026-07-30 | `apps/mobile` carries vitest for pure logic only (no component rendering); picked up by `pnpm -r test` and CI unchanged. |
 
 ## 7. Standard procedures
 

@@ -15,16 +15,22 @@ import { kvGet, kvGetJson, kvSet, kvSetJson } from './kvStore';
 // dismissible card on the dashboard plus a permanent Settings entry, and the
 // dismissal persists (HANDOFF §22).
 
+// Dots, not colons, and the `bukit.` prefix every other stored key uses
+// (tokenStore, notifications, privacy, primaryCurrency). SecureStore rejects
+// colons outright — see the note in kvStore — so the previous `onboarded:<id>`
+// spelling persisted nothing on device. No migration: there is nothing on any
+// phone under the old names to migrate.
+
 export function onboardedKey(userId: string): string {
-  return `onboarded:${userId}`;
+  return `bukit.onboarded.${userId}`;
 }
 
 function dismissedKey(userId: string): string {
-  return `setup_dismissed:${userId}`;
+  return `bukit.setup_dismissed.${userId}`;
 }
 
 function stepsKey(userId: string): string {
-  return `setup_steps:${userId}`;
+  return `bukit.setup_steps.${userId}`;
 }
 
 /** Steps in the capture setup guide, used for the progress readout. */

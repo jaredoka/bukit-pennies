@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { Centered } from '@/components/ui';
 import { initSentry, Sentry } from '@/lib/sentry';
@@ -23,6 +23,23 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { session, loading } = useSession();
   const segments = useSegments();
   const router = useRouter();
+  const heuristicRunFor = useRef<string | null>(null);
+  // undefined = nothing seen yet, so the first session is not a "change".
+  const lastUserId = useRef<string | null | undefined>(undefined);
+
+  // The QueryClient is module-scoped and outlives sign-out, so without this
+  // the next account to sign in on this device renders the previous account's
+  // cached transactions, profile and goals until every query refetches. Same
+  // family of leak as the device-global ingest token (HANDOFF §18, SEC-1).
+  useEffect(() => {
+    if (loading) return;
+    const uid = session?.user.id ?? null;
+    if (lastUserId.current !== undefined && lastUserId.current !== uid) {
+      queryClient.clear();
+      heuristicRunFor.current = null;
+    }
+    lastUserId.current = uid;
+  }, [session?.user.id, loading]);
 
   useEffect(() => {
     if (loading) return;
@@ -45,7 +62,13 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       // already has transactions (e.g. completed setup on a previous install,
       // or pressed "I'll do it later" after the pipeline was already working),
       // stamp them as onboarded so they are never re-prompted.
-      if (!onboarded) {
+      //
+      // Once per session, not once per navigation. This effect re-runs on
+      // every segment change, so a user with no transactions yet — exactly the
+      // new user who is on a phone in a mall carpark — was firing a round trip
+      // on every single tap between tabs.
+      if (!onboarded && heuristicRunFor.current !== session.user.id) {
+        heuristicRunFor.current = session.user.id;
         const { data } = await supabase.from('transactions').select('id').limit(1);
         if (data?.length) {
           await kvSet(onboardedKey(session.user.id), '1');

@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Link, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -97,25 +97,30 @@ export default function Dashboard() {
   const [cardDismissed, setCardDismissed] = useState(true);
   const [setupSteps, setSetupSteps] = useState<number[]>([]);
 
-  useEffect(() => {
-    const uid = session?.user.id;
-    if (!uid) return;
-    let live = true;
-    void (async () => {
-      const [flag, dismissed, steps] = await Promise.all([
-        kvGet(onboardedKey(uid)),
-        isSetupCardDismissed(uid),
-        getCompletedSteps(uid),
-      ]);
-      if (!live) return;
-      setOnboarded(flag === '1');
-      setCardDismissed(dismissed);
-      setSetupSteps(steps);
-    })();
-    return () => {
-      live = false;
-    };
-  }, [session?.user.id]);
+  // On focus, not just on mount: the flag and the step ticks are written on
+  // the setup screen, so a card read once at mount would still be advertising
+  // "step 3 of 5" after the user came back having finished all five.
+  useFocusEffect(
+    useCallback(() => {
+      const uid = session?.user.id;
+      if (!uid) return;
+      let live = true;
+      void (async () => {
+        const [flag, dismissed, steps] = await Promise.all([
+          kvGet(onboardedKey(uid)),
+          isSetupCardDismissed(uid),
+          getCompletedSteps(uid),
+        ]);
+        if (!live) return;
+        setOnboarded(flag === '1');
+        setCardDismissed(dismissed);
+        setSetupSteps(steps);
+      })();
+      return () => {
+        live = false;
+      };
+    }, [session?.user.id]),
+  );
 
   // Capture setup is the reason to use this app, so the prompt stays — but as
   // a card the user can dismiss for good, not a gate (HANDOFF §22).
@@ -165,9 +170,12 @@ export default function Dashboard() {
   const [selected, setSelected] = useState<string | null>(null);
   const [reminderPrefs, setReminderPrefs] = useState<ReminderPrefs>({});
 
+  const userId = session?.user.id;
+
   useEffect(() => {
-    getReminderPrefs().then(setReminderPrefs);
-  }, []);
+    if (!userId) return;
+    getReminderPrefs(userId).then(setReminderPrefs);
+  }, [userId]);
 
   const thisMonthData = monthly.data?.find(
     (r) => r.month.startsWith(thisMonthKey.slice(0, 7)) && r.currency === primaryCurrency,
@@ -291,23 +299,25 @@ export default function Dashboard() {
   const recurring = useMemo(() => detectRecurring(recentTx.data ?? []).slice(0, 6), [recentTx.data]);
 
   useEffect(() => {
-    if (thisMonthTx.isLoading || recentTx.isLoading) return;
+    if (!userId || thisMonthTx.isLoading || recentTx.isLoading) return;
     void syncScheduledNotifications({
+      userId,
       recurring,
       spentThisMonth: thisMonthData ? Number(thisMonthData.total) : 0,
       income,
     });
-  }, [recurring, thisMonthData, income, thisMonthTx.isLoading, recentTx.isLoading]);
+  }, [userId, recurring, thisMonthData, income, thisMonthTx.isLoading, recentTx.isLoading]);
 
   useEffect(() => {
-    if (budgetProgress.items.length === 0) return;
-    void maybeOverspendAlert(budgetProgress.items);
-  }, [budgetProgress]);
+    if (!userId || budgetProgress.items.length === 0) return;
+    void maybeOverspendAlert(userId, budgetProgress.items);
+  }, [userId, budgetProgress]);
 
   async function cycleReminder(merchant: string) {
+    if (!userId) return;
     const current = reminderPrefs[merchant]?.daysBefore ?? null;
     const next = REMINDER_CYCLE[(REMINDER_CYCLE.indexOf(current) + 1) % REMINDER_CYCLE.length]!;
-    setReminderPrefs(await setReminderPref(merchant, next));
+    setReminderPrefs(await setReminderPref(userId, merchant, next));
   }
 
   const monthlyBars = useMemo(

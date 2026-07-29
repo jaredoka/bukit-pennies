@@ -8,9 +8,17 @@ import type { RecurringSpend } from './recurring';
 // without background tasks. No-ops on web.
 
 const BRUNEI_OFFSET_MS = 8 * 60 * 60 * 1000;
-const REMINDERS_KEY = 'bukit.reminders';
-const DIGEST_KEY = 'bukit.digest';
-const ALERTED_KEY = 'bukit.alerted';
+
+// Scoped per user. These are derived from account data, not device taste:
+// reminder prefs are keyed by *merchant name* and the alert markers by budget
+// id, so a device-global key handed the next account to sign in a list of the
+// previous account's merchants — visible in Settings > Notifications, and
+// scheduling bill reminders for spending that was never theirs. Theme,
+// currency and the privacy cloak stay device-global on purpose; those are
+// preferences about this handset, not facts about an account.
+const remindersKey = (userId: string) => `bukit.reminders.${userId}`;
+const digestKey = (userId: string) => `bukit.digest.${userId}`;
+const alertedKey = (userId: string) => `bukit.alerted.${userId}`;
 
 export interface DigestPrefs {
   on: boolean;
@@ -39,29 +47,36 @@ export async function ensureNotificationPermission(): Promise<boolean> {
   return asked.granted;
 }
 
-export async function getReminderPrefs(): Promise<ReminderPrefs> {
-  return kvGetJson<ReminderPrefs>(REMINDERS_KEY, {});
+export async function getReminderPrefs(userId: string): Promise<ReminderPrefs> {
+  return kvGetJson<ReminderPrefs>(remindersKey(userId), {});
 }
 
-export async function setReminderPref(merchant: string, daysBefore: ReminderDays | null): Promise<ReminderPrefs> {
-  const prefs = await getReminderPrefs();
+export async function setReminderPref(
+  userId: string,
+  merchant: string,
+  daysBefore: ReminderDays | null,
+): Promise<ReminderPrefs> {
+  const prefs = await getReminderPrefs(userId);
   if (daysBefore === null) delete prefs[merchant];
   else prefs[merchant] = { daysBefore };
-  await kvSetJson(REMINDERS_KEY, prefs);
+  await kvSetJson(remindersKey(userId), prefs);
   return prefs;
 }
 
 const DIGEST_DEFAULTS: DigestPrefs = { on: false, dayOfWeek: 1, hour: 9 };
 
-export async function getDigestPrefs(): Promise<DigestPrefs> {
-  const stored = await kvGetJson<Partial<DigestPrefs>>(DIGEST_KEY, {});
+export async function getDigestPrefs(userId: string): Promise<DigestPrefs> {
+  const stored = await kvGetJson<Partial<DigestPrefs>>(digestKey(userId), {});
   return { ...DIGEST_DEFAULTS, ...stored };
 }
 
-export async function setDigestPrefs(prefs: Partial<DigestPrefs>): Promise<DigestPrefs> {
-  const current = await getDigestPrefs();
+export async function setDigestPrefs(
+  userId: string,
+  prefs: Partial<DigestPrefs>,
+): Promise<DigestPrefs> {
+  const current = await getDigestPrefs(userId);
   const next = { ...current, ...prefs };
-  await kvSetJson(DIGEST_KEY, next);
+  await kvSetJson(digestKey(userId), next);
   return next;
 }
 
@@ -92,14 +107,15 @@ function nextWeeklyTrigger(dayOfWeek: number, hour: number): Date {
 /** Re-sync every scheduled local notification from current data. Called on
  *  dashboard mount. Cancels and re-schedules under stable identifiers. */
 export async function syncScheduledNotifications(opts: {
+  userId: string;
   recurring: RecurringSpend[];
   spentThisMonth: number;
   income: number | null;
 }): Promise<void> {
   const N = notifications();
   if (!N) return;
-  const prefs = await getReminderPrefs();
-  const digest = await getDigestPrefs();
+  const prefs = await getReminderPrefs(opts.userId);
+  const digest = await getDigestPrefs(opts.userId);
   if (Object.keys(prefs).length === 0 && !digest.on) {
     await N.cancelAllScheduledNotificationsAsync();
     return;
@@ -144,11 +160,14 @@ export async function syncScheduledNotifications(opts: {
 }
 
 /** Fire an immediate overspend alert once per budget per threshold per month. */
-export async function maybeOverspendAlert(budgets: Array<{ id: string; name: string; spent: number; limit: number }>): Promise<void> {
+export async function maybeOverspendAlert(
+  userId: string,
+  budgets: Array<{ id: string; name: string; spent: number; limit: number }>,
+): Promise<void> {
   const N = notifications();
   if (!N) return;
   const monthKey = bruneiMonthKey(Date.now());
-  const alerted = await kvGetJson<Record<string, number>>(ALERTED_KEY, {});
+  const alerted = await kvGetJson<Record<string, number>>(alertedKey(userId), {});
   let changed = false;
   for (const b of budgets) {
     if (b.limit <= 0) continue;
@@ -171,5 +190,5 @@ export async function maybeOverspendAlert(budgets: Array<{ id: string; name: str
       changed = true;
     }
   }
-  if (changed) await kvSetJson(ALERTED_KEY, alerted);
+  if (changed) await kvSetJson(alertedKey(userId), alerted);
 }

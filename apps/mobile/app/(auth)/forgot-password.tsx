@@ -3,7 +3,6 @@ import { Link } from 'expo-router';
 import { useState } from 'react';
 import { Platform, Text, View } from 'react-native';
 import { HexBackground } from '@/components/HexBackground';
-import { HornbillMascot } from '@/components/HornbillMascot';
 import { Button, Card, Field, Muted, Title } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { themedStyles } from '@/lib/theme';
@@ -33,9 +32,6 @@ export default function ForgotPassword() {
       <HexBackground />
       <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
-        <View style={{ alignItems: 'center' }}>
-          <HornbillMascot animation="idle" size={56} flip blinkChance={0.35} doubleBlink />
-        </View>
         <Card>
           <Title>Reset password</Title>
           {sent ? (

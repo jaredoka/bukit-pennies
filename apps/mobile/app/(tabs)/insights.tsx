@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
-import { Card, Muted, PickerSheet, Title, WheelPicker } from '@/components/ui';
+import { Card, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
 import { bruneiParts } from '@/lib/format';
 import { usePrivacy } from '@/lib/privacy';
 import { usePrimaryCurrency } from '@/lib/primaryCurrency';
@@ -202,7 +202,7 @@ export default function Insights() {
       </ScrollView>
 
       {/* Year picker sheet */}
-      <PickerSheet visible={pickerOpen} onClose={() => setPickerOpen(false)} title="Select year">
+      <Sheet visible={pickerOpen} onClose={() => setPickerOpen(false)} title="Select year">
         <View key={pickerOpen ? 'open' : 'closed'} style={styles.wheelRow}>
           <WheelPicker
             items={yearItems}
@@ -210,7 +210,7 @@ export default function Insights() {
             onSelect={(i) => setYear(Number(yearItems[i]))}
           />
         </View>
-      </PickerSheet>
+      </Sheet>
     </>
   );
 }

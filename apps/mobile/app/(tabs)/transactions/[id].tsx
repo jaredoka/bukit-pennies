@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -13,7 +12,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Badge, Button, Card, Centered, Field, Muted, Title } from '@/components/ui';
+import { Badge, Button, Card, Centered, Field, Muted, Sheet, Title, useSheetPresence } from '@/components/ui';
 import { formatTime, bruneiParts } from '@/lib/format';
 import { themedStyles, useTheme } from '@/lib/theme';
 import { usePrivacy } from '@/lib/privacy';
@@ -69,6 +68,7 @@ export default function TransactionDetail() {
   const [notes, setNotes] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [catSheetOpen, setCatSheetOpen] = useState(false);
+  const catSheetPresent = useSheetPresence(catSheetOpen ? 'cat' : null) !== null;
   useEffect(() => {
     if (tx) setNotes(tx.notes ?? '');
   }, [tx?.id]);
@@ -186,23 +186,17 @@ export default function TransactionDetail() {
       <Button label="Delete transaction" variant="danger" onPress={remove} busy={del.isPending} />
 
       {/* Category dropdown sheet */}
-      {catSheetOpen ? (
-        <>
-          <Modal visible transparent animationType="none" onRequestClose={() => setCatSheetOpen(false)}>
-            <Pressable style={styles.overlay} onPress={() => setCatSheetOpen(false)} />
-          </Modal>
-          <Modal visible transparent animationType="slide" onRequestClose={() => setCatSheetOpen(false)}>
-            <View style={styles.sheetSlide}>
-              <Pressable style={styles.sheet} onPress={() => {}}>
-                <View style={styles.sheetHandle} />
-                <View style={styles.sheetHeader}>
-                  <Text style={styles.sheetTitle}>Category</Text>
-                  {tx.category_id ? (
-                    <Pressable hitSlop={8} onPress={() => { update.mutate({ id: tx.id, patch: { category_id: null } }); setCatSheetOpen(false); }}>
-                      <Text style={{ color: colors.danger, fontWeight: '600' }}>Clear</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
+      {catSheetPresent ? (
+        <Sheet
+          visible={catSheetOpen}
+          title="Category"
+          onClose={() => setCatSheetOpen(false)}
+          onClear={
+            tx.category_id
+              ? () => { update.mutate({ id: tx.id, patch: { category_id: null } }); setCatSheetOpen(false); }
+              : undefined
+          }
+        >
                 {(categories.data ?? []).map((c) => (
                   <Pressable
                     key={c.id}
@@ -237,11 +231,7 @@ export default function TransactionDetail() {
                     onPress={() => createCategory.mutate(newCategory.trim(), { onSuccess: () => setNewCategory('') })}
                   />
                 </View>
-                <Button label="Done" onPress={() => setCatSheetOpen(false)} />
-              </Pressable>
-            </View>
-          </Modal>
-        </>
+        </Sheet>
       ) : null}
     </ScrollView>
   );
@@ -283,29 +273,6 @@ const useStyles = themedStyles((colors) => ({
   },
   detailValue: { color: colors.text, fontWeight: '500', flexShrink: 1, textAlign: 'right', marginLeft: 16 },
   // Category sheet
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
-  sheetSlide: { flex: 1, justifyContent: 'flex-end' as const },
-  sheet: {
-    backgroundColor: colors.card,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 36,
-  },
-  sheetHandle: {
-    width: 40, height: 4, borderRadius: 2,
-    backgroundColor: colors.border,
-    alignSelf: 'center' as const,
-    marginBottom: 12,
-  },
-  sheetHeader: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
-    alignItems: 'center' as const,
-    marginBottom: 8,
-  },
-  sheetTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
   catRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Link, Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useMemo, useState } from 'react';
 import {
-  Animated,
   ActivityIndicator,
   Modal,
   Pressable,
@@ -16,7 +15,7 @@ import {
   View,
 } from 'react-native';
 import { HornbillMascot } from '@/components/HornbillMascot';
-import { Badge, Button, Centered, Field, Muted } from '@/components/ui';
+import { Badge, Button, Centered, Field, Muted, Sheet, SheetShell, useSheetPresence } from '@/components/ui';
 import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
 import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
 import { useCategories, usePullToRefresh, useTransactions } from '@/lib/queries';
@@ -99,59 +98,6 @@ function applyFilters(tx: TransactionRow, f: TxFilters, search: string): boolean
   return true;
 }
 
-// ---- Shared sheet wrapper --------------------------------------------------
-
-function useSheetSlide(visible: boolean) {
-  const translateY = useRef(new Animated.Value(600)).current;
-  useEffect(() => {
-    Animated.timing(translateY, {
-      toValue: visible ? 0 : 600,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [visible, translateY]);
-  return translateY;
-}
-
-function Sheet({
-  visible,
-  title,
-  onClose,
-  onClear,
-  children,
-}: {
-  visible: boolean;
-  title: string;
-  onClose: () => void;
-  onClear?: () => void;
-  children: React.ReactNode;
-}) {
-  const styles = useStyles();
-  const { colors } = useTheme();
-  const translateY = useSheetSlide(visible);
-  return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <Pressable style={styles.overlaySlide} onPress={onClose}>
-        <Animated.View style={{ transform: [{ translateY }] }}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
-            <View style={styles.sheetHandle} />
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>{title}</Text>
-              {onClear ? (
-                <Pressable onPress={onClear} hitSlop={8}>
-                  <Text style={{ color: colors.danger, fontWeight: '600' }}>Clear</Text>
-                </Pressable>
-              ) : null}
-            </View>
-            {children}
-            <Button label="Done" onPress={onClose} />
-          </Pressable>
-        </Animated.View>
-      </Pressable>
-    </Modal>
-  );
-}
-
 // ---- Selectable row (replaces chips) ---------------------------------------
 
 function SelectRow({
@@ -189,11 +135,13 @@ function toDateStr(year: number, month: number, day: number): string {
 }
 
 function CalendarSheet({
+  visible,
   dateFrom,
   dateTo,
   onChange,
   onClose,
 }: {
+  visible: boolean;
   dateFrom: string;
   dateTo: string;
   onChange: (patch: { dateFrom?: string; dateTo?: string }) => void;
@@ -266,7 +214,7 @@ function CalendarSheet({
 
   return (
     <Sheet
-      visible
+      visible={visible}
       title="Date range"
       onClose={onClose}
       onClear={() => { onChange({ dateFrom: '', dateTo: '' }); setPicking('start'); }}
@@ -376,16 +324,18 @@ function CalendarSheet({
 // ---- Per-filter sheets (row-based) -----------------------------------------
 
 function DirectionSheet({
+  visible,
   value,
   onChange,
   onClose,
 }: {
+  visible: boolean;
   value: TxFilters['direction'];
   onChange: (v: TxFilters['direction']) => void;
   onClose: () => void;
 }) {
   return (
-    <Sheet visible title="Direction" onClose={onClose} onClear={() => onChange('all')}>
+    <Sheet visible={visible} title="Direction" onClose={onClose} onClear={() => onChange('all')}>
       <View style={{ marginBottom: 8 }}>
         {(['all', 'incoming', 'outgoing'] as const).map((d) => (
           <SelectRow
@@ -401,11 +351,13 @@ function DirectionSheet({
 }
 
 function CurrencySheet({
+  visible,
   available,
   selected,
   onChange,
   onClose,
 }: {
+  visible: boolean;
   available: string[];
   selected: string[];
   onChange: (v: string[]) => void;
@@ -413,7 +365,7 @@ function CurrencySheet({
 }) {
   const styles = useStyles();
   return (
-    <Sheet visible title="Currency" onClose={onClose} onClear={() => onChange([])}>
+    <Sheet visible={visible} title="Currency" onClose={onClose} onClear={() => onChange([])}>
       <View style={{ marginBottom: 8 }}>
         {[...available].sort().map((c) => (
           <SelectRow
@@ -435,16 +387,18 @@ function CurrencySheet({
 }
 
 function RecipientSheet({
+  visible,
   value,
   onChange,
   onClose,
 }: {
+  visible: boolean;
   value: string;
   onChange: (v: string) => void;
   onClose: () => void;
 }) {
   return (
-    <Sheet visible title="Recipient" onClose={onClose} onClear={() => onChange('')}>
+    <Sheet visible={visible} title="Recipient" onClose={onClose} onClear={() => onChange('')}>
       <View style={{ marginBottom: 16 }}>
         <Field
           placeholder="Search by merchant name…"
@@ -459,11 +413,13 @@ function RecipientSheet({
 }
 
 function BankSheet({
+  visible,
   available,
   selected,
   onChange,
   onClose,
 }: {
+  visible: boolean;
   available: string[];
   selected: string[];
   onChange: (v: string[]) => void;
@@ -473,7 +429,7 @@ function BankSheet({
     (BANK_LABELS[a] ?? a).localeCompare(BANK_LABELS[b] ?? b),
   );
   return (
-    <Sheet visible title="Bank" onClose={onClose} onClear={() => onChange([])}>
+    <Sheet visible={visible} title="Bank" onClose={onClose} onClear={() => onChange([])}>
       <View style={{ marginBottom: 8 }}>
         {sorted.map((b) => (
           <SelectRow
@@ -489,11 +445,13 @@ function BankSheet({
 }
 
 function CategorySheet({
+  visible,
   categories,
   selected,
   onChange,
   onClose,
 }: {
+  visible: boolean;
   categories: CategoryRow[];
   selected: (string | null)[];
   onChange: (v: (string | null)[]) => void;
@@ -503,7 +461,7 @@ function CategorySheet({
   // Sort alphabetically — same order as Settings so fallback index matches
   const sorted = [...categories].sort((a, b) => a.name.localeCompare(b.name));
   return (
-    <Sheet visible title="Category" onClose={onClose} onClear={() => onChange([])}>
+    <Sheet visible={visible} title="Category" onClose={onClose} onClear={() => onChange([])}>
       <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
         <View style={{ marginBottom: 8 }}>
           <SelectRow
@@ -527,18 +485,20 @@ function CategorySheet({
 }
 
 function CardSheet({
+  visible,
   available,
   selected,
   onChange,
   onClose,
 }: {
+  visible: boolean;
   available: string[];
   selected: string[];
   onChange: (v: string[]) => void;
   onClose: () => void;
 }) {
   return (
-    <Sheet visible title="Card" onClose={onClose} onClear={() => onChange([])}>
+    <Sheet visible={visible} title="Card" onClose={onClose} onClear={() => onChange([])}>
       <View style={{ marginBottom: 8 }}>
         {[...available].sort().map((card) => (
           <SelectRow
@@ -575,7 +535,11 @@ export default function TransactionsList() {
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<TxFilters>(DEFAULT_FILTERS);
   const [activeSheet, setActiveSheet] = useState<SheetKey | null>(null);
+  // The sheet that is actually rendered: lags activeSheet on the way out so
+  // the panel can slide away before it unmounts.
+  const renderedSheet = useSheetPresence(activeSheet);
   const [showAdd, setShowAdd] = useState(false);
+  const addSheetPresent = useSheetPresence(showAdd ? 'add' : null) !== null;
   const { refreshing, onRefresh } = usePullToRefresh();
 
   function patch(p: Partial<TxFilters>) {
@@ -756,22 +720,24 @@ export default function TransactionsList() {
       </View>
 
       {/* Per-filter sheets */}
-      {showAdd ? <AddSheet onClose={() => setShowAdd(false)} /> : null}
+      {addSheetPresent ? (
+        <AddSheet visible={showAdd} onClose={() => setShowAdd(false)} />
+      ) : null}
 
-      {activeSheet === 'bank' ? (
-        <BankSheet available={availBanks} selected={filters.banks} onChange={(v) => patch({ banks: v })} onClose={() => setActiveSheet(null)} />
-      ) : activeSheet === 'card' ? (
-        <CardSheet available={availCards} selected={filters.cards} onChange={(v) => patch({ cards: v })} onClose={() => setActiveSheet(null)} />
-      ) : activeSheet === 'category' ? (
-        <CategorySheet categories={categories.data ?? []} selected={filters.categoryIds} onChange={(v) => patch({ categoryIds: v })} onClose={() => setActiveSheet(null)} />
-      ) : activeSheet === 'currency' ? (
-        <CurrencySheet available={availCurrencies} selected={filters.currencies} onChange={(v) => patch({ currencies: v })} onClose={() => setActiveSheet(null)} />
-      ) : activeSheet === 'date' ? (
-        <CalendarSheet dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={(p) => patch(p)} onClose={() => setActiveSheet(null)} />
-      ) : activeSheet === 'direction' ? (
-        <DirectionSheet value={filters.direction} onChange={(v) => patch({ direction: v })} onClose={() => setActiveSheet(null)} />
-      ) : activeSheet === 'recipient' ? (
-        <RecipientSheet value={filters.recipient} onChange={(v) => patch({ recipient: v })} onClose={() => setActiveSheet(null)} />
+      {renderedSheet === 'bank' ? (
+        <BankSheet visible={activeSheet === 'bank'} available={availBanks} selected={filters.banks} onChange={(v) => patch({ banks: v })} onClose={() => setActiveSheet(null)} />
+      ) : renderedSheet === 'card' ? (
+        <CardSheet visible={activeSheet === 'card'} available={availCards} selected={filters.cards} onChange={(v) => patch({ cards: v })} onClose={() => setActiveSheet(null)} />
+      ) : renderedSheet === 'category' ? (
+        <CategorySheet visible={activeSheet === 'category'} categories={categories.data ?? []} selected={filters.categoryIds} onChange={(v) => patch({ categoryIds: v })} onClose={() => setActiveSheet(null)} />
+      ) : renderedSheet === 'currency' ? (
+        <CurrencySheet visible={activeSheet === 'currency'} available={availCurrencies} selected={filters.currencies} onChange={(v) => patch({ currencies: v })} onClose={() => setActiveSheet(null)} />
+      ) : renderedSheet === 'date' ? (
+        <CalendarSheet visible={activeSheet === 'date'} dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={(p) => patch(p)} onClose={() => setActiveSheet(null)} />
+      ) : renderedSheet === 'direction' ? (
+        <DirectionSheet visible={activeSheet === 'direction'} value={filters.direction} onChange={(v) => patch({ direction: v })} onClose={() => setActiveSheet(null)} />
+      ) : renderedSheet === 'recipient' ? (
+        <RecipientSheet visible={activeSheet === 'recipient'} value={filters.recipient} onChange={(v) => patch({ recipient: v })} onClose={() => setActiveSheet(null)} />
       ) : null}
     </>
   );
@@ -779,22 +745,19 @@ export default function TransactionsList() {
 
 // ---- Add sheet (Cash / Capture chooser) ------------------------------------
 
-function AddSheet({ onClose }: { onClose: () => void }) {
+function AddSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const router = useRouter();
   const [showCapture, setShowCapture] = useState(false);
 
   if (showCapture) {
-    return <CaptureSheet onClose={onClose} />;
+    return <CaptureSheet visible={visible} onClose={onClose} />;
   }
 
-  const translateY = useSheetSlide(true);
   return (
-    <Modal visible transparent animationType="none" onRequestClose={onClose}>
-      <Pressable style={styles.overlaySlide} onPress={onClose}>
-        <Animated.View style={{ transform: [{ translateY }] }}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
+    <SheetShell visible={visible} onClose={onClose}>
+        <View style={styles.sheet}>
           <View style={styles.sheetHandle} />
           <Text style={styles.sheetTitle}>Add transaction manually</Text>
           <Pressable
@@ -820,10 +783,8 @@ function AddSheet({ onClose }: { onClose: () => void }) {
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.muted} />
           </Pressable>
-        </Pressable>
-        </Animated.View>
-      </Pressable>
-    </Modal>
+        </View>
+    </SheetShell>
   );
 }
 
@@ -838,7 +799,7 @@ function outcomeOf(res: IngestResponse): Outcome {
   return 'error';
 }
 
-function CaptureSheet({ onClose }: { onClose: () => void }) {
+function CaptureSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const qc = useQueryClient();
@@ -899,11 +860,8 @@ function CaptureSheet({ onClose }: { onClose: () => void }) {
     ? result.status === 'created' ? colors.primary : result.status === 'error' ? colors.danger : colors.warning
     : colors.text;
 
-  const translateY = useSheetSlide(true);
   return (
-    <Modal visible transparent animationType="none" onRequestClose={onClose}>
-      <Pressable style={styles.overlaySlide} onPress={onClose}>
-        <Animated.View style={{ transform: [{ translateY }] }}>
+    <SheetShell visible={visible} onClose={onClose}>
         <ScrollView
           style={styles.sheet}
           contentContainerStyle={{ paddingBottom: 36 }}
@@ -969,9 +927,7 @@ function CaptureSheet({ onClose }: { onClose: () => void }) {
             ) : null}
             <Button label="Done" onPress={onClose} />
           </ScrollView>
-        </Animated.View>
-      </Pressable>
-    </Modal>
+    </SheetShell>
   );
 }
 
@@ -1074,11 +1030,6 @@ const useStyles = themedStyles((colors) => ({
   merchant: { fontWeight: '600', color: colors.text },
   amount: { fontWeight: '700', color: colors.text },
   // Sheet
-  overlaySlide: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
   sheet: {
     backgroundColor: colors.card,
     borderTopLeftRadius: 20,

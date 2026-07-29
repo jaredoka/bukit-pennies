@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Card, Centered, Muted, PickerSheet, Title, WheelPicker } from '@/components/ui';
+import { Card, Centered, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
 import {
   ensureNotificationPermission,
   getDigestPrefs,
@@ -85,21 +85,21 @@ export default function WeeklySummary() {
         ) : null}
       </ScrollView>
 
-      <PickerSheet visible={dayOpen} onClose={() => setDayOpen(false)} title="Day">
+      <Sheet visible={dayOpen} onClose={() => setDayOpen(false)} title="Day">
         <WheelPicker
           items={DAY_ITEMS}
           selectedIndex={prefs.dayOfWeek}
           onSelect={(idx) => update({ dayOfWeek: idx })}
         />
-      </PickerSheet>
+      </Sheet>
 
-      <PickerSheet visible={timeOpen} onClose={() => setTimeOpen(false)} title="Time">
+      <Sheet visible={timeOpen} onClose={() => setTimeOpen(false)} title="Time">
         <WheelPicker
           items={HOUR_ITEMS}
           selectedIndex={prefs.hour}
           onSelect={(idx) => update({ hour: idx })}
         />
-      </PickerSheet>
+      </Sheet>
     </>
   );
 }

@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Card, Chip, Muted, PickerSheet, Title, WheelPicker } from '@/components/ui';
+import { Card, Chip, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
 import { themedStyles, useTheme } from '@/lib/theme';
 import { CURRENCY_OPTIONS, usePrimaryCurrency } from '@/lib/primaryCurrency';
 
@@ -59,7 +59,7 @@ export default function Appearance() {
         </Card>
       </ScrollView>
 
-      <PickerSheet
+      <Sheet
         visible={currencyPickerOpen}
         onClose={() => setCurrencyPickerOpen(false)}
         title="Primary currency"
@@ -71,7 +71,7 @@ export default function Appearance() {
             onSelect={(i) => setCurrency(CURRENCY_OPTIONS[i]!.code)}
           />
         </View>
-      </PickerSheet>
+      </Sheet>
     </>
   );
 }

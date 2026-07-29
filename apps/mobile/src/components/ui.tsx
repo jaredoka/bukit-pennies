@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, type ReactNode, type RefObject } from 'react';
+import React, { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -168,15 +168,14 @@ export function WheelPicker({
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pad = WHEEL_ITEM_H * Math.floor(visibleCount / 2);
 
-  // Initial scroll — delay exceeds the Modal slide animation (~300ms).
-  useEffect(() => {
-    const t = setTimeout(() => {
-      ref.current?.scrollTo({ y: selectedIndex * WHEEL_ITEM_H, animated: false });
-      lastIdx.current = selectedIndex;
-    }, 350);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Where the wheel starts. Positioned declaratively via `contentOffset` and
+  // again from `onContentSizeChange` below, rather than by a timer sized to
+  // outlast the sheet animation — the wheel used to sit on the wrong row for
+  // 350ms after the sheet had already arrived, which is exactly the moment you
+  // are looking at it. `initialOffset` is captured once, on purpose: later
+  // changes to selectedIndex belong to the sync effect.
+  const initialOffset = useRef(selectedIndex * WHEEL_ITEM_H).current;
+  const positioned = useRef(false);
 
   // Sync when selectedIndex changes externally (e.g. reset).
   useEffect(() => {
@@ -210,7 +209,18 @@ export function WheelPicker({
         ref={ref}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
+        contentOffset={{ x: 0, y: initialOffset }}
         contentContainerStyle={{ paddingTop: pad, paddingBottom: pad }}
+        // Belt and braces for `contentOffset`, which platforms honour
+        // inconsistently. Fires as soon as the rows have been measured, which
+        // is what the old timer was really waiting for. Guarded so a later
+        // change to `items` — the Insights year list grows once its query
+        // lands — does not yank the wheel back to where it started.
+        onContentSizeChange={(_w, h) => {
+          if (positioned.current || h <= 0) return;
+          positioned.current = true;
+          ref.current?.scrollTo({ y: initialOffset, animated: false });
+        }}
         // Universal: debounce every scroll event. Works on web (no
         // onMomentumScrollEnd) and on native iOS/Android alike.
         onScroll={(e) => {
@@ -252,36 +262,115 @@ export function WheelPicker({
 }
 
 /** Bottom-sheet modal wrapper for wheel pickers and other compact dialogs. */
-export function PickerSheet({
+/**
+ * How long a Modal's slide takes. React Native does not expose the duration,
+ * so anything that has to outlast an exit animation is timed against this.
+ */
+export const SHEET_ANIM_MS = 300;
+
+/**
+ * Keeps the last non-null value alive for `SHEET_ANIM_MS` after it clears, so
+ * a conditionally-rendered sheet stays mounted long enough to animate out.
+ *
+ * Deferring the unmount rather than removing it is deliberate: unmounting is
+ * what resets a sheet's internal state — pasted text, capture results, which
+ * sub-view it was showing — and callers rely on reopening a clean sheet.
+ */
+export function useSheetPresence<T>(value: T | null): T | null {
+  const [rendered, setRendered] = useState<T | null>(value);
+  useEffect(() => {
+    if (value !== null) {
+      setRendered(value);
+      return;
+    }
+    const timer = setTimeout(() => setRendered(null), SHEET_ANIM_MS);
+    return () => clearTimeout(timer);
+  }, [value]);
+  return rendered;
+}
+
+/**
+ * Bottom-sheet chrome: an instant dim plus a panel that rides the platform's
+ * own slide animation.
+ *
+ * Two Modals, not one, because the dim has to appear at once while only the
+ * panel moves — a single sliding Modal drags its whole container up, so the
+ * dim would rise like a curtain.
+ *
+ * The dismiss area lives in the *sliding* Modal, above `children`. It has to:
+ * that Modal is on top, so a tap on the dark area never reaches the overlay
+ * Modal beneath it. Putting the handler on the overlay looked right and did
+ * nothing at all — tapping outside simply failed to close the sheet.
+ *
+ * Animation is the platform's, deliberately. The hand-rolled version this
+ * replaced started its slide from a `useEffect`, so the panel mounted
+ * offscreen, painted, and only then began a 300ms tween: tap, dead pause,
+ * slow slide.
+ */
+export function SheetShell({
   visible,
   onClose,
-  title,
   children,
 }: {
   visible: boolean;
   onClose: () => void;
-  title?: string;
   children: ReactNode;
 }) {
   const styles = useStyles();
   return (
     <>
-      {/* Overlay appears instantly */}
-      <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-        <Pressable style={styles.sheetOverlay} onPress={onClose} />
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        {/* Dim only — it can never be tapped, see above. */}
+        <View style={styles.sheetOverlay} />
       </Modal>
-      {/* Sheet panel slides up */}
       <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
         <View style={styles.sheetSlide}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
-            <View style={styles.sheetHandle} />
-            {title ? <Text style={styles.sheetTitle}>{title}</Text> : null}
-            {children}
-            <Button label="Done" onPress={onClose} />
-          </Pressable>
+          <Pressable
+            style={styles.sheetDismissArea}
+            onPress={onClose}
+            accessibilityLabel="Close"
+          />
+          {children}
         </View>
       </Modal>
     </>
+  );
+}
+
+/** Standard sheet: handle, optional title and Clear, content, Done. */
+export function Sheet({
+  visible,
+  onClose,
+  title,
+  onClear,
+  children,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  title?: string;
+  onClear?: () => void;
+  children: ReactNode;
+}) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  return (
+    <SheetShell visible={visible} onClose={onClose}>
+      <View style={styles.sheet}>
+        <View style={styles.sheetHandle} />
+        {title || onClear ? (
+          <View style={[styles.sheetHeader, !onClear && { justifyContent: 'center' }]}>
+            {title ? <Text style={styles.sheetTitle}>{title}</Text> : null}
+            {onClear ? (
+              <Pressable onPress={onClear} hitSlop={8}>
+                <Text style={{ color: colors.danger, fontWeight: '600' }}>Clear</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+        {children}
+        <Button label="Done" onPress={onClose} />
+      </View>
+    </SheetShell>
   );
 }
 
@@ -343,7 +432,7 @@ const useStyles = themedStyles((colors) => ({
   // another line. Selection reads from the filled background.
   chipText: { color: colors.text, fontSize: 13 },
   chipActiveText: { color: colors.onPrimary, fontSize: 13 },
-  // PickerSheet
+  // Sheet
   sheetOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -352,6 +441,8 @@ const useStyles = themedStyles((colors) => ({
     flex: 1,
     justifyContent: 'flex-end' as const,
   },
+  // Everything above the panel: tapping it closes the sheet.
+  sheetDismissArea: { flex: 1 },
   sheet: {
     backgroundColor: colors.card,
     borderTopLeftRadius: 20,
@@ -368,11 +459,15 @@ const useStyles = themedStyles((colors) => ({
     alignSelf: 'center' as const,
     marginBottom: 16,
   },
+  sheetHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    marginBottom: 12,
+  },
   sheetTitle: {
     fontSize: 16,
     fontWeight: '600' as const,
     color: colors.text,
-    textAlign: 'center' as const,
-    marginBottom: 4,
   },
 }));

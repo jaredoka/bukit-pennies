@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { BarChart, LineChart, PieChart } from 'react-native-gifted-charts';
 import { HornbillMascot } from '@/components/HornbillMascot';
-import { Card, Muted, PickerSheet, Title, WheelPicker } from '@/components/ui';
+import { Card, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
 import {
   bruneiDayKey,
   bruneiMonthKey,
@@ -666,7 +666,7 @@ export default function Dashboard() {
     </ScrollView>
 
     {/* Period picker sheet */}
-    <PickerSheet visible={pickerOpen} onClose={() => setPickerOpen(false)} title="Select period">
+    <Sheet visible={pickerOpen} onClose={() => setPickerOpen(false)} title="Select period">
       <View key={pickerOpen ? 'open' : 'closed'} style={styles.wheelsRow}>
         <View style={styles.wheelCol}>
           <WheelPicker
@@ -684,7 +684,7 @@ export default function Dashboard() {
           />
         </View>
       </View>
-    </PickerSheet>
+    </Sheet>
     </>
   );
 }

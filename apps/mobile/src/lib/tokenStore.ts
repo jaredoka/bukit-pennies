@@ -10,6 +10,8 @@ import { Platform } from 'react-native';
 // HANDOFF §18, SEC-1). Scoping by user id also lets two accounts share a
 // device without either one re-running the Shortcut setup.
 
+// Left behind by pre-scoping builds. Never adopted — only deleted. See
+// getStoredToken.
 const LEGACY_KEY = 'bukit.ingest_token';
 
 function keyFor(userId: string): string {
@@ -42,19 +44,25 @@ async function deleteKey(key: string): Promise<void> {
 }
 
 /**
- * This user's ingest token, or null. Adopts a pre-scoping token left in the
- * legacy device-global key on first call, then removes it — safe because the
- * upgrading user is the only account that has ever used this install's token.
+ * This user's ingest token, or null.
+ *
+ * The legacy device-global token is discarded, not adopted. Adoption assumed
+ * the upgrading user would be the first to call this after the update, and
+ * nothing enforced that: if the previous account never reopened the app, the
+ * *next* account to sign in inherited their token, and every capture from this
+ * device would have been filed into the previous account (the SEC-1 leak the
+ * scoping was introduced to close, surviving through its own migration path).
+ * There is no way to check ownership from the client — token_hash is
+ * server-side and the plaintext is shown once.
+ *
+ * The cost is that a device still holding a pre-scoping token has to create a
+ * new one in Settings > Capture. That is a one-screen redo, and correctness
+ * here is not worth trading for it.
  */
 export async function getStoredToken(userId: string): Promise<string | null> {
-  const scoped = await readKey(keyFor(userId));
-  if (scoped) return scoped;
-
   const legacy = await readKey(LEGACY_KEY);
-  if (!legacy) return null;
-  await writeKey(keyFor(userId), legacy);
-  await deleteKey(LEGACY_KEY);
-  return legacy;
+  if (legacy) await deleteKey(LEGACY_KEY);
+  return readKey(keyFor(userId));
 }
 
 export async function setStoredToken(userId: string, token: string): Promise<void> {

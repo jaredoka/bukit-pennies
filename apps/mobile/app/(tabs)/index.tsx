@@ -170,9 +170,12 @@ export default function Dashboard() {
   const [selected, setSelected] = useState<string | null>(null);
   const [reminderPrefs, setReminderPrefs] = useState<ReminderPrefs>({});
 
+  const userId = session?.user.id;
+
   useEffect(() => {
-    getReminderPrefs().then(setReminderPrefs);
-  }, []);
+    if (!userId) return;
+    getReminderPrefs(userId).then(setReminderPrefs);
+  }, [userId]);
 
   const thisMonthData = monthly.data?.find(
     (r) => r.month.startsWith(thisMonthKey.slice(0, 7)) && r.currency === primaryCurrency,
@@ -296,23 +299,25 @@ export default function Dashboard() {
   const recurring = useMemo(() => detectRecurring(recentTx.data ?? []).slice(0, 6), [recentTx.data]);
 
   useEffect(() => {
-    if (thisMonthTx.isLoading || recentTx.isLoading) return;
+    if (!userId || thisMonthTx.isLoading || recentTx.isLoading) return;
     void syncScheduledNotifications({
+      userId,
       recurring,
       spentThisMonth: thisMonthData ? Number(thisMonthData.total) : 0,
       income,
     });
-  }, [recurring, thisMonthData, income, thisMonthTx.isLoading, recentTx.isLoading]);
+  }, [userId, recurring, thisMonthData, income, thisMonthTx.isLoading, recentTx.isLoading]);
 
   useEffect(() => {
-    if (budgetProgress.items.length === 0) return;
-    void maybeOverspendAlert(budgetProgress.items);
-  }, [budgetProgress]);
+    if (!userId || budgetProgress.items.length === 0) return;
+    void maybeOverspendAlert(userId, budgetProgress.items);
+  }, [userId, budgetProgress]);
 
   async function cycleReminder(merchant: string) {
+    if (!userId) return;
     const current = reminderPrefs[merchant]?.daysBefore ?? null;
     const next = REMINDER_CYCLE[(REMINDER_CYCLE.indexOf(current) + 1) % REMINDER_CYCLE.length]!;
-    setReminderPrefs(await setReminderPref(merchant, next));
+    setReminderPrefs(await setReminderPref(userId, merchant, next));
   }
 
   const monthlyBars = useMemo(

@@ -1783,7 +1783,28 @@ check:
   boundary merge rather than repeat.
 - Filters return the same rows they used to for a small account.
 
-Migration 17 is **written but not applied** — not to local via
-`supabase db reset`, not pushed to production. The facets query will fail until
-it is, which takes the filter pickers with it. Apply it before testing the
-transactions screen.
+### Migration 17 deploy record (2026-07-30)
+
+Applied to local with `supabase migration up` (not `db reset` — 01–16 were
+already applied and local dev data was worth keeping; the full-chain replay is
+covered by the shadow database `db diff` builds, which applied 01–17 clean).
+Then `supabase db push --linked`; `migration list` shows 17/17 local↔remote.
+
+Isolation was proven, not assumed. Two throwaway users with transactions at
+different banks, inside a transaction rolled back afterwards: user A saw
+exactly their two `bank/card/currency` combinations, user B saw exactly their
+one, neither saw the other's. `anon` gets `42501 permission denied for view
+transaction_facets` — locally and against production over REST, the grant layer
+talking, per §24.
+
+`supabase db diff --linked` afterwards shows **no `transaction_facets`
+statement at all**, so the deployed view matches the migration exactly. It does
+emit two things that are not drift:
+
+- The three `create or replace` functions §24 already documents.
+- `drop extension if exists "pg_net"` — **new to this record, and not drift.**
+  `pg_net` is enabled on the hosted project by the platform and no migration
+  creates it, so the shadow database lacks it and migra proposes removing it.
+  Do not act on this, and do not "fix" it by dropping the extension in
+  production or by adding a `create extension` migration for something Supabase
+  manages.

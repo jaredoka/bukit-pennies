@@ -461,7 +461,8 @@ export default function ShortcutSetup() {
             />
           </View>
           <Muted>
-            You'll be brought back here each time you open the app until setup is complete.
+            Leaving loses nothing — your ticked steps are saved, and the dashboard card
+            brings you straight back to where you stopped.
           </Muted>
         </Card>
       ) : null}

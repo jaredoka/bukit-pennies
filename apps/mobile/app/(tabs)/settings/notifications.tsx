@@ -7,6 +7,7 @@ import {
   setDigestPrefs,
   type DigestPrefs,
 } from '@/lib/notifications';
+import { useSession } from '@/lib/session';
 import { themedStyles, useTheme } from '@/lib/theme';
 
 const DAY_ITEMS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -37,12 +38,17 @@ export default function Notifications() {
   const [dayOpen, setDayOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
 
+  const { session } = useSession();
+  const userId = session?.user.id;
+
   useEffect(() => {
-    getDigestPrefs().then(setPrefs);
-  }, []);
+    if (!userId) return;
+    getDigestPrefs(userId).then(setPrefs);
+  }, [userId]);
 
   async function update(patch: Partial<DigestPrefs>) {
-    const next = await setDigestPrefs(patch);
+    if (!userId) return;
+    const next = await setDigestPrefs(userId, patch);
     setPrefs(next);
     if (next.on) await ensureNotificationPermission();
   }

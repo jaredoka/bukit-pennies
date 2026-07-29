@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Badge, Button, Card, Field, Muted, Title } from '@/components/ui';
 import { formatMoney } from '@/lib/format';
+import { invalidateTransactionQueries } from '@/lib/queries';
 import { postIngest } from '@/lib/ingest';
 import { kvGet, kvSet } from '@/lib/kvStore';
 import { useSession } from '@/lib/session';
@@ -83,9 +84,7 @@ function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void 
         setError(res.error ?? 'Something went wrong. Try again or skip for now.');
         return;
       }
-      qc.invalidateQueries({ queryKey: ['transactions'] });
-      qc.invalidateQueries({ queryKey: ['monthly_totals'] });
-      qc.invalidateQueries({ queryKey: ['merchant_totals'] });
+      invalidateTransactionQueries(qc);
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

@@ -5,7 +5,6 @@ import { Link, Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -17,7 +16,8 @@ import {
 import { Badge, Button, Centered, Field, Muted, Sheet, SheetShell, useSheetPresence } from '@/components/ui';
 import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
 import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
-import { useCategories, usePullToRefresh, useTransactions } from '@/lib/queries';
+import { invalidateTransactionQueries, useCategories, useFilteredTransactions, usePullToRefresh, useTransactionFacets } from '@/lib/queries';
+import { DEFAULT_FILTERS, hasAnyFilter, type TxFilters } from '@/lib/txFilters';
 import type { CategoryRow, TransactionRow } from '@/lib/types';
 import { themedStyles, useTheme } from '@/lib/theme';
 import { usePrivacy } from '@/lib/privacy';
@@ -37,64 +37,21 @@ const MONTH_NAMES = [
 
 type SheetKey = 'bank' | 'card' | 'category' | 'currency' | 'date' | 'direction' | 'recipient';
 
-interface TxFilters {
-  direction: 'all' | 'incoming' | 'outgoing';
-  currencies: string[];
-  dateFrom: string;
-  dateTo: string;
-  recipient: string;
-  banks: string[];
-  categoryIds: (string | null)[];
-  cards: string[];
-}
-
-const DEFAULT_FILTERS: TxFilters = {
-  direction: 'all',
-  currencies: [],
-  dateFrom: '',
-  dateTo: '',
-  recipient: '',
-  banks: [],
-  categoryIds: [],
-  cards: [],
-};
-
 function toggleItem<T>(arr: T[], item: T): T[] {
   return arr.includes(item) ? arr.filter((x) => x !== item) : [...arr, item];
 }
 
-function applyFilters(tx: TransactionRow, f: TxFilters, search: string): boolean {
-  if (search) {
-    const q = search.toUpperCase();
-    if (
-      !tx.merchant_normalized?.toUpperCase().includes(q) &&
-      !tx.raw_text.toUpperCase().includes(q) &&
-      !tx.notes?.toUpperCase().includes(q)
-    )
-      return false;
-  }
-  const amt = Number(tx.amount ?? 0);
-  if (f.direction === 'outgoing' && amt <= 0) return false;
-  if (f.direction === 'incoming' && amt > 0) return false;
-  if (f.currencies.length > 0 && !f.currencies.includes(tx.currency)) return false;
-  if (f.dateFrom && tx.occurred_at) {
-    if (tx.occurred_at < new Date(f.dateFrom + 'T00:00:00+08:00').toISOString()) return false;
-  }
-  if (f.dateTo && tx.occurred_at) {
-    if (tx.occurred_at > new Date(f.dateTo + 'T23:59:59+08:00').toISOString()) return false;
-  }
-  if (f.recipient.trim()) {
-    const rq = f.recipient.trim().toUpperCase();
-    if (
-      !tx.merchant_normalized?.toUpperCase().includes(rq) &&
-      !tx.merchant?.toUpperCase().includes(rq)
-    )
-      return false;
-  }
-  if (f.banks.length > 0 && !f.banks.includes(tx.bank)) return false;
-  if (f.categoryIds.length > 0 && !f.categoryIds.includes(tx.category_id)) return false;
-  if (f.cards.length > 0 && (!tx.card_last4 || !f.cards.includes(tx.card_last4))) return false;
-  return true;
+/**
+ * Holds `value` back until it has been still for `ms`. The filters now hit the
+ * database, so an un-debounced search box would fire a query per keystroke.
+ */
+function useDebounced<T>(value: T, ms: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(timer);
+  }, [value, ms]);
+  return settled;
 }
 
 // ---- Selectable row (replaces chips) ---------------------------------------
@@ -529,10 +486,19 @@ export default function TransactionsList() {
   const { money } = usePrivacy();
   const styles = useStyles();
   const { colors } = useTheme();
-  const { data, isLoading, error } = useTransactions();
   const categories = useCategories();
+  const facets = useTransactionFacets();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<TxFilters>(DEFAULT_FILTERS);
+  const debouncedSearch = useDebounced(search, 300);
+  const {
+    data,
+    isLoading,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useFilteredTransactions(filters, debouncedSearch);
   const [activeSheet, setActiveSheet] = useState<SheetKey | null>(null);
   // The sheet that is actually rendered: lags activeSheet on the way out so
   // the panel can slide away before it unmounts.
@@ -545,20 +511,24 @@ export default function TransactionsList() {
     setFilters((prev) => ({ ...prev, ...p }));
   }
 
+  // Picker options come from the facets view, not from the loaded rows: the
+  // list is paged, so a bank last used 600 transactions ago would otherwise
+  // vanish from the Bank sheet and become unfilterable.
+  const facetRows = facets.data ?? [];
   const availBanks = useMemo(
-    () => [...new Set((data ?? []).filter((t) => t.bank && t.bank !== 'unknown').map((t) => t.bank))],
-    [data],
+    () => [...new Set(facetRows.filter((f) => f.bank && f.bank !== 'unknown').map((f) => f.bank))],
+    [facetRows],
   );
   // Cards are scoped to the selected banks so the card list stays relevant.
   const availCards = useMemo(() => {
     const pool = filters.banks.length > 0
-      ? (data ?? []).filter((t) => filters.banks.includes(t.bank))
-      : (data ?? []);
-    return [...new Set(pool.filter((t) => t.card_last4).map((t) => t.card_last4!))];
-  }, [data, filters.banks]);
+      ? facetRows.filter((f) => filters.banks.includes(f.bank))
+      : facetRows;
+    return [...new Set(pool.filter((f) => f.card_last4).map((f) => f.card_last4!))];
+  }, [facetRows, filters.banks]);
   const availCurrencies = useMemo(
-    () => [...new Set((data ?? []).map((t) => t.currency))],
-    [data],
+    () => [...new Set(facetRows.map((f) => f.currency))],
+    [facetRows],
   );
 
   // Drop selected cards that no longer belong to the filtered bank set.
@@ -592,17 +562,13 @@ export default function TransactionsList() {
     : 'Direction';
   const recipLabel = filters.recipient.trim() || 'Recipient';
 
-  const anyFilter =
-    filters.direction !== 'all' ||
-    filters.currencies.length > 0 ||
-    !!(filters.dateFrom || filters.dateTo) ||
-    !!filters.recipient.trim() ||
-    filters.banks.length > 0 ||
-    filters.categoryIds.length > 0 ||
-    filters.cards.length > 0;
+  const anyFilter = hasAnyFilter(filters);
 
+  // Day sections are built over the pages loaded so far. A day can therefore
+  // span a page boundary; grouping by key rather than by run means the two
+  // halves land in the same section when the next page arrives.
   const sections = useMemo(() => {
-    const rows = (data ?? []).filter((tx) => applyFilters(tx, filters, search.trim()));
+    const rows = data?.pages.flat() ?? [];
     const byDay = new Map<string, TransactionRow[]>();
     for (const tx of rows) {
       const key = tx.occurred_at ? bruneiDayKey(tx.occurred_at) : 'unknown';
@@ -615,7 +581,7 @@ export default function TransactionsList() {
         total: items.reduce((s, t) => s + Number(t.amount ?? 0), 0),
         data: items,
       }));
-  }, [data, search, filters]);
+  }, [data]);
 
   if (isLoading) {
     return (
@@ -700,6 +666,17 @@ export default function TransactionsList() {
             </View>
           )}
           renderItem={({ item }) => <TxRow tx={item} />}
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+          }}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <View style={{ paddingVertical: 20 }}>
+                <ActivityIndicator />
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
             anyFilter || search ? (
               <Centered>
@@ -822,9 +799,7 @@ function CaptureSheet({ visible, onClose }: { visible: boolean; onClose: () => v
   const transactionalCount = bulkPreview.filter((p) => p.parsed.tx !== null).length;
 
   function invalidate() {
-    qc.invalidateQueries({ queryKey: ['transactions'] });
-    qc.invalidateQueries({ queryKey: ['monthly_totals'] });
-    qc.invalidateQueries({ queryKey: ['merchant_totals'] });
+    invalidateTransactionQueries(qc);
   }
   function reset() { setResult(null); setBulkResults(null); setProgress(null); setCaptureError(null); }
 

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Badge, Button, Card, Field, Muted, Title } from '@/components/ui';
 import { formatMoney } from '@/lib/format';
+import { invalidateTransactionQueries } from '@/lib/queries';
 import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
 import { themedStyles, useTheme } from '@/lib/theme';
 
@@ -45,9 +46,7 @@ export default function Capture() {
   const transactionalCount = bulkPreview.filter((p) => p.parsed.tx !== null).length;
 
   function invalidate() {
-    qc.invalidateQueries({ queryKey: ['transactions'] });
-    qc.invalidateQueries({ queryKey: ['monthly_totals'] });
-    qc.invalidateQueries({ queryKey: ['merchant_totals'] });
+    invalidateTransactionQueries(qc);
   }
 
   function reset() {

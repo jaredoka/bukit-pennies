@@ -1617,3 +1617,194 @@ the dashboard, keeps it out.
 There is no way to read requests back in-app; they are read in the Supabase
 dashboard or in the inbox. Fine at this scale, and a `select` policy plus a
 status column is the obvious next step if it stops being fine.
+
+## 28. Frozen sheets, silent storage, and filters that told the truth (2026-07-30)
+
+A field-test session that started with "the mascot is still there" and ended
+four bugs deeper. Branch `fix/sheet-modal-and-splash-mascot`, PR #66.
+
+### Every filter and the Add button froze the app
+
+`SheetShell` stacked **two** `Modal`s — one fading for the dim, one sliding for
+the panel — so the dim could appear at once while only the panel moved. iOS
+presents one modal at a time per view controller, so the second present was
+dropped on the floor. What shipped was a grey screen with no panel, no dismiss
+area and no reachable `onRequestClose`: every transactions filter, the Add
+button, the dashboard period picker, the Insights year picker and the category
+picker locked the app until it was force-quit.
+
+One `Modal` now, with the panel animated here rather than by the platform. It
+measures on layout and slides exactly its own height on the native driver,
+which is what keeps it quick — the hand-rolled version that predated the split
+(#64) felt slow because it started from a `useEffect` after mounting a full
+screen height down, so it paid a mount-paint-pause plus a long travel. The dim
+is at full strength on the first frame. `visible` going false animates out and
+*then* unmounts, so callers get the exit animation whether or not they gate
+rendering with `useSheetPresence` — which exists to reset sheet state, not to
+animate.
+
+**If a third sheet implementation is ever proposed: two simultaneous Modals is
+the thing that does not work.** Not "is discouraged" — the second one silently
+never appears on iOS.
+
+### SecureStore rejects colons, and kvStore ate the error
+
+Dismissing the dashboard setup card did nothing across a restart. SecureStore
+validates keys against `/^[\w.-]+$/` and **throws** on anything else; the
+onboarding keys were `onboarded:<uuid>`, `setup_dismissed:<uuid>` and
+`setup_steps:<uuid>`. Every read and write threw on the colon into kvStore's
+bare `catch {}`. Three things were broken, not one: the dismissal, the setup
+step ticks (so "Your progress is saved" was false), and "Setup complete"
+itself — that last one masked by the AuthGate returning-user heuristic, which
+re-stamps anyone holding transactions as onboarded.
+
+It survived two phases because **web dev cannot reproduce it**: localStorage
+takes any key. That asymmetry is the same shape as SEC-8 in §24, where local
+was stricter than production.
+
+kvStore now sanitises keys to the accepted set and warns in `__DEV__` instead
+of failing mute. Onboarding keys moved to the dotted `bukit.` convention every
+other stored key already used. No migration — nothing was ever written under
+the old names.
+
+### Cross-account paths on a shared device
+
+Prompted by "make sure users cannot access other users' data". The server side
+held up under audit and needed no changes: RLS on all ten tables with
+owner-scoped policy quartets, both totals views `security_invoker`, every
+`security definer` function gated on `auth.uid()` with execute revoked from
+`anon`, `/ingest` deriving `user_id` solely from the token hash and never from
+the body, `/feedback` under the caller's JWT. The gaps were all device-local.
+
+- **The react-query cache outlived sign-out.** The `QueryClient` is
+  module-scoped, so the next account to sign in on the same device rendered the
+  previous account's transactions, profile and goals until each query
+  refetched. Cleared on user change in `AuthGate`.
+
+- **The legacy ingest token was adopted, not discarded.** `getStoredToken`
+  copied the pre-scoping device-global token into the current user's slot,
+  justified by "the upgrading user is the only account that has ever used this
+  install's token". Nothing enforced that. If the previous account never
+  reopened the app after the update, the *next* account to sign in inherited
+  their token and every capture from that device would have been filed into the
+  previous account — SEC-1 surviving through its own migration path. Ownership
+  cannot be checked client-side: `token_hash` is server-side and the plaintext
+  is shown once. The legacy key is now deleted, never adopted. Cost: a device
+  still holding a pre-scoping token creates a new one in Settings > Capture.
+
+- **Notification prefs were device-global.** `bukit.reminders` is keyed by
+  *merchant name* and `bukit.alerted` by budget id, so the next account saw the
+  previous account's merchant list in Settings > Notifications and had bill
+  reminders scheduled for spending that was never theirs. Now per user. Theme,
+  currency and the privacy cloak stay device-global deliberately — those
+  describe the handset, not an account.
+
+Also: the AuthGate heuristic re-ran on every navigation for anyone without
+transactions yet, one round trip per tab tap for exactly the new user on mobile
+data. Once per session now.
+
+### Filters moved to the database (migration 17)
+
+The list fetched `limit(500)` and filtered the array in the client, so a filter
+was quietly answering "matches, among the newest 500" while presenting itself
+as "matches". A date range into last year would have returned an empty list
+with no explanation. Not yet reachable at current data volumes, which is
+exactly why it was worth fixing before it was.
+
+`src/lib/txFilters.ts` is the pure half: `TxFilters` in, a declarative list of
+PostgREST operations out, no Supabase import. `queries.ts` applies them and
+pages 50 rows at a time through `useInfiniteQuery`, with
+`placeholderData: keepPreviousData` so changing a filter does not empty the
+list and throw the filter bar itself behind a spinner. The search box is
+debounced 300ms — it hits the network now.
+
+Two semantics were wrong and are fixed by the move:
+
+- **Zero is neither direction.** `outgoing` was `amount > 0` but `incoming` was
+  `amount <= 0`, so a BND 0.00 card verification or declined charge counted as
+  money in. Excluded from both now.
+- **An undated row cannot satisfy a date range.** The old guard was
+  `if (dateFrom && tx.occurred_at)`, so a null-dated row skipped the comparison
+  and passed *every* range — the same transaction under "January 2025" and
+  "last week" at once. SQL comparisons against NULL are false, which is the
+  behaviour wanted. Undated rows stay fully visible with no date filter set,
+  and Review is where they belong.
+
+`transaction_facets` (migration 17) is a `select distinct user_id, bank,
+card_last4, currency`, `security_invoker` like the totals views. The filter
+pickers read it instead of the loaded rows: paging means a bank last used 600
+transactions ago would otherwise drop out of the Bank sheet and become
+unfilterable. Carrying `bank` alongside `card_last4` preserves the existing
+behaviour where the Card sheet narrows to the selected banks.
+
+Values in `or=` expressions are double-quoted and LIKE wildcards escaped.
+PostgREST splits those on commas, so an unquoted merchant like
+"SYARIKAT ABC, BHD" would silently mean something other than what was asked.
+
+Six call sites each repeated the same three `invalidateQueries` lines and
+`transaction_facets` made it four; `invalidateTransactionQueries(qc)` now owns
+the set.
+
+### `apps/mobile` has tests now
+
+There was no test harness in the app package at all — the SecureStore bug had
+no way to be caught, and the old `applyFilters` was exactly the kind of pure
+logic that should have had some. `vitest.config.ts` aliases `@/` and stubs
+`react-native` (the modules under test touch it only for `Platform.OS`; the
+real package cannot load outside Metro) and defines `__DEV__`. 23 cases over
+`txFilters` and `kvStore`. `pnpm -r test` and CI pick it up with no workflow
+change — the suite is 96 tests now.
+
+`test/kvStore.test.ts` carries the guard that would have caught the original
+bug: a list of every key the app builds, asserted against SecureStore's
+character class. **Add new key builders to that list.**
+
+Node-only, pure logic. No component rendering, no device behaviour.
+
+### Splash screen still had the hornbill
+
+#65 swapped `icon.png` and `favicon.png` to the penny but missed
+`splash-icon.png` and both Android adaptive-icon layers — and the splash is the
+first thing you see, so the mascot was still there at launch. All three are
+generated from the same 32x32 penny by `art/scripts/coin_platform_icons.py` now
+rather than drawn separately. `TraversingHornbill` was unused after #65 and is
+deleted; `HornbillMascot` stays, used only by Our Story.
+
+### Not yet verified
+
+Everything above passes `pnpm -r typecheck` and `pnpm -r test`, and **none of
+the app-side behaviour has been exercised on a device.** Specifically still to
+check:
+
+- Each filter sheet opens, dismisses on tap-outside, and dismisses on Done.
+- Add then Capture slides in, and the sheet resets between opens.
+- Dismiss the setup card, force-quit, relaunch — it must stay gone.
+- The list pages past 50 rows on scroll, and day sections spanning a page
+  boundary merge rather than repeat.
+- Filters return the same rows they used to for a small account.
+
+### Migration 17 deploy record (2026-07-30)
+
+Applied to local with `supabase migration up` (not `db reset` — 01–16 were
+already applied and local dev data was worth keeping; the full-chain replay is
+covered by the shadow database `db diff` builds, which applied 01–17 clean).
+Then `supabase db push --linked`; `migration list` shows 17/17 local↔remote.
+
+Isolation was proven, not assumed. Two throwaway users with transactions at
+different banks, inside a transaction rolled back afterwards: user A saw
+exactly their two `bank/card/currency` combinations, user B saw exactly their
+one, neither saw the other's. `anon` gets `42501 permission denied for view
+transaction_facets` — locally and against production over REST, the grant layer
+talking, per §24.
+
+`supabase db diff --linked` afterwards shows **no `transaction_facets`
+statement at all**, so the deployed view matches the migration exactly. It does
+emit two things that are not drift:
+
+- The three `create or replace` functions §24 already documents.
+- `drop extension if exists "pg_net"` — **new to this record, and not drift.**
+  `pg_net` is enabled on the hosted project by the platform and no migration
+  creates it, so the shadow database lacks it and migra proposes removing it.
+  Do not act on this, and do not "fix" it by dropping the extension in
+  production or by adding a `create extension` migration for something Supabase
+  manages.

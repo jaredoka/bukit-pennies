@@ -338,8 +338,11 @@ const useStyles = themedStyles((colors) => ({
     backgroundColor: colors.card,
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  // Both states share the font weight and size: a heavier selected label
+  // measures wider and re-wraps the row, so the chip you just tapped jumps to
+  // another line. Selection reads from the filled background.
   chipText: { color: colors.text, fontSize: 13 },
-  chipActiveText: { color: colors.onPrimary, fontWeight: '600' as const, fontSize: 13 },
+  chipActiveText: { color: colors.onPrimary, fontSize: 13 },
   // PickerSheet
   sheetOverlay: {
     flex: 1,

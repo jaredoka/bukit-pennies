@@ -1524,3 +1524,96 @@ the raw Postgres exception rather than disabling itself with a count. Much less
 likely to be hit now, so it was left alone deliberately — but if the devices
 screen is ever touched again, showing "5 of 10 devices" is a ten-minute job
 that turns an error into a fact the user can see coming.
+
+---
+
+## 27. Feature requests + emailed feedback (2026-07-29)
+
+Two things, one branch: category pills stopped re-wrapping when tapped, and
+Settings gained **Request a feature**. Bug reports and feature requests now
+both notify by email.
+
+### The pill jump
+
+Selecting a category pill in manual entry moved it to another row. Only
+`chipActiveText` carried `fontWeight: '600'`, so the tapped label measured
+wider and the `flexWrap` row reflowed around it. Both states now share weight
+and size; selection reads from the filled background, which it already did.
+The style pair was copy-pasted in three places and all three had the bug —
+`components/ui.tsx` (the shared `Chip`), `transactions/new.tsx`,
+`settings/devices.tsx`. If a fourth copy ever appears, this is why it must not
+bold on select.
+
+### `feature_requests` (migration 16)
+
+Same shape as `bug_reports` after the SEC-5 fix: insert-only policy, RLS on,
+`user_id` defaulting to `auth.uid()` server-side so the client never names it,
+plus a not-null `area`. No select policy — nobody reads requests back through
+the API, including their own author. Grants ride on 04's default privileges
+and 14 keeps `anon` out; the migration adds no grants of its own.
+
+### The `feedback` edge function
+
+Both screens now POST to `/functions/v1/feedback` instead of inserting
+directly. The function runs with `verify_jwt = true` (the opposite of
+`/ingest`) and inserts through the **caller's** JWT using the anon key — the
+service-role key is deliberately not used, so RLS stays the boundary exactly
+as it was for the direct insert. It then POSTs to Resend.
+
+The row is the source of truth and the email is a courtesy copy: the insert
+happens first, a send failure is logged and returns `200 {emailed: false}`,
+and the app never surfaces that flag. Losing a submission to a mail outage
+would be the worse failure. Logic lives in `_shared/feedback.ts` with 16
+vitest cases; `feedback/index.ts` is the Deno wrapper.
+
+**Secrets** (function secrets, not repo): `RESEND_API_KEY` and
+`FEEDBACK_EMAIL_TO=bukitpennies@gmail.com`, optionally `FEEDBACK_EMAIL_FROM`
+(defaults to Resend's `onboarding@resend.dev`, which only delivers to the
+address that owns the Resend account — set a verified sender domain to send
+anywhere else). With either of the first two unset the mailer is null: rows
+are still recorded, no email goes out. That is the local-dev path and it is
+why the function does not fail closed on a missing key.
+
+### Verified
+
+`supabase db reset` applies 01–16 clean. Against local: logged-out select and
+insert on `feature_requests` both `401 42501 permission denied` (the grant
+layer, per §24); a signed-in insert lands with `user_id` filled from the JWT;
+a signed-in select returns `[]` (no policy). Through the served function:
+`feature` and `bug` both `200 {emailed:false}` with rows landing under the
+right user, empty description `422`, no JWT `401`, `GET` `405`.
+
+Migration 16 pushed to production 2026-07-29; `supabase db diff --linked`
+afterwards shows no table or grant drift, only the three `create or replace`
+false positives §24 already documents.
+
+### Deployed and verified in production (same day)
+
+`supabase functions deploy feedback` — live as version 1, `verify_jwt: true`
+(`supabase functions list` shows it next to `ingest`'s `false`). Both secrets
+set: `FEEDBACK_EMAIL_TO=bukitpennies@gmail.com` and `RESEND_API_KEY`.
+
+Smoke-tested against the hosted project by creating a throwaway auth user,
+submitting one of each kind through the deployed function, and deleting the
+user afterwards (every table cascades on `auth.users`, so the rows went with
+it — production data unchanged). Both returned `200 {emailed: true}`, an
+unauthenticated call `401 UNAUTHORIZED_NO_AUTH_HEADER` from the gateway, an
+empty description `422`. **Both emails arrived at bukitpennies@gmail.com**,
+which is the only part of the chain the CLI cannot prove — `emailed: true`
+means Resend accepted the send, not that it delivered. The script is
+disposable but the shape is worth repeating if this is ever touched: admin
+create user → password sign-in → call → admin delete user.
+
+One process note. The first `RESEND_API_KEY` was pasted into an agent
+transcript, so it was rotated the same day: revoked in Resend, replaced
+through the dashboard. Supabase's `secrets list` returns SHA-256 digests of
+the values, which is how the rotation was confirmed rather than assumed —
+compare the digest against the hash of the key you expect to be gone. Do not
+paste the next one into a chat; `supabase secrets set` from a local shell, or
+the dashboard, keeps it out.
+
+### Still not done
+
+There is no way to read requests back in-app; they are read in the Supabase
+dashboard or in the inbox. Fine at this scale, and a `select` policy plus a
+status column is the obvious next step if it stops being fine.

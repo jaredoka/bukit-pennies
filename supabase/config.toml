@@ -36,3 +36,10 @@ enable_confirmations = false
 # Auth for /ingest is our own static device token (an iOS Shortcut / background
 # service can only attach a fixed header), NOT a Supabase JWT.
 verify_jwt = false
+
+[functions.feedback]
+# Bug reports and feature requests come from a signed-in app user, so the
+# gateway validates the JWT and the function inserts through the caller's
+# token — RLS stays the boundary. This is the default; stated explicitly so the
+# contrast with /ingest above is on the page.
+verify_jwt = true

@@ -180,7 +180,9 @@ const useStyles = themedStyles((colors) => ({
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.text },
-  chipActiveText: { color: colors.onPrimary, fontWeight: '600' },
+  // Same weight in both states — see transactions/new.tsx: bolding the
+  // selected label widens the pill and re-wraps the row.
+  chipActiveText: { color: colors.onPrimary },
   token: {
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
     fontSize: 14,

@@ -54,7 +54,7 @@ export default function Settings() {
           href="/(tabs)/settings/spending"
           icon="pie-chart"
           label="Spending & data"
-          note="Category budgets, savings goals, export"
+          note="Category budgets, subscriptions, export"
         />
         <Row
           href="/(tabs)/settings/notifications"

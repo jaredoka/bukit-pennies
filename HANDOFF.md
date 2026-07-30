@@ -1890,3 +1890,62 @@ cross-account select/update/delete/insert all blocked, and the client's
 against local Supabase — add, stale date rolling to "Due in 13 days", charge
 matched to a real transaction, yearly showing BND 14.00/month, trial badge,
 suggestion → confirm with no duplicate, edit, delete restoring the suggestion.
+
+---
+
+## 30. Dashboard trimmed; "failed to fetch" was a dead backend (2026-07-30)
+
+Branch `trim-dashboard-and-legible-network-errors`.
+
+### Three dashboard cards removed
+
+Owner call: the dashboard repeated Insights. Removed **Daily spend**,
+**Month by month** and **Top merchants**, leaving the donut hero, the
+saved/spent strip, the budgets card and Subscriptions.
+
+Coverage check before cutting, so the record is honest about what was lost:
+
+- *Month by month* (last 6 months, plain bars) → **superseded** by Insights
+  "Spending by months" (all 12 months of a selectable year, stacked by
+  category). Strictly better.
+- *Top merchants* (6 rows, current dashboard period) → **superseded** by
+  Insights "Merchants" (year totals). The one thing that goes is a
+  *per-month* merchant ranking; Insights only ranks by year.
+- *Daily spend* (day-by-day area chart for the selected month) → **not in
+  Insights at all.** The app now has no day-level view of spending anywhere.
+  Removed as asked, and flagged to the owner; if it is wanted back it belongs
+  on Insights, not the dashboard.
+
+Also deleted with them: the `useTopMerchants` call, the `monthlyBars`,
+`merchantRanking` and `dailyData` memos, the `LineChart`/`BarChart` imports,
+`useWindowDimensions` + `chartWidth`, and the four `merchant*` styles.
+`useMonthlyTotals` stays — "Spent this month" and the notification sync read it.
+
+### "TypeError: failed to fetch" when adding a subscription
+
+Not a bug in the feature. The tab under test was served by a **leftover
+`expo start --web` from the previous session, launched with
+`EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321`** — and the local Supabase
+stack it pointed at had been stopped at the end of that session. The app was
+talking to a port with nothing behind it. The committed `.env` points at the
+hosted project, where migration 18 is applied, so a server started normally was
+never affected.
+
+Two things came out of it:
+
+1. **Kill dev servers when the session's stack goes down.** A running server
+   with a dead backend looks exactly like a broken feature.
+2. **`unwrap` now translates transport failures.** A `fetch` that never reaches
+   an HTTP status surfaced its raw text — "TypeError: Failed to fetch" on web,
+   "Network request failed" on native — which reads as a crash rather than "you
+   are offline". `src/lib/netError.ts` maps those to "Could not reach the
+   server. Check your connection and try again." **Server replies pass through
+   untouched** — a constraint name or an RLS refusal is the useful diagnostic
+   and must not be swallowed (`test/netError.test.ts` pins both directions).
+   This applies to every query and mutation in the app, not just subscriptions.
+
+Verified: `pnpm -r typecheck` green; `pnpm -r test` 53 mobile cases green;
+`expo export --platform web` compiles; the trimmed dashboard and a successful
+subscription add checked in the browser against a running local stack; then the
+stack stopped deliberately to confirm the same add fails with the readable
+message instead of the TypeError.

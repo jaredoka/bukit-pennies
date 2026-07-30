@@ -7,10 +7,9 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
-import { BarChart, LineChart, PieChart } from 'react-native-gifted-charts';
+import { PieChart } from 'react-native-gifted-charts';
 import { Card, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
 import {
   bruneiDayKey,
@@ -26,7 +25,6 @@ import {
   useRecentMonthsTransactions,
   useThisMonthTransactions,
   useSubscriptions,
-  useTopMerchants,
   useTransactionsForPeriod,
   usePullToRefresh,
 } from '@/lib/queries';
@@ -95,8 +93,6 @@ interface Slice {
 export default function Dashboard() {
   const styles = useStyles();
   const { colors } = useTheme();
-  const { width } = useWindowDimensions();
-  const chartWidth = Math.min(width, 720) - 88;
   const router = useRouter();
   const { session } = useSession();
   // Optimistic: assume set up, so the card never flashes for existing users.
@@ -143,7 +139,6 @@ export default function Dashboard() {
   const profile = useProfile();
   const monthly = useMonthlyTotals();
   const thisMonthTx = useThisMonthTransactions();
-  const topMerchants = useTopMerchants(6, primaryCurrency);
   const categories = useCategories();
   const budgets = useBudgets();
   const recentTx = useRecentMonthsTransactions(6);
@@ -260,22 +255,6 @@ export default function Dashboard() {
     setSelected((cur) => (cur === key ? null : key));
   }
 
-  // ---- Daily spend (month view only) --------------------------------------
-  const dayOfMonth = Number(bruneiDayKey(Date.now()).slice(8));
-  const dailyData = useMemo(() => {
-    if (isYearMode) return [];
-    const byDay = new Map<number, number>();
-    for (const tx of periodTx.data ?? []) {
-      if (!tx.occurred_at || tx.amount === null || tx.currency !== primaryCurrency) continue;
-      const day = Number(bruneiDayKey(tx.occurred_at).slice(8));
-      byDay.set(day, (byDay.get(day) ?? 0) + Number(tx.amount));
-    }
-    return Array.from({ length: dayOfMonth }, (_, i) => ({
-      value: Math.round((byDay.get(i + 1) ?? 0) * 100) / 100,
-      label: (i + 1) % 5 === 0 || i === 0 ? String(i + 1) : '',
-    }));
-  }, [periodTx.data, dayOfMonth, isYearMode]);
-
   // ---- Budget progress (always current month) -----------------------------
   const budgetProgress = useMemo(() => {
     if (!budgets.data?.length) return { items: [], hiddenCurrencies: new Set<string>() };
@@ -343,28 +322,6 @@ export default function Dashboard() {
     setReminderPrefs(await setReminderPref(userId, merchant, next));
   }
 
-  const monthlyBars = useMemo(
-    () =>
-      (monthly.data ?? [])
-        .filter((r) => r.currency === primaryCurrency)
-        .slice(0, 6)
-        .reverse()
-        .map((r) => ({
-          value: Number(r.total),
-          label: formatMonthName(r.month.slice(0, 7) + '-01').split(' ')[0],
-        })),
-    [monthly.data, primaryCurrency],
-  );
-
-  const merchantRanking = useMemo(() => {
-    const rows = (topMerchants.data ?? []).map((m) => ({
-      name: m.merchant_normalized,
-      total: Number(m.total),
-      count: m.tx_count,
-    }));
-    const max = rows.reduce((s, r) => Math.max(s, r.total), 0);
-    return { rows, max };
-  }, [topMerchants.data]);
 
   const periodLabel = isYearMode ? 'this year' : 'this month';
   const saved = effectiveIncome !== null && !isYearMode ? effectiveIncome - donut.spent : null;
@@ -573,88 +530,6 @@ export default function Dashboard() {
         </Card>
       ) : null}
 
-      {/* ---- Daily spend (month view only) ---- */}
-      {!isYearMode ? (
-        <Card>
-          <Title>Daily spend</Title>
-          {dailyData.some((d) => d.value > 0) ? (
-            <LineChart
-              data={dailyData}
-              width={chartWidth}
-              height={160}
-              color={colors.primary}
-              thickness={2}
-              hideDataPoints
-              areaChart
-              startFillColor={colors.primary}
-              startOpacity={0.25}
-              endOpacity={0.02}
-              yAxisTextStyle={{ color: colors.muted, fontSize: 10 }}
-              xAxisLabelTextStyle={{ color: colors.muted, fontSize: 10 }}
-              rulesColor={colors.border}
-              yAxisColor={colors.border}
-              xAxisColor={colors.border}
-              noOfSections={4}
-            />
-          ) : (
-            <Muted>No spending recorded this month yet.</Muted>
-          )}
-        </Card>
-      ) : null}
-
-      {/* ---- Month history ---- */}
-      <Card>
-        <Title>Month by month</Title>
-        {monthlyBars.length > 0 ? (
-          <BarChart
-            data={monthlyBars}
-            width={chartWidth}
-            height={150}
-            barWidth={30}
-            barBorderTopLeftRadius={4}
-            barBorderTopRightRadius={4}
-            frontColor={colors.primary}
-            yAxisTextStyle={{ color: colors.muted, fontSize: 10 }}
-            xAxisLabelTextStyle={{ color: colors.muted, fontSize: 10 }}
-            rulesColor={colors.border}
-            yAxisColor={colors.border}
-            xAxisColor={colors.border}
-            noOfSections={4}
-          />
-        ) : (
-          <Muted>No monthly history yet.</Muted>
-        )}
-      </Card>
-
-      {/* ---- Top merchants as a ranked list ---- */}
-      <Card>
-        <Title>Top merchants</Title>
-        {merchantRanking.rows.length > 0 ? (
-          merchantRanking.rows.map((m) => (
-            <View key={m.name} style={styles.merchantRow}>
-              <View style={{ flex: 1 }}>
-                <View style={styles.merchantHeader}>
-                  <Text style={styles.legendName} numberOfLines={1}>
-                    {m.name}
-                  </Text>
-                  <Text style={styles.legendValue}>{money(m.total, primaryCurrency)}</Text>
-                </View>
-                <View style={styles.merchantTrack}>
-                  <View
-                    style={[
-                      styles.merchantFill,
-                      { width: `${merchantRanking.max > 0 ? (m.total / merchantRanking.max) * 100 : 0}%` },
-                    ]}
-                  />
-                </View>
-              </View>
-            </View>
-          ))
-        ) : (
-          <Muted>No merchant data yet. Capture a bank message to get started.</Muted>
-        )}
-      </Card>
-
       {/* ---- Subscriptions: what you declared, merged with what we detected ---- */}
       <Card>
         <Pressable onPress={() => router.push('/(tabs)/subscriptions')} style={styles.subsHeader}>
@@ -806,10 +681,6 @@ const useStyles = themedStyles((colors) => ({
   budgetAmounts: { color: colors.text, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] },
   budgetTrack: { height: 8, borderRadius: 4, backgroundColor: colors.border, overflow: 'hidden' },
   budgetFill: { height: '100%', borderRadius: 4 },
-  merchantRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
-  merchantHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  merchantTrack: { height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' },
-  merchantFill: { height: '100%', borderRadius: 3, backgroundColor: colors.primary },
   bellWrap: { alignItems: 'center', marginLeft: 10, minWidth: 44 },
   bellLabel: { color: colors.primary, fontSize: 10, marginTop: 2 },
   recurringRow: {

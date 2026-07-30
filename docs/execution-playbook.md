@@ -32,6 +32,10 @@ to conflict, HANDOFF.md wins for design, this file wins for process.**
    `gh pr create`; merge when CI is green (`gh pr merge --squash --delete-branch`).
 5. Stop; summarize what was verified; ask the user to continue.
 
+6. Before finishing: **stop any `expo start` you launched** if you also stopped
+   `supabase`. A dev server left running against a dead local stack looks
+   exactly like a broken feature to whoever opens the tab next (HANDOFF §30).
+
 Environment notes: Node ≥22, pnpm 10 (`npm i -g pnpm@10` if missing), Docker
 for `supabase start`, `gh` CLI authenticated. On Windows, run POSIX scripts
 (e.g. `verify-ingest.sh`) through Git Bash.
@@ -150,6 +154,7 @@ structure in §8, Sideloadly constraints in §10).
 | 2026-07-30 | Transaction filters run in the database and the list pages (50/page); the client no longer filters a capped array. Filter pickers read the `transaction_facets` view, not the loaded rows. |
 | 2026-07-30 | `apps/mobile` carries vitest for pure logic only (no component rendering); picked up by `pnpm -r test` and CI unchanged. |
 | 2026-07-30 | The hornbill mascot is removed from the app entirely (HANDOFF §29). `art/` keeps the generator scripts; nothing in the app renders them. |
+| 2026-07-30 | Dashboard drops Daily spend, Month by month and Top merchants — Insights covers the last two better. Day-level spending now exists nowhere; if it returns it goes on Insights (HANDOFF §30). |
 | 2026-07-30 | Subscriptions (migration 18) live on a dashboard card → full screen, not a sixth tab. Declared rows and `detectRecurring` clusters merge into one list. **Display-only: never a budget input** — the captured transaction is what counts toward the monthly limit. No reminders are scheduled from subscriptions (HANDOFF §29). |
 
 ## 7. Standard procedures

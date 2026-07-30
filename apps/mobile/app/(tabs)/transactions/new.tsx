@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Button, Card, Field, Muted, Title } from '@/components/ui';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Button, Card, DateField, Field, Muted, TimeField, Title } from '@/components/ui';
 import { bruneiParts } from '@/lib/format';
 import { useCategories, useCreateManualTransaction } from '@/lib/queries';
 import { themedStyles } from '@/lib/theme';
@@ -83,10 +83,11 @@ export default function NewTransaction() {
           />
           <View style={styles.rowFields}>
             <View style={{ flex: 1 }}>
-              <Field label="Date" placeholder="YYYY-MM-DD" value={date} onChangeText={setDate} autoCapitalize="none" />
+              {/* Both default to now and are required, so neither is clearable. */}
+              <DateField label="Date" value={date} onChange={setDate} clearable={false} sheetTitle="Date" />
             </View>
             <View style={{ flex: 1 }}>
-              <Field label="Time" placeholder="HH:MM" value={time} onChangeText={setTime} autoCapitalize="none" />
+              <TimeField label="Time" value={time} onChange={setTime} sheetTitle="Time" />
             </View>
           </View>
           <Field

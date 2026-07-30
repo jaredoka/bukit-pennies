@@ -1,8 +1,7 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { Button, Card, Centered, Chip, Field, Muted, Title } from '@/components/ui';
-import { bruneiDayKey } from '@/lib/format';
+import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import { Button, Card, Centered, Chip, DateField, Field, Muted, Title } from '@/components/ui';
 import { CURRENCY_OPTIONS } from '@/lib/primaryCurrency';
 import {
   useCategories,
@@ -101,7 +100,9 @@ function Form({
       ['Trial end date', trialEnds],
       ['Start date', startedOn],
     ] as const) {
-      if (value.trim() && !parseDayKey(value)) return `${label} must be a real date, as YYYY-MM-DD.`;
+      // The pickers can only produce real dates; this stays as a guard on a
+      // value loaded from the database.
+      if (value.trim() && !parseDayKey(value)) return `${label} is not a valid date.`;
     }
     if (cardLast4.trim() && !/^\d{4}$/.test(cardLast4.trim())) {
       return 'Card must be the last 4 digits.';
@@ -188,20 +189,17 @@ function Form({
             </View>
           ) : null}
           <View style={{ marginTop: 12 }}>
-            <Field
+            <DateField
               label="Next payment date (optional)"
-              placeholder="YYYY-MM-DD"
               value={nextDue}
-              onChangeText={setNextDue}
-              autoCapitalize="none"
+              onChange={setNextDue}
+              placeholder="No date set"
+              sheetTitle="Next payment date"
             />
             <Muted>
               Set it once and the app rolls it forward by the cycle on its own — you will not have
               to come back and update it.
             </Muted>
-            <Pressable onPress={() => setNextDue(bruneiDayKey(Date.now()))} hitSlop={8}>
-              <Text style={styles.linkish}>Use today</Text>
-            </Pressable>
           </View>
         </Card>
 
@@ -242,19 +240,19 @@ function Form({
             </View>
           ) : null}
           <View style={{ marginTop: 12 }}>
-            <Field
+            <DateField
               label="Free trial ends (optional)"
-              placeholder="YYYY-MM-DD"
               value={trialEnds}
-              onChangeText={setTrialEnds}
-              autoCapitalize="none"
+              onChange={setTrialEnds}
+              placeholder="No date set"
+              sheetTitle="Free trial ends"
             />
-            <Field
+            <DateField
               label="Started on (optional)"
-              placeholder="YYYY-MM-DD"
               value={startedOn}
-              onChangeText={setStartedOn}
-              autoCapitalize="none"
+              onChange={setStartedOn}
+              placeholder="No date set"
+              sheetTitle="Started on"
             />
             <Field
               label="Notes (optional)"
@@ -331,6 +329,5 @@ const useStyles = themedStyles((colors) => ({
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center', paddingBottom: 32 },
   label: { color: colors.muted, fontSize: 13, marginBottom: 6 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  linkish: { color: colors.primary, fontWeight: '600', fontSize: 13, marginTop: 6 },
   error: { color: colors.danger, marginBottom: 8 },
 }));

@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Badge, Button, Card, Centered, Field, Muted, Title } from '@/components/ui';
+import { Badge, Button, Card, Centered, DateField, Field, Muted, TimeField, Title } from '@/components/ui';
 import { formatTime, bruneiDayKey, formatDayHeading } from '@/lib/format';
 import { useDeleteTransaction, usePullToRefresh, useReviewItems, useUpdateTransaction } from '@/lib/queries';
 import type { TransactionRow } from '@/lib/types';
@@ -56,18 +56,24 @@ function FixItem({ tx }: { tx: TransactionRow }) {
   const del = useDeleteTransaction();
   const [amount, setAmount] = useState(tx.amount === null ? '' : String(tx.amount));
   const [merchant, setMerchant] = useState(tx.merchant ?? '');
-  const [date, setDate] = useState(tx.occurred_at ? tx.occurred_at.slice(0, 16).replace('T', ' ') : '');
+  // Split into a date and a time because each gets its own picker. Brunei local
+  // either way; the stored value is already +08:00.
+  const [date, setDate] = useState(tx.occurred_at ? bruneiDayKey(tx.occurred_at) : '');
+  const [time, setTime] = useState(tx.occurred_at ? formatTime(tx.occurred_at) : '');
 
   const parsedAmount = Number.parseFloat(amount.replace(/,/g, ''));
   const amountOk = Number.isFinite(parsedAmount) && parsedAmount > 0;
-  // Accept "YYYY-MM-DD HH:mm" (Brunei local) or empty.
-  const dateMatch = date.trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/);
-  const dateOk = date.trim() === '' || !!dateMatch;
+
+  /** Clearing the date drops the timestamp entirely; setting one needs a time,
+   *  so an unset time means midnight rather than blocking the confirm. */
+  function onDateChange(next: string) {
+    setDate(next);
+    if (!next) setTime('');
+    else if (!time) setTime('00:00');
+  }
 
   function confirm() {
-    const occurredAt = dateMatch
-      ? `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}T${dateMatch[4]}:${dateMatch[5]}:00+08:00`
-      : null;
+    const occurredAt = date ? `${date}T${time || '00:00'}:00+08:00` : null;
     update.mutate({
       id: tx.id,
       patch: {
@@ -90,20 +96,26 @@ function FixItem({ tx }: { tx: TransactionRow }) {
       <Text style={styles.raw}>{tx.raw_text}</Text>
       <Field label="Amount (BND)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" />
       <Field label="Merchant" value={merchant} onChangeText={setMerchant} placeholder="MERCHANT NAME" />
-      <Field
-        label="Date (YYYY-MM-DD HH:mm, Brunei time, optional)"
-        value={date}
-        onChangeText={setDate}
-        placeholder="2026-07-16 12:30"
-        autoCapitalize="none"
-      />
-      {!dateOk ? <Text style={styles.error}>Date must look like 2026-07-16 12:30</Text> : null}
+      <View style={styles.dateRow}>
+        <View style={{ flex: 1 }}>
+          <DateField
+            label="Date (Brunei time, optional)"
+            value={date}
+            onChange={onDateChange}
+            placeholder="No date"
+            sheetTitle="Date"
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <TimeField label="Time" value={time} onChange={setTime} placeholder="—" sheetTitle="Time" />
+        </View>
+      </View>
       <View style={styles.actions}>
         <View style={{ flex: 1 }}>
           <Button
             label="Confirm as parsed"
             onPress={confirm}
-            disabled={!amountOk || !dateOk}
+            disabled={!amountOk}
             busy={update.isPending}
           />
         </View>
@@ -183,5 +195,6 @@ const useStyles = themedStyles((colors) => ({
     marginBottom: 12,
   },
   error: { color: colors.danger, marginBottom: 8 },
+  dateRow: { flexDirection: 'row', gap: 12 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 4 },
 }));

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import React, { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -14,7 +14,10 @@ import {
   type LayoutChangeEvent,
   type TextInputProps,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { DAY_KEY_RE, TIME_RE, dayKeyOf, monthGrid, stepMonth } from '@/lib/calendar';
+import { bruneiDayKey, bruneiParts, formatDayDate } from '@/lib/format';
 import { themedStyles, useTheme } from '@/lib/theme';
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -439,6 +442,298 @@ export function Sheet({
   );
 }
 
+// ---- Date and time pickers --------------------------------------------------
+
+export const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+export const DAY_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+/**
+ * Single-date calendar sheet. The range-picking sibling on the transactions
+ * screen stays separate — this one exists for the several places that need one
+ * date and used to make people type `YYYY-MM-DD` by hand.
+ *
+ * Tapping a day commits and closes: with one date to choose there is nothing
+ * left to do, and a Done tap you cannot skip is friction. Clear is on the
+ * header (and on the trigger below) because an optional date the user cannot
+ * un-set is a trap.
+ */
+export function DateSheet({
+  visible,
+  value,
+  onChange,
+  onClose,
+  title = 'Pick a date',
+}: {
+  visible: boolean;
+  /** 'YYYY-MM-DD', or '' for unset. */
+  value: string;
+  onChange: (next: string) => void;
+  onClose: () => void;
+  title?: string;
+}) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const todayKey = bruneiDayKey(Date.now());
+
+  // Opens on the selected month, else on today's.
+  const initial = DAY_KEY_RE.test(value) ? value : todayKey;
+  const [viewYear, setViewYear] = useState(Number(initial.slice(0, 4)));
+  const [viewMonth, setViewMonth] = useState(Number(initial.slice(5, 7)) - 1);
+
+  const weeks = useMemo(() => monthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
+
+  function step(months: number) {
+    const next = stepMonth(viewYear, viewMonth, months);
+    setViewYear(next.year);
+    setViewMonth(next.month);
+  }
+
+  function pick(day: number) {
+    onChange(dayKeyOf(viewYear, viewMonth, day));
+    onClose();
+  }
+
+  return (
+    <Sheet
+      visible={visible}
+      title={title}
+      onClose={onClose}
+      onClear={value ? () => { onChange(''); onClose(); } : undefined}
+    >
+      <View style={styles.calNav}>
+        <Pressable onPress={() => setViewYear((y) => y - 1)} hitSlop={12} style={styles.calNavYearBtn}>
+          <Ionicons name="chevron-back" size={14} color={colors.muted} />
+          <Ionicons name="chevron-back" size={14} color={colors.muted} style={{ marginLeft: -8 }} />
+        </Pressable>
+        <View style={styles.calNavCenter}>
+          <Pressable onPress={() => step(-1)} hitSlop={12} style={styles.calNavBtn}>
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
+          </Pressable>
+          <Text style={styles.calNavTitle}>
+            {MONTH_NAMES[viewMonth]} {viewYear}
+          </Text>
+          <Pressable onPress={() => step(1)} hitSlop={12} style={styles.calNavBtn}>
+            <Ionicons name="chevron-forward" size={20} color={colors.text} />
+          </Pressable>
+        </View>
+        <Pressable onPress={() => setViewYear((y) => y + 1)} hitSlop={12} style={styles.calNavYearBtn}>
+          <Ionicons name="chevron-forward" size={14} color={colors.muted} />
+          <Ionicons name="chevron-forward" size={14} color={colors.muted} style={{ marginLeft: -8 }} />
+        </Pressable>
+      </View>
+
+      <View style={styles.calRow}>
+        {DAY_NAMES.map((d) => (
+          <Text key={d} style={styles.calDayName}>{d}</Text>
+        ))}
+      </View>
+
+      <View style={styles.calGrid}>
+        {weeks.map((week, wi) => (
+          <View key={wi} style={styles.calRow}>
+            {week.map((day, di) => {
+              if (!day) return <View key={di} style={styles.calCell} />;
+              const key = dayKeyOf(viewYear, viewMonth, day);
+              const selected = key === value;
+              const isToday = key === todayKey;
+              return (
+                <Pressable key={di} onPress={() => pick(day)} style={styles.calCell}>
+                  <View style={[styles.calDayCircle, selected && { backgroundColor: colors.primary }]}>
+                    <Text
+                      style={[
+                        styles.calDayText,
+                        selected && { color: colors.onPrimary, fontWeight: '700' },
+                        isToday && !selected && { color: colors.primary, fontWeight: '600' },
+                      ]}
+                    >
+                      {day}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
+      </View>
+
+      <Pressable
+        onPress={() => { onChange(todayKey); onClose(); }}
+        hitSlop={8}
+        style={{ alignSelf: 'center', paddingVertical: 10 }}
+      >
+        <Text style={{ color: colors.primary, fontWeight: '600' }}>Today</Text>
+      </Pressable>
+    </Sheet>
+  );
+}
+
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+
+/** 24-hour time sheet: two wheels, so a time can never be half-typed. */
+export function TimeSheet({
+  visible,
+  value,
+  onChange,
+  onClose,
+  title = 'Pick a time',
+}: {
+  visible: boolean;
+  /** 'HH:MM' (24-hour), or '' for unset. */
+  value: string;
+  onChange: (next: string) => void;
+  onClose: () => void;
+  title?: string;
+}) {
+  const styles = useStyles();
+  const match = TIME_RE.exec(value.trim());
+  const nowParts = bruneiParts(Date.now());
+  const hour = match ? Math.min(23, Number(match[1])) : nowParts.hour;
+  const minute = match ? Math.min(59, Number(match[2])) : nowParts.minute;
+
+  const set = (h: number, m: number) =>
+    onChange(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+
+  return (
+    <Sheet visible={visible} title={title} onClose={onClose}>
+      <View style={styles.timeWheels}>
+        <View style={{ flex: 1 }}>
+          <WheelPicker items={HOURS} selectedIndex={hour} onSelect={(i) => set(i, minute)} />
+        </View>
+        <Text style={styles.timeColon}>:</Text>
+        <View style={{ flex: 1 }}>
+          <WheelPicker items={MINUTES} selectedIndex={minute} onSelect={(i) => set(hour, i)} />
+        </View>
+      </View>
+    </Sheet>
+  );
+}
+
+/** Shared chrome for the two trigger fields below. */
+function PickerTrigger({
+  label,
+  display,
+  placeholder,
+  icon,
+  onPress,
+  onClear,
+}: {
+  label?: string;
+  display: string;
+  placeholder: string;
+  icon: 'calendar-outline' | 'time-outline';
+  onPress: () => void;
+  onClear?: () => void;
+}) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  return (
+    <View style={{ marginBottom: 12 }}>
+      {label ? <Text style={styles.fieldLabel}>{label}</Text> : null}
+      <View style={styles.pickerRow}>
+        <Pressable style={styles.pickerTrigger} onPress={onPress}>
+          <Ionicons name={icon} size={18} color={colors.muted} />
+          <Text style={[styles.pickerValue, !display && { color: colors.muted }]}>
+            {display || placeholder}
+          </Text>
+        </Pressable>
+        {/* A sibling, not a nested Pressable: nesting swallows the outer press
+            target on Android. */}
+        {onClear && display ? (
+          <Pressable onPress={onClear} hitSlop={10} style={styles.pickerClear} accessibilityLabel={`Clear ${label ?? 'date'}`}>
+            <Ionicons name="close-circle" size={20} color={colors.muted} />
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Labelled date trigger that owns its own sheet — the call site keeps a
+ * 'YYYY-MM-DD' string and never sees the calendar.
+ *
+ * Safe on any pushed screen. Do not place one inside another Modal: two
+ * simultaneous Modals is the iOS freeze in HANDOFF §28.
+ */
+export function DateField({
+  label,
+  value,
+  onChange,
+  placeholder = 'Not set',
+  sheetTitle,
+  clearable = true,
+}: {
+  label?: string;
+  value: string;
+  onChange: (next: string) => void;
+  placeholder?: string;
+  sheetTitle?: string;
+  clearable?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <PickerTrigger
+        label={label}
+        display={DAY_KEY_RE.test(value) ? formatDayDate(value) : ''}
+        placeholder={placeholder}
+        icon="calendar-outline"
+        onPress={() => setOpen(true)}
+        onClear={clearable ? () => onChange('') : undefined}
+      />
+      <DateSheet
+        visible={open}
+        value={value}
+        onChange={onChange}
+        onClose={() => setOpen(false)}
+        title={sheetTitle ?? label ?? 'Pick a date'}
+      />
+    </>
+  );
+}
+
+/** Labelled time trigger, same contract as `DateField` but 'HH:MM'. */
+export function TimeField({
+  label,
+  value,
+  onChange,
+  placeholder = 'Not set',
+  sheetTitle,
+  clearable = false,
+}: {
+  label?: string;
+  value: string;
+  onChange: (next: string) => void;
+  placeholder?: string;
+  sheetTitle?: string;
+  clearable?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <PickerTrigger
+        label={label}
+        display={TIME_RE.test(value.trim()) ? value.trim() : ''}
+        placeholder={placeholder}
+        icon="time-outline"
+        onPress={() => setOpen(true)}
+        onClear={clearable ? () => onChange('') : undefined}
+      />
+      <TimeSheet
+        visible={open}
+        value={value}
+        onChange={onChange}
+        onClose={() => setOpen(false)}
+        title={sheetTitle ?? label ?? 'Pick a time'}
+      />
+    </>
+  );
+}
+
 const useStyles = themedStyles((colors) => ({
   card: {
     backgroundColor: colors.card,
@@ -497,6 +792,54 @@ const useStyles = themedStyles((colors) => ({
   // another line. Selection reads from the filled background.
   chipText: { color: colors.text, fontSize: 13 },
   chipActiveText: { color: colors.onPrimary, fontSize: 13 },
+  // Date / time pickers. The calendar metrics match the range picker on the
+  // transactions screen so the two read as one control.
+  pickerRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
+  pickerTrigger: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    backgroundColor: colors.inputBg,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  pickerValue: { flex: 1, color: colors.text, fontSize: 15 },
+  pickerClear: { padding: 2 },
+  calNav: { flexDirection: 'row' as const, alignItems: 'center' as const, marginBottom: 4 },
+  calNavYearBtn: { padding: 4, flexDirection: 'row' as const, alignItems: 'center' as const, width: 36 },
+  calNavCenter: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+  },
+  calNavBtn: { padding: 4, flexDirection: 'row' as const, alignItems: 'center' as const },
+  calNavTitle: { fontSize: 15, fontWeight: '700' as const, color: colors.text, textAlign: 'center' as const },
+  calGrid: { height: 240 },
+  calRow: { flexDirection: 'row' as const, marginBottom: 2 },
+  calDayName: {
+    flex: 1,
+    textAlign: 'center' as const,
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: colors.muted,
+    paddingVertical: 4,
+  },
+  calCell: { flex: 1, alignItems: 'center' as const, paddingVertical: 2 },
+  calDayCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  calDayText: { fontSize: 14, color: colors.text },
+  timeWheels: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4 },
+  timeColon: { fontSize: 20, fontWeight: '700' as const, color: colors.text },
   // Sheet
   // Absolutely filled by SheetShell; it must not take part in the column
   // layout, or it would push the panel off the bottom.

@@ -153,7 +153,7 @@ structure in §8, Sideloadly constraints in §10).
 | 2026-07-16 | Phase-by-phase cadence: stop after each merged phase and ask the user before continuing. |
 | 2026-07-30 | Transaction filters run in the database and the list pages (50/page); the client no longer filters a capped array. Filter pickers read the `transaction_facets` view, not the loaded rows. |
 | 2026-07-30 | `apps/mobile` carries vitest for pure logic only (no component rendering); picked up by `pnpm -r test` and CI unchanged. |
-| 2026-07-30 | The hornbill mascot is removed from the app entirely (HANDOFF §29). `art/` keeps the generator scripts; nothing in the app renders them. |
+| 2026-07-30 | The hornbill mascot is removed from the app entirely (HANDOFF §29) and its art and generator scripts are deleted from `art/` (§32). The owner is drawing replacement pixel art by hand; until it lands the app has no mascot and the penny coin is the only brand mark. Do not reintroduce a mascot or regenerate the bird. |
 | 2026-07-30 | Dashboard drops Daily spend, Month by month and Top merchants — Insights covers the last two better. Day-level spending now exists nowhere; if it returns it goes on Insights (HANDOFF §30). |
 | 2026-07-30 | Subscriptions (migration 18) live on a dashboard card → full screen, not a sixth tab. Declared rows and `detectRecurring` clusters merge into one list. **Display-only: never a budget input** — the captured transaction is what counts toward the monthly limit. No reminders are scheduled from subscriptions (HANDOFF §29). |
 

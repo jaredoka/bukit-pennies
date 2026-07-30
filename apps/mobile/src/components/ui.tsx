@@ -14,7 +14,10 @@ import {
   type LayoutChangeEvent,
   type TextInputProps,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+// Deep import, like every other call site: the '@expo/vector-icons' barrel
+// drags in the glyph map of every family (FontAwesome, MaterialCommunity, …),
+// which is ~1 MB of names nothing here renders.
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { DAY_KEY_RE, TIME_RE, dayKeyOf, monthGrid, stepMonth } from '@/lib/calendar';
 import { bruneiDayKey, bruneiParts, formatDayDate } from '@/lib/format';

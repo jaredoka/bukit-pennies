@@ -25,6 +25,7 @@ import {
   useProfile,
   useRecentMonthsTransactions,
   useThisMonthTransactions,
+  useSubscriptions,
   useTopMerchants,
   useTransactionsForPeriod,
   usePullToRefresh,
@@ -49,6 +50,12 @@ import { usePrivacy } from '@/lib/privacy';
 import { usePrimaryCurrency } from '@/lib/primaryCurrency';
 import { detectRecurring } from '@/lib/recurring';
 import { useSession } from '@/lib/session';
+import {
+  cycleLabel,
+  dueLabel,
+  mergeSubscriptions,
+  monthlyTotal,
+} from '@/lib/subscriptions';
 import { themedStyles, useTheme } from '@/lib/theme';
 
 /** off → on due day → 1 day before → 3 days before → off */
@@ -140,6 +147,7 @@ export default function Dashboard() {
   const categories = useCategories();
   const budgets = useBudgets();
   const recentTx = useRecentMonthsTransactions(6);
+  const subscriptions = useSubscriptions();
   const { refreshing, onRefresh } = usePullToRefresh();
   const { hidden, toggle, money } = usePrivacy();
 
@@ -297,6 +305,21 @@ export default function Dashboard() {
   }, [budgets.data, thisMonthTx.data, categories.data, colors, primaryCurrency]);
 
   const recurring = useMemo(() => detectRecurring(recentTx.data ?? []).slice(0, 6), [recentTx.data]);
+
+  // The subscriptions card shows both halves at once: rows the user declared,
+  // each carrying whichever detected cluster it matches, then the clusters
+  // nobody has claimed as suggestions. Display-only — see lib/subscriptions.ts.
+  // Cancelled rows are dropped here rather than at the total: they are excluded
+  // from the figure either way, and listing what you no longer pay for under a
+  // monthly cost reads as a contradiction. They stay on the full screen.
+  const subscriptionItems = useMemo(
+    () =>
+      mergeSubscriptions(subscriptions.data ?? [], recurring, bruneiDayKey(Date.now())).filter(
+        (i) => i.status !== 'cancelled',
+      ),
+    [subscriptions.data, recurring],
+  );
+  const subsMonthlyTotal = monthlyTotal(subscriptionItems, primaryCurrency);
 
   useEffect(() => {
     if (!userId || thisMonthTx.isLoading || recentTx.isLoading) return;
@@ -632,45 +655,70 @@ export default function Dashboard() {
         )}
       </Card>
 
-      {/* ---- Recurring, with per-item bill reminders ---- */}
-      {recurring.length > 0 ? (
-        <Card>
-          <Title>Likely recurring</Title>
+      {/* ---- Subscriptions: what you declared, merged with what we detected ---- */}
+      <Card>
+        <Pressable onPress={() => router.push('/(tabs)/subscriptions')} style={styles.subsHeader}>
+          <View style={{ flex: 1 }}>
+            <Title>Subscriptions</Title>
+          </View>
+          <Text style={styles.subsTotal}>{`${money(subsMonthlyTotal, primaryCurrency)}/mo`}</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.muted} style={{ marginLeft: 4 }} />
+        </Pressable>
+        {subscriptionItems.length === 0 ? (
           <Muted>
-            Same merchant, similar amount, seen in 3+ months. Tap the bell to be reminded before
-            the next expected charge.
+            Nothing recorded yet. Add what you subscribe to and it will be here whenever you forget
+            what you are paying for.
           </Muted>
-          <View style={{ marginTop: 8 }}>
-            {recurring.map((r) => {
-              const pref = reminderPrefs[r.merchant];
+        ) : (
+          <View style={{ marginTop: 4 }}>
+            {subscriptionItems.slice(0, 5).map((item) => {
+              const detectedMerchant = item.detected?.merchant;
+              const pref = detectedMerchant ? reminderPrefs[detectedMerchant] : undefined;
               return (
-                <View key={`${r.merchant}:${r.amount}`} style={styles.recurringRow}>
+                <View key={item.key} style={styles.recurringRow}>
                   <View style={{ flex: 1, marginRight: 8 }}>
                     <Text style={styles.legendName} numberOfLines={1}>
-                      {r.merchant}
+                      {item.name}
                     </Text>
-                    <Muted>{`${r.months.length} months · ~${money(r.amount, r.currency)}/month`}</Muted>
+                    <Muted>
+                      {item.kind === 'suggestion'
+                        ? `Detected · ${item.detected!.months.length} months`
+                        : `${cycleLabel(item.cycle, item.cycleDays)} · ${
+                            item.nextDueOn ? `due ${dueLabel(item.daysUntilDue)}` : 'no date set'
+                          }`}
+                    </Muted>
                   </View>
-                  <Text style={styles.legendValue}>{money(r.total, r.currency)}</Text>
-                  <Pressable
-                    onPress={() => cycleReminder(r.merchant)}
-                    hitSlop={8}
-                    style={styles.bellWrap}
-                    accessibilityLabel={`Reminder for ${r.merchant}`}
-                  >
-                    <Ionicons
-                      name={pref ? 'notifications' : 'notifications-off-outline'}
-                      size={18}
-                      color={pref ? colors.primary : colors.muted}
-                    />
-                    {pref ? <Text style={styles.bellLabel}>{reminderLabel(pref.daysBefore)}</Text> : null}
-                  </Pressable>
+                  <Text style={styles.legendValue}>{money(item.amount, item.currency)}</Text>
+                  {detectedMerchant ? (
+                    <Pressable
+                      onPress={() => cycleReminder(detectedMerchant)}
+                      hitSlop={8}
+                      style={styles.bellWrap}
+                      accessibilityLabel={`Reminder for ${item.name}`}
+                    >
+                      <Ionicons
+                        name={pref ? 'notifications' : 'notifications-off-outline'}
+                        size={18}
+                        color={pref ? colors.primary : colors.muted}
+                      />
+                      {pref ? <Text style={styles.bellLabel}>{reminderLabel(pref.daysBefore)}</Text> : null}
+                    </Pressable>
+                  ) : (
+                    <View style={styles.bellWrap} />
+                  )}
                 </View>
               );
             })}
           </View>
-        </Card>
-      ) : null}
+        )}
+        <Pressable onPress={() => router.push('/(tabs)/subscriptions')} hitSlop={8}>
+          <Text style={styles.subsLink}>
+            {subscriptionItems.length > 5
+              ? `View all ${subscriptionItems.length} →`
+              : 'Manage subscriptions →'}
+          </Text>
+        </Pressable>
+      </Card>
     </ScrollView>
 
     {/* Period picker sheet */}
@@ -771,4 +819,13 @@ const useStyles = themedStyles((colors) => ({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  subsHeader: { flexDirection: 'row', alignItems: 'center' },
+  subsTotal: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 8,
+    fontVariant: ['tabular-nums'] as const,
+  },
+  subsLink: { color: colors.primary, fontWeight: '600', fontSize: 13, marginTop: 10 },
 }));

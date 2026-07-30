@@ -66,6 +66,17 @@ export default function TabsLayout() {
           href: null,
         }}
       />
+      {/* Reached from the dashboard card and Settings > Spending & data. Five
+          tabs is already the comfortable maximum on a phone. */}
+      <Tabs.Screen
+        name="subscriptions"
+        options={{
+          href: null,
+          // The nested Stack draws the header; without this the tab header
+          // stacks a second, lowercased "subscriptions" bar above it.
+          headerShown: false,
+        }}
+      />
       <Tabs.Screen
         name="settings"
         options={{

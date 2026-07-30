@@ -20,6 +20,30 @@ export interface SavingsGoalRow {
   created_at: string;
 }
 
+export type SubscriptionCycle = 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'custom';
+export type SubscriptionStatus = 'active' | 'cancelled';
+
+/** One declared subscription (migration 18). Display-only: never a budget input. */
+export interface SubscriptionRow {
+  id: string;
+  user_id: string;
+  name: string;
+  amount: number | string;
+  currency: string;
+  cycle: SubscriptionCycle;
+  cycle_days: number | null;
+  next_due_on: string | null; // 'YYYY-MM-DD'
+  category_id: string | null;
+  card_last4: string | null;
+  merchant_normalized: string | null;
+  trial_ends_on: string | null; // 'YYYY-MM-DD'
+  started_on: string | null; // 'YYYY-MM-DD'
+  notes: string | null;
+  status: SubscriptionStatus;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TransactionRow {
   id: string;
   user_id: string;

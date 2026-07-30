@@ -19,7 +19,9 @@ import type {
   MerchantTotalRow,
   MonthlyTotalRow,
   ProfileRow,
+  SavingsGoalEntryRow,
   SavingsGoalRow,
+  SavingsGoalWithProgress,
   SubscriptionRow,
   TransactionFacetRow,
   TransactionRow,
@@ -269,12 +271,60 @@ export function useDevices(opts?: { refetchInterval?: number }) {
   });
 }
 
+/** Invalidates everything that reads a goal's progress. Both keys move
+ *  together — `saved` lives in the view, so an entry change alters the goals
+ *  list without touching a savings_goals row. */
+function invalidateGoalQueries(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['savings_goals'] });
+  qc.invalidateQueries({ queryKey: ['savings_goal_entries'] });
+}
+
+/**
+ * Goals with their derived progress. Two reads rather than a PostgREST
+ * embed: `savings_goal_progress` is a view keyed on goal_id with no foreign
+ * key for PostgREST to follow, so it cannot be embedded. Both are tiny and
+ * owner-scoped, and joining them here keeps the view free of the goal columns
+ * it would otherwise have to duplicate.
+ */
 export function useSavingsGoals() {
   return useQuery({
     queryKey: ['savings_goals'],
+    queryFn: async (): Promise<SavingsGoalWithProgress[]> => {
+      const [goals, progress] = await Promise.all([
+        unwrap<SavingsGoalRow[]>(
+          supabase.from('savings_goals').select('*').order('created_at', { ascending: true }),
+        ),
+        unwrap<{ goal_id: string; saved: number | string; entry_count: number; last_entry_on: string | null }[]>(
+          supabase.from('savings_goal_progress').select('goal_id, saved, entry_count, last_entry_on'),
+        ),
+      ]);
+      const byGoal = new Map(progress.map((p) => [p.goal_id, p]));
+      return goals.map((g) => {
+        const p = byGoal.get(g.id);
+        return {
+          ...g,
+          saved: Number(p?.saved ?? 0),
+          entry_count: Number(p?.entry_count ?? 0),
+          last_entry_on: p?.last_entry_on ?? null,
+        };
+      });
+    },
+  });
+}
+
+/** One goal's ledger, newest first. */
+export function useSavingsGoalEntries(goalId: string | undefined) {
+  return useQuery({
+    queryKey: ['savings_goal_entries', goalId],
+    enabled: !!goalId,
     queryFn: () =>
-      unwrap<SavingsGoalRow[]>(
-        supabase.from('savings_goals').select('*').order('created_at', { ascending: true }),
+      unwrap<SavingsGoalEntryRow[]>(
+        supabase
+          .from('savings_goal_entries')
+          .select('*')
+          .eq('goal_id', goalId!)
+          .order('occurred_on', { ascending: false })
+          .order('created_at', { ascending: false }),
       ),
   });
 }
@@ -294,23 +344,69 @@ export function useCreateSavingsGoal() {
           .single(),
       );
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['savings_goals'] }),
+    onSettled: () => invalidateGoalQueries(qc),
   });
 }
 
-export function useAddToSavingsGoal() {
+/** Renames a goal or changes its target. Currency is deliberately absent —
+ *  it is fixed at creation (HANDOFF §17). */
+export function useUpdateSavingsGoal() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ goal, amount }: { goal: SavingsGoalRow; amount: number }) =>
+    mutationFn: ({ id, patch }: { id: string; patch: { name?: string; target_amount?: number } }) =>
       unwrap<SavingsGoalRow>(
+        supabase.from('savings_goals').update(patch).eq('id', id).select().single(),
+      ),
+    onSettled: () => invalidateGoalQueries(qc),
+  });
+}
+
+/**
+ * Adds a ledger entry. A plain insert, not a read-modify-write of a running
+ * total: two devices adding at the same moment used to lose one of the two,
+ * because each read the same starting figure. `user_id` defaults to
+ * `auth.uid()` server-side so the client never states it.
+ *
+ * A negative amount is a withdrawal.
+ */
+export function useAddSavingsGoalEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      goalId,
+      amount,
+      occurredOn,
+      note,
+    }: {
+      goalId: string;
+      amount: number;
+      occurredOn?: string;
+      note?: string | null;
+    }) =>
+      unwrap<SavingsGoalEntryRow>(
         supabase
-          .from('savings_goals')
-          .update({ saved_amount: Number(goal.saved_amount) + amount })
-          .eq('id', goal.id)
+          .from('savings_goal_entries')
+          .insert({
+            goal_id: goalId,
+            amount,
+            ...(occurredOn ? { occurred_on: occurredOn } : {}),
+            note: note?.trim() || null,
+          })
           .select()
           .single(),
       ),
-    onSettled: () => qc.invalidateQueries({ queryKey: ['savings_goals'] }),
+    onSettled: () => invalidateGoalQueries(qc),
+  });
+}
+
+/** Deleting the offending entry is how a mistake is corrected — the total is
+ *  a sum, so removing the row restores the right figure exactly. */
+export function useDeleteSavingsGoalEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      unwrap(supabase.from('savings_goal_entries').delete().eq('id', id)),
+    onSettled: () => invalidateGoalQueries(qc),
   });
 }
 
@@ -318,7 +414,7 @@ export function useDeleteSavingsGoal() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => unwrap(supabase.from('savings_goals').delete().eq('id', id)),
-    onSettled: () => qc.invalidateQueries({ queryKey: ['savings_goals'] }),
+    onSettled: () => invalidateGoalQueries(qc),
   });
 }
 

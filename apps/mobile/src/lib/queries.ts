@@ -19,6 +19,7 @@ import type {
   MonthlyTotalRow,
   ProfileRow,
   SavingsGoalRow,
+  SubscriptionRow,
   TransactionFacetRow,
   TransactionRow,
 } from './types';
@@ -310,6 +311,57 @@ export function useDeleteSavingsGoal() {
   return useMutation({
     mutationFn: async (id: string) => unwrap(supabase.from('savings_goals').delete().eq('id', id)),
     onSettled: () => qc.invalidateQueries({ queryKey: ['savings_goals'] }),
+  });
+}
+
+export function useSubscriptions() {
+  return useQuery({
+    queryKey: ['subscriptions'],
+    queryFn: () =>
+      unwrap<SubscriptionRow[]>(
+        supabase.from('subscriptions').select('*').order('created_at', { ascending: true }),
+      ),
+  });
+}
+
+/** Everything the subscription form can write. `id` present = edit. */
+export type SubscriptionInput = Pick<
+  SubscriptionRow,
+  | 'name'
+  | 'amount'
+  | 'currency'
+  | 'cycle'
+  | 'cycle_days'
+  | 'next_due_on'
+  | 'category_id'
+  | 'card_last4'
+  | 'merchant_normalized'
+  | 'trial_ends_on'
+  | 'started_on'
+  | 'notes'
+  | 'status'
+> & { id?: string };
+
+export function useSaveSubscription() {
+  const qc = useQueryClient();
+  return useMutation({
+    // `user_id` is left to the column default (auth.uid()) rather than sent from
+    // here — the client never gets to claim which account a row belongs to.
+    mutationFn: async ({ id, ...fields }: SubscriptionInput) =>
+      unwrap<SubscriptionRow>(
+        id
+          ? supabase.from('subscriptions').update(fields).eq('id', id).select().single()
+          : supabase.from('subscriptions').insert(fields).select().single(),
+      ),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['subscriptions'] }),
+  });
+}
+
+export function useDeleteSubscription() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => unwrap(supabase.from('subscriptions').delete().eq('id', id)),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['subscriptions'] }),
   });
 }
 

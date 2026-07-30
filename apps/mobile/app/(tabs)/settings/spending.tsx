@@ -52,6 +52,12 @@ export default function Spending() {
           note="Set per-category limits shown on the dashboard"
         />
         <Row
+          href="/(tabs)/subscriptions"
+          icon="repeat"
+          label="Subscriptions"
+          note="Record what you subscribe to and see what it costs per month"
+        />
+        <Row
           href="/(tabs)/settings/weekly-summary"
           icon="notifications"
           label="Weekly summary"

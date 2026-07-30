@@ -55,6 +55,15 @@ export function formatDayHeading(dayKey: string): string {
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
+/** '12 Aug 2026' from either a timestamp or a 'YYYY-MM-DD' key. Unlike
+ *  `formatDayHeading` it never says "Today" — used where the actual date is
+ *  the point (a subscription's billing date). */
+export function formatDayDate(value: string): string {
+  const key = /^\d{4}-\d{2}-\d{2}$/.test(value.trim()) ? value.trim() : bruneiDayKey(value);
+  const [y, m, d] = key.split('-').map(Number);
+  return `${d} ${MONTHS[m! - 1]} ${y}`;
+}
+
 export function formatTime(iso: string | null): string {
   if (!iso) return '';
   const p = bruneiParts(iso);

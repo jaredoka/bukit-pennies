@@ -127,6 +127,11 @@ structure in §8, Sideloadly constraints in §10).
 - **Never render two `Modal`s at once.** iOS presents one per view controller
   and silently drops the second — the app freezes with no way out. All sheets
   go through the single-Modal `SheetShell` (HANDOFF §28).
+- **`public.subscriptions` is a record, not an input.** Nothing may add its
+  amounts to budgets, the monthly limit, or any spend total — the real charge is
+  already a transaction, so doing so double-counts the same money. Totals across
+  unlike cycles go through `monthlyEquivalent`; new date or merge behaviour needs
+  a case in `apps/mobile/test/subscriptions.test.ts` first (HANDOFF §29).
 - Device-local storage keys must match SecureStore's `/^[\w.-]+$/` — no colons
   — and must be scoped per user id whenever the value derives from account
   data rather than from the handset. `test/kvStore.test.ts` asserts both;
@@ -144,6 +149,8 @@ structure in §8, Sideloadly constraints in §10).
 | 2026-07-16 | Phase-by-phase cadence: stop after each merged phase and ask the user before continuing. |
 | 2026-07-30 | Transaction filters run in the database and the list pages (50/page); the client no longer filters a capped array. Filter pickers read the `transaction_facets` view, not the loaded rows. |
 | 2026-07-30 | `apps/mobile` carries vitest for pure logic only (no component rendering); picked up by `pnpm -r test` and CI unchanged. |
+| 2026-07-30 | The hornbill mascot is removed from the app entirely (HANDOFF §29). `art/` keeps the generator scripts; nothing in the app renders them. |
+| 2026-07-30 | Subscriptions (migration 18) live on a dashboard card → full screen, not a sixth tab. Declared rows and `detectRecurring` clusters merge into one list. **Display-only: never a budget input** — the captured transaction is what counts toward the monthly limit. No reminders are scheduled from subscriptions (HANDOFF §29). |
 
 ## 7. Standard procedures
 

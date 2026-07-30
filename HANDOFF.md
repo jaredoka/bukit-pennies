@@ -1808,3 +1808,85 @@ emit two things that are not drift:
   Do not act on this, and do not "fix" it by dropping the extension in
   production or by adding a `create extension` migration for something Supabase
   manages.
+
+---
+
+## 29. The mascot is gone, and subscriptions are a first-class record (2026-07-30)
+
+Branches `remove-hornbill-mascot` (PR #67) and `subscriptions` (this PR).
+
+### The hornbill, actually removed
+
+#65 pulled the mascot off every screen except Settings > Our story, and that
+one instance kept `hornbill_sheet.png` in the shipped bundle. Both are deleted
+now, and no `hornbill`/`mascot` reference remains under `apps/`, `packages/`,
+`supabase/`, `docs/` or `scripts/`. The generator scripts in `art/` are left
+alone — they are art tooling, not app code.
+
+Worth recording because the report was "the mascot still comes up when I start
+the app", and that was never true of the code at that commit: the splash and
+app icons are the penny coin (#65), the landing screen draws the coin
+`HexBackground`, and the welcome screen is text only. The IPA in `build/` was
+built after #65 and its only bundled image was the sprite sheet, reachable from
+Our story alone. A bird at launch therefore means a build older than #65 is
+still installed, or iOS is reusing its cached launch snapshot — the fix is a
+fresh IPA plus delete-and-reinstall, not a reinstall over the top.
+
+### Subscriptions (migration 18)
+
+The dashboard already *inferred* recurring spend (`detectRecurring`: same
+merchant, similar amount, 3+ Brunei months). That can only ever find what the
+bank has texted about three times — never an annual plan, a subscription on a
+card the user does not capture, or a trial that has not charged yet. The
+declared half now exists as `public.subscriptions`, and the two are merged into
+one list so nothing appears twice.
+
+Owner decisions (2026-07-30), do not re-open:
+
+- **Placement:** a dashboard card that opens a full screen, plus a row in
+  Settings > Spending & data. **Not** a sixth tab — five is the comfortable
+  maximum on a phone — and not Settings-only, because the whole point is
+  opening the app and seeing what you pay for.
+- **Merged, not parallel:** detected clusters appear as suggestions to confirm;
+  confirming one carries `merchant_normalized` across, and a declared row
+  claims its cluster so it stops being suggested. A **cancelled** row keeps
+  claiming its cluster, otherwise cancelling something re-suggests it at once.
+- **Full field set:** name, amount + currency, cycle (weekly/monthly/
+  quarterly/yearly/custom-in-days), next payment date, category, billed-to
+  card, trial end, start date, notes, active/cancelled.
+- **No reminders.** Nothing here schedules a notification. The pre-existing
+  per-merchant bill reminders (`bukit.reminders`, opt-in, off by default) are
+  untouched and still hang off the detected rows in the dashboard card.
+- **Never a budget input.** The real charge arrives as a transaction and is
+  already counted against the monthly limit; adding the declared amount would
+  double-count the same money. Every figure from this table is display-only,
+  and each row instead *shows* the captured charge it matched ("Charged BND
+  4.72 on 21 Jul 2026 — already in your spending") as proof it was counted.
+
+Design notes:
+
+- `src/lib/subscriptions.ts` holds all of it as pure functions
+  (`test/subscriptions.test.ts`, 26 cases): monthly-equivalent conversion per
+  cycle, month-end-clamped date arithmetic (31 Jan + 1 month = 28 Feb),
+  `nextDueOn` rolling a stale stored date forward by whole cycles so a date
+  entered in January is still right in July, loose merchant matching
+  (`merchant_normalized` wins when set, else the typed name against the bank's
+  string, names under 3 characters refused), and the merge itself.
+- Unlike cycles are totalled via monthly equivalents; subscriptions outside the
+  primary currency are excluded from the total and named in a note, matching
+  how budgets and goals already behave (§17).
+- The form is a pushed screen with an inline two-step delete, not a sheet with
+  a confirmation dialog — a second `Modal` is the §28 freeze.
+- Cancelled rows are filtered out of the dashboard card (they are excluded from
+  the total either way, and listing what you no longer pay for under a monthly
+  cost reads as a contradiction) but stay in a collapsed section on the screen.
+
+Verified: `pnpm -r typecheck` and `pnpm -r test` (49 mobile + parsers +
+handlers) green; `supabase db reset` applies 18 cleanly; psql proves the RLS
+quartet, `anon` holding no DML, every check constraint refusing its bad row,
+cross-account select/update/delete/insert all blocked, and the client's
+`user_id`-defaulted insert path working under role `authenticated`;
+`expo export --platform web` compiles; and the whole flow driven in the browser
+against local Supabase — add, stale date rolling to "Due in 13 days", charge
+matched to a real transaction, yearly showing BND 14.00/month, trial badge,
+suggestion → confirm with no duplicate, edit, delete restoring the suggestion.

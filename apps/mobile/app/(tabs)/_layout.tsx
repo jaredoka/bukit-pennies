@@ -46,11 +46,11 @@ export default function TabsLayout() {
         name="goals"
         options={{
           title: 'Goals',
-          // The Tabs header puts headerRight flush against the safe-area edge,
-          // where the native-stack header on Transactions gives its `+` the
-          // standard 16pt trailing margin. Without this the Edit button sits
-          // further right than every other header action in the app.
-          headerRightContainerStyle: { paddingRight: 16 },
+          // The nested Stack draws the header, which also gives header actions
+          // the standard 16pt trailing inset — the Tabs header put them flush
+          // against the safe-area edge and needed headerRightContainerStyle to
+          // compensate.
+          headerShown: false,
           tabBarIcon: ({ color, size }) => <Ionicons name="flag" color={color} size={size} />,
         }}
       />

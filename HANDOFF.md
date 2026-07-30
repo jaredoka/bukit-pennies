@@ -2129,3 +2129,127 @@ code. Check what else it sits next to in the string table before acting.
 The §31 IPA predates this fix, so it carries the extra 419 KB and the string.
 Functionally identical otherwise; not worth rebuilding for its own sake, but the
 next build picks it up.
+
+---
+
+## 33. Goals: a `+` button, a detail screen, and progress becomes a ledger (2026-07-30)
+
+Branch `goals-ledger`. **Migration 19 is written and verified locally but NOT
+pushed to the hosted project** — see "Owner action" below. Until it is, the
+Goals tab cannot work against hosted, because the app now reads a view that
+does not exist there yet.
+
+### The page is only goals now
+
+Owner call: the Goals tab should be 100% the user's goals. The inline "New
+goal" card is gone; a `+` in the header (matching Transactions, 26pt
+`add-circle-outline`) pushes `goals/new`, which returns on save.
+
+`goals.tsx` became a directory with a Stack (`_layout`, `index`, `new`,
+`edit`), the pattern `subscriptions/` already established. Two incidental wins:
+the Tabs entry no longer needs `headerRightContainerStyle: { paddingRight: 16 }`
+because a native-stack header already gives header actions the standard 16pt
+inset, and the old header **pencil edit-mode is deleted** — it only ever
+revealed a Delete button.
+
+**Editing is reaching the goal by tapping it** (owner chose this over a per-card
+pencil, a header edit-mode, long-press, or swipe actions), consistent with
+`subscriptions/`. Only the heading and the progress bar are inside the
+`Pressable`: wrapping the whole card would swallow taps meant for the
+amount field and Add button, which **stay on the card** as the fast path
+because logging money is the frequent action.
+
+That also retired the raw `Modal` the goal card used for its delete
+confirmation, in favour of §29's inline two-step. §28 is explicit that a Modal
+on a screen which may host another is the freeze, and that was latent here.
+
+### `settings/goals.tsx` was dead code and is deleted
+
+A second, older Goals screen — its own inline create form, its own card, an
+**unconfirmed** delete, and BND hardcoded in `money()`. It was registered in
+the settings Stack but **nothing navigated to it**; only a typed URL on web
+could reach it. It would also have broken under migration 19. Deleted, along
+with its `Stack.Screen`, and the Settings index note that advertised "savings
+goals" under Spending & data now says "subscriptions" (which is what is
+actually there).
+
+### Progress is a ledger (migration 19)
+
+`savings_goals.saved_amount` was one mutable number written by a
+read-modify-write from the client. Three problems, and the third is what forced
+the change:
+
+1. **No history** — nothing recorded that BND 50 went in on 12 July.
+2. **Racy** — two devices adding at the same moment lose one, each having read
+   the same starting figure.
+3. **No way to correct anything.** The only operation was "add", so a
+   fat-fingered 500 instead of 50, or money genuinely taken back out, had no
+   path at all. That was the reported gap.
+
+`savings_goal_entries` now holds one signed row per deposit or withdrawal, and
+`savings_goal_progress` (a `security_invoker` view, left-joined so a goal with
+no entries still appears at 0) derives `saved`. **Correcting a mistake is
+deleting the offending row**, which restores the figure exactly because the
+total is a sum.
+
+Decisions worth keeping:
+
+- **One signed column, not an adds table and a withdrawals table.** They are
+  the same event with opposite signs, and summing one column is what makes the
+  total trivially correct. `amount <> 0` refuses a row that changes nothing.
+- **`saved_amount` was dropped, not left as a cache.** A maintained duplicate
+  recreates the two-sources-of-truth problem §19 complains about with the
+  duplicated privacy policy — whichever one a future reader trusts, the other
+  rots.
+- **Backfilled before the drop.** Each goal with non-zero progress became one
+  `Opening balance` entry dated from the goal's creation, so nobody loses
+  progress and the totals still match what they saw. Goals at 0 get no row.
+- **Target may be set below the amount saved** (owner call): the bar caps at
+  100%, reads "Goal reached", and the detail screen says how far over you are.
+  Lowering a target after overshooting is legitimate.
+- Currency stays fixed at creation (§17) and is stated, not offered, on the
+  detail screen.
+- Two reads rather than a PostgREST embed in `useSavingsGoals`: the view is
+  keyed on `goal_id` with no foreign key for PostgREST to follow, so it cannot
+  be embedded. Both are tiny and owner-scoped.
+
+**Verified locally** (`supabase migration up`, on a database seeded with goals
+carrying real `saved_amount` values so the backfill was actually exercised —
+a fresh `db reset` would have had nothing to back-fill):
+
+| Check | Result |
+|---|---|
+| `saved_amount` dropped | gone |
+| Backfill preserves the exact figure | `1250.50`, `99.99` |
+| Zero-progress goal: no entry, still in view at 0 | `entry_count 0` |
+| Insert without `user_id` → `auth.uid()` | own row |
+| Negative amount lowers the total | `1450.50 → 1400.25` |
+| Deleting the wrong entry restores the figure | back to `1450.50` |
+| `amount = 0`, note > 200 chars | both refused |
+| Forged `user_id`; entry against another user's goal; deleting another user's entry | RLS refused / 0 rows / `DELETE 0` |
+| `anon` on table and view | `permission denied` (grant layer, §24) |
+
+### Owner action — required, and it drops a production column
+
+1. `supabase db push` (migration 19). Hosted is at 18; `migration list`
+   confirms. **The push backfills and then drops
+   `savings_goals.saved_amount`.** The backfill runs first in the same
+   migration, and the local run proves it preserves the figure exactly, but it
+   is still a destructive schema change against real data — take the point-in-time
+   position into account (free tier has no automated backups, §16.5).
+2. **Any installed build predating this breaks on Goals** — it reads
+   `saved_amount` via `select *` and writes it on Add. Closed, not open, and
+   acceptable only because the app is in neither store (§16.4). Replace the
+   sideloaded build.
+
+### Not verified
+
+Typecheck clean, 138 tests pass, and the migration is proven on Postgres. **No
+part of the new Goals UI has been exercised in a browser or on a device.** The
+committed `.env` points at hosted, which lacks migration 19, so the tab would
+fail there for that reason alone — the dev server was stopped deliberately
+rather than left up to look like a broken feature (§30). Driving it locally
+needs a sign-in, which an agent cannot do. Still to check by hand: tapping a
+card opens the detail screen while the Add row still receives its own taps, the
+`+` pushes and returns, a withdrawal shows as `−` in History, and removing an
+entry moves the total back.

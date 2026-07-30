@@ -1,6 +1,9 @@
 node_modules/
 dist/
 coverage/
+# Downloaded IPAs and other build output. Never commit a binary to this repo —
+# it is public and permanent (HANDOFF §19), and an IPA is ~14 MB.
+build/
 .expo/
 .DS_Store
 *.log

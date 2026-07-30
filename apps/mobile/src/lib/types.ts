@@ -15,8 +15,28 @@ export interface SavingsGoalRow {
   user_id: string;
   name: string;
   target_amount: number | string;
-  saved_amount: number | string;
   currency: string;
+  created_at: string;
+}
+
+/** A goal joined to its derived progress — what every screen actually renders.
+ *  `saved` comes from the savings_goal_progress view, not from a column. */
+export interface SavingsGoalWithProgress extends SavingsGoalRow {
+  saved: number;
+  entry_count: number;
+  last_entry_on: string | null;
+}
+
+/** One deposit or withdrawal against a goal. Negative `amount` takes money
+ *  out; correcting a mistake means deleting the offending row (migration 19). */
+export interface SavingsGoalEntryRow {
+  id: string;
+  user_id: string;
+  goal_id: string;
+  amount: number | string;
+  /** 'YYYY-MM-DD' in Brunei time. */
+  occurred_on: string;
+  note: string | null;
   created_at: string;
 }
 

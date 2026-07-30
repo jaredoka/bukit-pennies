@@ -2134,10 +2134,8 @@ next build picks it up.
 
 ## 33. Goals: a `+` button, a detail screen, and progress becomes a ledger (2026-07-30)
 
-Branch `goals-ledger`. **Migration 19 is written and verified locally but NOT
-pushed to the hosted project** — see "Owner action" below. Until it is, the
-Goals tab cannot work against hosted, because the app now reads a view that
-does not exist there yet.
+Branch `goals-ledger`, PR #72, merged. **Migration 19 is applied to the hosted
+project** — deploy record at the end of this section.
 
 ### The page is only goals now
 
@@ -2229,27 +2227,47 @@ a fresh `db reset` would have had nothing to back-fill):
 | Forged `user_id`; entry against another user's goal; deleting another user's entry | RLS refused / 0 rows / `DELETE 0` |
 | `anon` on table and view | `permission denied` (grant layer, §24) |
 
-### Owner action — required, and it drops a production column
+### Why the push needed care (done — see the deploy record below)
 
-1. `supabase db push` (migration 19). Hosted is at 18; `migration list`
-   confirms. **The push backfills and then drops
-   `savings_goals.saved_amount`.** The backfill runs first in the same
-   migration, and the local run proves it preserves the figure exactly, but it
-   is still a destructive schema change against real data — take the point-in-time
-   position into account (free tier has no automated backups, §16.5).
-2. **Any installed build predating this breaks on Goals** — it reads
-   `saved_amount` via `select *` and writes it on Add. Closed, not open, and
-   acceptable only because the app is in neither store (§16.4). Replace the
-   sideloaded build.
+Migration 19 **backfills and then drops `savings_goals.saved_amount`**. The
+backfill runs first in the same migration, and the local run proved it preserves
+the figure exactly, but it was still a destructive schema change against real
+data on a tier with no automated backups (§16.5) — so a data-only dump was
+taken first. If a comparable migration is ever written again, take the snapshot;
+it costs one command.
 
 ### Not verified
 
-Typecheck clean, 138 tests pass, and the migration is proven on Postgres. **No
-part of the new Goals UI has been exercised in a browser or on a device.** The
-committed `.env` points at hosted, which lacks migration 19, so the tab would
-fail there for that reason alone — the dev server was stopped deliberately
-rather than left up to look like a broken feature (§30). Driving it locally
-needs a sign-in, which an agent cannot do. Still to check by hand: tapping a
-card opens the detail screen while the Add row still receives its own taps, the
-`+` pushes and returns, a withdrawal shows as `−` in History, and removing an
-entry moves the total back.
+Typecheck clean, 138 tests pass, and the migration is proven on Postgres and
+deployed. **No part of the new Goals UI has been exercised in a browser or on a
+device.** Driving it needs a sign-in, which an agent cannot do. Still to check
+by hand: tapping a card opens the detail screen while the Add row still
+receives its own taps, the `+` pushes and returns, a withdrawal shows as `−` in
+History, and removing an entry moves the total back.
+
+### Deploy record (2026-07-30)
+
+| Step | Result |
+|---|---|
+| `gh pr merge 72 --squash` | merged as `5f762bb`, CI green |
+| Pre-push data snapshot (`supabase db dump --linked --data-only`) | 49 KB, kept out of the repo — the free tier has no automated backups (§16.5) and this migration drops a column |
+| **Production held exactly one goal**: `Investments`, target 10 000.00 BND, `saved_amount` **0.00** | so the backfill had nothing to create and no progress could be lost — the mildest possible case for this change |
+| `supabase db push` | migration 19 applied; `migration list` 19/19 local↔remote |
+| Post-push dump: `savings_goals` column list | `id, user_id, name, target_amount, created_at, updated_at, currency` — **`saved_amount` gone, the goal row intact** |
+| Post-push dump: `savings_goal_entries` | table present, **no rows**, as predicted |
+| Anon REST probe on `savings_goal_entries` and `savings_goal_progress` | `401 42501 permission denied` on both |
+
+That last row is worth reading precisely, per §24's table: a **`401` with
+`42501` proves the objects exist and are locked at the grant layer**. A missing
+table or view answers `404 PGRST205` instead. So one probe confirms both
+creation and that migration 14's posture held for a new table and a new view.
+
+**Not verified in production: the signed-in app**, the same gap §24 and §25
+recorded for migration 14. `authenticated` is untouched by design and the whole
+ledger was proven under role `authenticated` on the local stack. Opening the
+Goals tab once on a build carrying this code is the confirmation.
+
+**Any installed build predating this is now broken on Goals** — it reads
+`saved_amount` via `select *` and writes it on Add, and the column is gone.
+This is live, not hypothetical: the IPA in `build/ios-unsigned-0730/` is such a
+build. Replace it before using Goals on the phone.

@@ -2271,3 +2271,85 @@ Goals tab once on a build carrying this code is the confirmation.
 `saved_amount` via `select *` and writes it on Add, and the column is gone.
 This is live, not hypothetical: the IPA in `build/ios-unsigned-0730/` is such a
 build. Replace it before using Goals on the phone.
+
+---
+
+## 34. Goal entries become editable; the Log money control (2026-07-31)
+
+Branch `goals-log-money-ui`. Field-test feedback on §33, all UI.
+
+### One control for both directions
+
+The detail screen had a three-field "Take money out" card while adding money
+was a one-line row on the list card — the same event presented as two unrelated
+operations, with the rarer one taking a third of the screen. It is now a single
+**Log money** card: Money in / Money out chips, one amount field with a Log
+button matching the list card's Add row, and date + note behind
+"+ Add a date or note".
+
+The disclosure **collapses again**, and collapsing resets the date to today and
+clears the note. Keeping them would mean closing the section after picking last
+Tuesday still logs against last Tuesday with nothing on screen saying so — a
+hidden value that still counts is worse than losing a note you chose to hide.
+
+The correction hint moved out of the logging form and up to the top of History,
+next to the buttons that actually do it. "Take money out" and "fix what I
+mistyped" are different intentions and were being explained in one paragraph.
+
+### The history row
+
+Three states: `⋯` at rest → **Remove · Edit · Keep** in place of the icon →
+editing in place.
+
+- **The actions replace the icon** rather than opening a panel below, so the
+  row keeps its height and the decision stays under the finger.
+- **Remove is furthest from Keep, with Edit between them.** The destructive
+  button and the one people reach for to back out must not be neighbours.
+- **`ellipsis-horizontal`, not a pencil.** A pencil that offers only Remove and
+  Keep promises an edit it does not deliver; three dots promise choices, which
+  is what happens. (Once Edit became real this mattered less, but the icon
+  still describes a menu, not one action.)
+- **Editing is real**: Money in/out, amount, date and note, via
+  `useUpdateSavingsGoalEntry`. Migration 19 already granted the update policy,
+  so no schema change. Correcting a wrong amount, date, or direction no longer
+  means deleting the row and logging it again.
+- Zero is refused client-side because `amount <> 0` refuses it server-side —
+  Save stays disabled rather than submitting a guaranteed constraint error.
+- `rowActions` is `flexShrink: 0` and the amount/date lines are
+  `numberOfLines={1}`: three pills beside a long amount is tight at 360pt, so
+  the text gives way, not the controls.
+
+**Verified against Postgres** (rolled back): flipping a deposit to a withdrawal
+updates amount, date and note and the derived total follows (`1250.50` →
+`-200.00`); `amount = 0` is refused by the check constraint; editing another
+user's entry is `UPDATE 0`.
+
+### Two bugs found on the way
+
+**`Muted` had no `lineHeight`** (`ui.tsx`), so descenders were cropped — React
+Native Web puts `overflow: hidden` on every `View`, and a line box tight to the
+glyph height slices a "g" sitting above a border. Fixed globally with
+`lineHeight: 18`; it was latent everywhere `Muted` sits above a divider, not
+just on this screen.
+
+**The Remove pill used `onPrimary` for its label**, which is near-black — tuned
+for the yellow and blue primaries and unreadable on the red danger fill. Now
+explicit white, with a comment so it does not get "corrected" back.
+
+**`HexBackground` snapshotted `Dimensions.get('window')` at module load**, so
+the coin field kept whatever width the page first opened at and never
+re-laid-out on resize or rotation. Now `useWindowDimensions` with fractional
+positions, plus an explicit `overflow: hidden`.
+
+That last one was found while chasing a reported sideways scroll on the
+signed-out pages. **It was never reproduced** — the landing DOM does not
+overflow at 430/414/393/375/360/320pt, the viewport meta is correct, `body` is
+already `overflow-x: hidden`, and forcing a 1200pt-wide SVG into the wrapper
+produced no scroll because RN Web already clips it. The owner reports the
+scroll is gone; whether this fix is why is **unproven**. Do not record it as
+the cause.
+
+### Not verified
+
+Typecheck clean, 138 tests pass, entry editing proven in SQL. The UI itself was
+exercised by the owner against the local stack, not by an agent.

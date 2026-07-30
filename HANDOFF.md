@@ -2064,3 +2064,68 @@ once**: every CDP `Input.dispatchMouseEvent` to the tab timed out while
 screenshots kept working and the console stayed clean, so the click-through
 could not be driven. Given §28, treat "the date sheet opens, dismisses, and
 clears" as an open item on the device checklist, not as done.
+
+---
+
+## 32. Mascot art deleted; the icon barrel import cost 419 KB (2026-07-30)
+
+Branch `remove-mascot-art`.
+
+### Owner is drawing the new pixel art by hand — do not fill the gap
+
+**The app has no mascot and will not have one until the owner delivers new
+pixel art, which they are drawing themselves and need time for.** Until then
+the **penny coin is the only brand mark** (app icon, splash, Android adaptive
+layers, `HexBackground`). Do not commission, generate, or reintroduce a mascot,
+and do not regenerate the hornbill from history to "restore" anything — its
+absence is deliberate and temporary by the owner's choice.
+
+### What was deleted
+
+Every hornbill file in `art/`: the nine animation GIFs, `hornbill_sheet.png`,
+`icon_green.png` (a green-circle app-icon attempt), and all four generator
+scripts (`hornbill_animate.py`, `hornbill_icon.py`, `hornbill_pixel.py`). §29
+had deliberately left `art/` alone as "art tooling, not app code"; that call is
+now reversed. `art/` holds only the coin: `coin_icon.py`,
+`coin_platform_icons.py`, and three coin PNGs.
+
+Two of those files (`hornbill_icon.py`, `icon_green.png`) were **untracked** and
+nine were modified-but-uncommitted, and the owner chose to delete without a
+preservation commit — so the most recent renders exist nowhere. Earlier
+committed versions remain reachable in history, as always; **deleting files
+does not remove them from a public repo's history** (§19), which here is a
+harmless safety net rather than a concern.
+
+Stale prose referring to the bird was corrected in
+`art/scripts/coin_platform_icons.py` and the playbook's decision log rather
+than left to mislead.
+
+### `hornbill` in the shipped bundle was never the mascot
+
+The §31 IPA's JS bundle contained the string `hornbill` once, which reads
+alarmingly in a grep and prompted this cleanup. It was **not** mascot art and
+no amount of deleting `art/` would have removed it:
+
+`ui.tsx` (added in §31) imported `{ Ionicons } from '@expo/vector-icons'` — the
+**barrel** — while all 13 other call sites in the app use the deep
+`@expo/vector-icons/Ionicons`. The barrel pulls in the glyph map of every
+family, and Font Awesome's *brands* set contains `hornbill` (a software
+company's logo), alongside `hooli`, `hotjar` and `houzz`.
+
+Measured on the same commit, `expo export --platform web`:
+
+| Import | Bundle | `hornbill` |
+|---|---|---|
+| `{ Ionicons } from '@expo/vector-icons'` | 4,283,665 B | ×4 |
+| `Ionicons from '@expo/vector-icons/Ionicons'` | 3,854,250 B | ×0 |
+
+**419 KB of glyph names nothing renders.** Fixed to the deep import, with a
+comment at the import site.
+
+Two things to carry forward: **always deep-import an icon family** — the barrel
+is a silent half-megabyte — and a string in a bundle is not evidence of your own
+code. Check what else it sits next to in the string table before acting.
+
+The §31 IPA predates this fix, so it carries the extra 419 KB and the string.
+Functionally identical otherwise; not worth rebuilding for its own sake, but the
+next build picks it up.

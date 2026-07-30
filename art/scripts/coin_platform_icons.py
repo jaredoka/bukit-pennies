@@ -2,9 +2,9 @@
 Platform icon variants derived from the 32x32 penny in art/final.
 
 `coin_icon.py` draws the coin and `icon.png` / `favicon.png` were made from it,
-but the splash screen and the Android adaptive icon were left on the old
-hornbill. This regenerates all three from the same source so they cannot drift
-apart again.
+but the splash screen and the Android adaptive icon were originally left on the
+previous mascot artwork. This regenerates all three from the same source so
+they cannot drift apart again.
 
     python art/scripts/coin_platform_icons.py
 

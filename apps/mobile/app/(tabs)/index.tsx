@@ -558,9 +558,13 @@ export default function Dashboard() {
                     <Muted>
                       {item.kind === 'suggestion'
                         ? `Detected · ${item.detected!.months.length} months`
-                        : `${cycleLabel(item.cycle, item.cycleDays)} · ${
-                            item.nextDueOn ? `due ${dueLabel(item.daysUntilDue)}` : 'no date set'
-                          }`}
+                        : // No due date is the common case for something you
+                          // recorded without knowing its billing day — saying so
+                          // adds nothing, so the cycle stands alone.
+                          [
+                            cycleLabel(item.cycle, item.cycleDays),
+                            ...(item.nextDueOn ? [`due ${dueLabel(item.daysUntilDue)}`] : []),
+                          ].join(' · ')}
                     </Muted>
                   </View>
                   <Text style={styles.legendValue}>{money(item.amount, item.currency)}</Text>

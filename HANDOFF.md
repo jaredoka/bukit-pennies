@@ -1949,3 +1949,118 @@ Verified: `pnpm -r typecheck` green; `pnpm -r test` 53 mobile cases green;
 subscription add checked in the browser against a running local stack; then the
 stack stopped deliberately to confirm the same add fails with the readable
 message instead of the TypeError.
+
+---
+
+## 31. Policies brought current; no date is typed any more (2026-07-30)
+
+Branch `docs-and-date-pickers`.
+
+### The published policies were three months of features out of date
+
+Both documents still carried their 16 July effective date, describing an app
+without budgets, goals, subscriptions, manual entry, cash quick-add, CSV export
+or feedback submission. Since §19 moved Pages to this repo's `docs/`, editing
+these files *is* publishing them — there is no second copy to forget.
+
+The one that mattered: **"Your data is not sold, shared, or transferred to any
+third party" had become false** when §27 shipped the `feedback` function, which
+POSTs to Resend. The fix states the true thing more strongly rather than
+weakening the claim, because two different promises were collapsed into one
+sentence:
+
+- *Never sold, rented, or shared for anyone else's purposes* — this app can
+  hold that absolutely, and now says so explicitly (no ad SDK, no analytics
+  SDK, no data broker, no aggregator).
+- *Processed by vendors on our instructions* — unavoidable for any hosted app.
+  Supabase was already one; the old wording just called it "the app's own
+  backend" and never named it a third party.
+
+So there is now an **exhaustive named processor table**: Supabase (everything —
+it is the database), Resend (feedback text, area, app version, and an 8-char
+fragment of the account id — verified against `feedbackEmail` in
+`_shared/feedback.ts`: **no email address, no name, no transaction**), and
+Pwned Passwords (5-char hash prefix). Plus a note that reset mail goes through
+whatever SMTP the Supabase project is configured with.
+
+Worth keeping for whoever revisits this: **the absence of an aggregator is why
+this list is three rows long.** Mint/Monarch/Copilot/YNAB/Spendee all route
+through Plaid, MX or Yodlee — a third party holding bank credentials or
+bank-derived transactions — then add analytics, attribution and, for the
+ad-supported ones, offer partners. No-bank-connection is not only the store
+story (§1); it is the reason the sharing section can stay this short.
+
+Also added: a "kept only on your device" section (theme, currency, cloak,
+reminder prefs, setup progress — and the point that bill reminders, weekly
+summary and overspend alerts are *local* notifications, so nothing is
+transmitted), a retention section, export/correct under Your controls, and the
+account-deletion path corrected to Settings → Account → Danger zone (§17 moved
+it and the policy was never updated).
+
+Terms gained subscriptions/goals/budgets in §1, a 13+ line, the §17
+shared-device token caveat stated for users rather than only in this document,
+rate limits and the device cap under acceptable use, the no-FX-conversion and
+"declared amounts are never spending" limits under Accuracy, and an
+availability section.
+
+**No governing-law or jurisdiction clause, deliberately** (owner call). Neither
+store requires one, an individual operator cannot realistically litigate
+cross-border, and absent a clause a court applies its own conflict rules —
+which for a Brunei operator with Brunei users lands on Brunei law anyway. It
+bought nothing. The 13+ line was added only because the privacy policy already
+said under-13s are not the audience and two published documents contradicting
+each other is a real, if small, problem.
+
+### Every date input is a picker now
+
+`DateSheet`, `TimeSheet`, `DateField` and `TimeField` live in
+`components/ui.tsx`, reusing the calendar metrics of the range picker on the
+transactions screen so the two read as one control. Five fields converted:
+the three on the subscription form (next payment, trial end, started on),
+manual entry's date + time, and the review inbox's single
+`YYYY-MM-DD HH:mm` field, now split in two.
+
+The range picker in `transactions/index.tsx` was **left alone on purpose** — it
+works, it is field-tested, and its behaviour on a screen whose sheets §28 lists
+as unverified is not worth risking for shared grid code. `MONTH_NAMES` /
+`DAY_NAMES` are exported from `ui.tsx` so the constants cannot drift.
+
+Decisions:
+
+- **Tapping a day commits and closes.** With one date to choose there is
+  nothing left to do, and a Done tap you cannot skip is pure friction.
+- **Clearing is available two ways** — an X on the trigger (discoverable) and
+  Clear in the sheet header. An optional date the user cannot un-set is a trap,
+  which is what the typed fields accidentally avoided by being typed.
+- **Manual entry's date is not clearable** (required, defaults to now); the
+  review inbox's is, because an undated row is legitimate there.
+- **In review, an unset time means midnight rather than a blocked confirm**, and
+  clearing the date clears the time. This deleted the "Date must look like
+  2026-07-16 12:30" error path outright — a malformed date is now unreachable.
+- The subscription form's `parseDayKey` check survives as a guard on a value
+  loaded from the database, not on typing.
+- `DateField`/`TimeField` own their sheets, so a call site is one line. They are
+  safe on pushed screens only — **never inside another Modal (§28)**. All five
+  call sites qualify; `transactions/new.tsx` is reached by `AddSheet` calling
+  `onClose()` *before* `router.push`, so no sheet is open above it.
+
+Grid arithmetic went to `src/lib/calendar.ts` as pure functions with
+`test/calendar.test.ts` (12 cases — leap February, a month starting on Sunday,
+December rollover, multi-year steps), following the §28 precedent that this is
+exactly the logic that silently breaks.
+
+### Dashboard
+
+A subscription with no due date now reads `Monthly` rather than
+`Monthly · no date set`. The equivalent badge on the subscriptions *list*
+screen was left as-is — that screen is where you would go to add the date, so
+the label earns its place there.
+
+### Not verified
+
+`pnpm -r typecheck` clean and `pnpm -r test` 138 passing (65 mobile). The new
+trigger renders correctly in `expo start --web`, **but no sheet was opened
+once**: every CDP `Input.dispatchMouseEvent` to the tab timed out while
+screenshots kept working and the console stayed clean, so the click-through
+could not be driven. Given §28, treat "the date sheet opens, dismisses, and
+clears" as an open item on the device checklist, not as done.

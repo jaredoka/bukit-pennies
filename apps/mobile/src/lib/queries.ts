@@ -399,6 +399,32 @@ export function useAddSavingsGoalEntry() {
   });
 }
 
+/**
+ * Corrects an entry in place. `amount` carries its own direction: pass a
+ * negative to make it a withdrawal, positive to make it a deposit, so a row
+ * logged the wrong way round is fixed by editing rather than by deleting and
+ * re-logging.
+ *
+ * The database refuses zero (`amount <> 0`, migration 19), so callers must not
+ * offer it.
+ */
+export function useUpdateSavingsGoalEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      patch,
+    }: {
+      id: string;
+      patch: { amount?: number; occurred_on?: string; note?: string | null };
+    }) =>
+      unwrap<SavingsGoalEntryRow>(
+        supabase.from('savings_goal_entries').update(patch).eq('id', id).select().single(),
+      ),
+    onSettled: () => invalidateGoalQueries(qc),
+  });
+}
+
 /** Deleting the offending entry is how a mistake is corrected — the total is
  *  a sum, so removing the row restores the right figure exactly. */
 export function useDeleteSavingsGoalEntry() {

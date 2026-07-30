@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { bruneiMonthStartIso, bruneiParts } from './format';
+import { describeRequestError } from './netError';
 import { supabase } from './supabase';
 import { buildTransactionOps, type TxFilters } from './txFilters';
 import type {
@@ -29,9 +30,16 @@ import type {
 export const PAR_CURRENCIES = ['BND', 'SGD', 'USD', 'MYR', 'GBP', 'EUR', 'AUD'];
 
 async function unwrap<T>(promise: PromiseLike<{ data: T | null; error: { message: string } | null }>): Promise<T> {
-  const { data, error } = await promise;
-  if (error) throw new Error(error.message);
-  return data as T;
+  // A transport failure can arrive either way: supabase-js folds most fetch
+  // errors into `error`, but a rejection still escapes on some platforms.
+  let result: { data: T | null; error: { message: string } | null };
+  try {
+    result = await promise;
+  } catch (e) {
+    throw new Error(describeRequestError(e instanceof Error ? e.message : String(e)));
+  }
+  if (result.error) throw new Error(describeRequestError(result.error.message));
+  return result.data as T;
 }
 
 // ------------------------------------------------------------------ queries

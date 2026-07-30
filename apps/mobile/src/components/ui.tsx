@@ -747,7 +747,10 @@ const useStyles = themedStyles((colors) => ({
     borderColor: colors.border,
   },
   title: { fontSize: 18, fontWeight: '700' as const, color: colors.text, marginBottom: 8 },
-  muted: { color: colors.muted, fontSize: 13 },
+  // lineHeight is load-bearing, not cosmetic: React Native Web gives every
+  // View `overflow: hidden`, so a line box tight to the glyph height crops
+  // descenders — a "g" or "y" sitting just above a border looks sliced by it.
+  muted: { color: colors.muted, fontSize: 13, lineHeight: 18 },
   button: {
     backgroundColor: colors.primary,
     borderRadius: 10,

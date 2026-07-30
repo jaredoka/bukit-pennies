@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Animated, Dimensions, Easing, View } from 'react-native';
+import { Animated, Easing, useWindowDimensions, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useTheme } from '@/lib/theme';
 
-const { width: W, height: H } = Dimensions.get('window');
-
 interface CoinDef {
-  startX: number;
-  startY: number;
+  /** Start position as a 0..1 fraction of the viewport, not a pixel count:
+   *  the coins are laid out against whatever size the window is *now*.
+   *  Reading `Dimensions.get('window')` once at module load meant they kept
+   *  the width the page happened to open at, so they never repositioned on a
+   *  resize or a device rotation. */
+  startXFrac: number;
+  startYFrac: number;
   r: number;
   driftX: number;
   driftY: number;
@@ -16,8 +19,8 @@ interface CoinDef {
 }
 
 function randomCoin(): CoinDef {
-  const startX = Math.random() * W;
-  const startY = Math.random() * H;
+  const startXFrac = Math.random();
+  const startYFrac = Math.random();
   const angle = Math.random() * Math.PI * 2;
   const distance = 60 + Math.random() * 80;
   const driftX = Math.cos(angle) * distance;
@@ -25,7 +28,7 @@ function randomCoin(): CoinDef {
   const r = 8 + Math.random() * 14;
   const period = 20000 + Math.random() * 20000;
   const phase = Math.random();
-  return { startX, startY, r, driftX, driftY, period, phase };
+  return { startXFrac, startYFrac, r, driftX, driftY, period, phase };
 }
 
 const COIN_DEFS: CoinDef[] = Array.from({ length: 14 }, randomCoin);
@@ -48,20 +51,29 @@ function ensureAnimating() {
   ).start();
 }
 
-function computeState(t: number): { cx: number; cy: number; r: number; alpha: string }[] {
+/** Progress of each coin at time `t`, still in 0..1 space — the caller scales
+ *  to the current viewport so a resize costs no recomputation of the defs. */
+function computeState(t: number): { xFrac: number; yFrac: number; drift: [number, number]; r: number; alpha: string }[] {
   return COIN_DEFS.map((c) => {
     const progress = ((t + c.phase * c.period) % c.period) / c.period;
-    const cx = c.startX + c.driftX * progress;
-    const cy = c.startY + c.driftY * progress;
     const opacity = 0.22 * Math.sin(Math.PI * progress);
     const alpha = Math.round(opacity * 255).toString(16).padStart(2, '0');
-    return { cx, cy, r: c.r, alpha };
+    return {
+      xFrac: c.startXFrac,
+      yFrac: c.startYFrac,
+      drift: [c.driftX * progress, c.driftY * progress],
+      r: c.r,
+      alpha,
+    };
   });
 }
 
 export function HexBackground() {
   const { colors } = useTheme();
   const fill = colors.primary;
+  // Tracks the window rather than snapshotting it, so the field re-lays-out on
+  // resize and rotation.
+  const { width: W, height: H } = useWindowDimensions();
 
   const [coins, setCoins] = useState(() => computeState(currentT));
 
@@ -75,13 +87,13 @@ export function HexBackground() {
   }, []);
 
   return (
-    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} pointerEvents="none">
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' }} pointerEvents="none">
       <Svg width={W} height={H}>
         {coins.map((c, i) => (
           <Circle
             key={i}
-            cx={c.cx}
-            cy={c.cy}
+            cx={c.xFrac * W + c.drift[0]}
+            cy={c.yFrac * H + c.drift[1]}
             r={c.r}
             fill={`${fill}${c.alpha}`}
             stroke={`${fill}${c.alpha}`}

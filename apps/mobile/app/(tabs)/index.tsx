@@ -23,6 +23,7 @@ import {
   useMonthlyTotals,
   useProfile,
   useRecentMonthsTransactions,
+  useReviewCount,
   useThisMonthTransactions,
   useSubscriptions,
   useTransactionsForPeriod,
@@ -142,6 +143,7 @@ export default function Dashboard() {
   const categories = useCategories();
   const budgets = useBudgets();
   const recentTx = useRecentMonthsTransactions(6);
+  const reviewCount = useReviewCount();
   const subscriptions = useSubscriptions();
   const { refreshing, onRefresh } = usePullToRefresh();
   const { hidden, toggle, money } = usePrivacy();
@@ -363,6 +365,34 @@ export default function Dashboard() {
             <Ionicons name="close" size={16} color={colors.primary} />
           </Pressable>
         </View>
+      ) : null}
+
+      {/* ---- Review inbox: the only signal that anything is waiting there ----
+           Shown only when there is something to do. Below the capture prompt on
+           purpose: a user who has not set capture up yet has nothing in the
+           inbox anyway. */}
+      {(reviewCount.data ?? 0) > 0 ? (
+        <Pressable
+          style={[
+            styles.captureBanner,
+            { backgroundColor: colors.warning + '18', borderColor: colors.warning + '40' },
+          ]}
+          onPress={() => router.push('/(tabs)/review')}
+          accessibilityLabel={`${reviewCount.data} waiting in the review inbox`}
+        >
+          <Ionicons name="file-tray-full-outline" size={15} color={colors.warning} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.captureBannerText, { color: colors.warning }]}>
+              {reviewCount.data === 1
+                ? '1 transaction needs review'
+                : `${reviewCount.data} transactions need review`}
+            </Text>
+            <Text style={[styles.captureBannerSub, { color: colors.warning }]}>
+              Amounts the parser was unsure of, and possible duplicates
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={14} color={colors.warning} />
+        </Pressable>
       ) : null}
 
       {/* ---- Hero: interactive donut + period wheels ---- */}

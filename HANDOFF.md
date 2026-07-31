@@ -1,6 +1,27 @@
 # Bukit Pennies — Project Handoff Document
 
-**Status:** Phases 0–6 built and merged; app is live against hosted Supabase and field-tested on the owner's iPhone. §1–§14 are the original approved design (kept for reference); §15–§16 record what exists now and the adoption roadmap. **§16 is the current source of truth for what to build next.**
+> ## How to read this file
+>
+> It holds two kinds of writing, and they have opposite rules. Mixing them up
+> is how a reader ends up confidently wrong — it has already happened once,
+> when §7's "BIBD is an UNVERIFIED skeleton" was believed months after §16
+> recorded BIBD as verified.
+>
+> **§1–§13 — CURRENT DESIGN. Living. Must match the code.**
+> Edit these whenever the design changes. A statement here that the code
+> contradicts is a bug in this file, not history. Last reconciled 2026-08-01.
+>
+> **§14 onward — SESSION HISTORY. Frozen. Dated. Never edited.**
+> Each section records what was found and decided on one day, and is left
+> exactly as written — that is what makes it trustworthy *as history*. Some of
+> it has since been reversed. **Do not treat a §14+ statement as current
+> truth**; check the code, or `docs/execution-playbook.md` §5–§6, which carries
+> the invariants and the decision log.
+>
+> New work appends a new dated section at the bottom, and updates §1–§13 if the
+> design actually changed.
+
+**Status:** Phases 0–6 built and merged; app is live against hosted Supabase and field-tested on the owner's iPhone.
 
 **Branch:** `main` (GitHub Flow — feature branches off `main`, merged via pull request)
 **Date:** 2026-07-16 (original) · last updated 2026-07-25
@@ -97,7 +118,9 @@ Enums: `bank_id ('baiduri','bibd','scb','unknown')`, `tx_source ('android_listen
 profiles        (id uuid PK → auth.users, display_name, default_currency 'BND', created_at)
                 -- trigger on auth.users insert creates the profile (security definer)
 categories      (id, user_id NULL = global default, name, color, unique nulls not distinct (user_id, name))
-user_cards      (id, user_id, bank, card_last4 ~ '^\d{4}$', label, unique (user_id, bank, card_last4))
+-- user_cards was here (card labels: "•0213" → "Baiduri Visa"). Never read or
+-- written by the app; dropped in migration 22 (2026-08-01). If card labels are
+-- built, it returns alongside the screen that reads it.
 ingest_devices  (id, user_id, name, kind tx_source, token_hash sha256 UNIQUE,  -- plaintext bp_<base62> shown ONCE
                  created_at, last_seen_at, revoked_at)
 transactions    (id, user_id, occurred_at timestamptz NULL, amount numeric(12,2), currency char(3) 'BND',
@@ -115,7 +138,9 @@ transactions    (id, user_id, occurred_at timestamptz NULL, amount numeric(12,2)
 - RPC `create_ingest_token(name, kind)` — security definer; generates 32 random bytes → returns `bp_<base62>` **once**, stores only the sha256 in `token_hash`.
 - Views (both `security_invoker = true`, parsed rows only, months bucketed in `Asia/Brunei` (+08:00, no DST)):
   - `monthly_totals(user_id, month, currency, total, tx_count)`
-  - `merchant_totals(user_id, merchant_normalized, currency, total, tx_count, last_seen)`
+  - ~~`merchant_totals`~~ — fed the dashboard's Top merchants card, which was
+    removed 2026-07-30; Insights computes merchant totals from rows it has
+    already fetched. View dropped in migration 22 (2026-08-01).
 
 ## 6. Ingest pipeline
 
@@ -174,7 +199,7 @@ const FINGERPRINT = /Card\s*No\.?\s*:.*Amount\s*:.*Merchant\s*:.*Date\s*:/is;   
 ```
 Amount: strip commas → number. `merchant_normalized`: uppercase + collapse whitespace (consider stripping trailing 2-letter country token as a heuristic).
 
-**BIBD/SCB skeletons:** same structure, guessed patterns (e.g. `You have spent BND21.00 at MERCHANT on 10/07/26 using card ending 0213`), each marked `UNVERIFIED` with TODO + empty golden dir. **Generic fallback:** amount `/(BND|B\$|SGD|USD|MYR)\s*([\d,]+\.\d{2})/i`; multi-format date table (`dd-mm-yyyy`, `dd/mm/yy`, `d MMM yyyy`, ISO); merchant = text after ` at |Merchant:?|@ `, else longest ALL-CAPS run ≥3 chars.
+**BIBD — verified** (real SMS collected 2026-07-17; golden fixtures in `test/golden/bibd/`). Label-anchored like Baiduri, no confidence cap, scores ~0.90 on a real message (its date is heuristic because BIBD messages carry no timestamp — `occurredAt` comes from `received_at`). **SCB — still an UNVERIFIED skeleton:** guessed patterns, delegates to the generic parser, clamped to `UNVERIFIED_CONFIDENCE_CAP` so every SCB message lands in review until a real sample arrives (§7 promotion procedure in `docs/execution-playbook.md`). **Generic fallback:** amount `/(BND|B\$|SGD|USD|MYR)\s*([\d,]+\.\d{2})/i`; multi-format date table (`dd-mm-yyyy`, `dd/mm/yy`, `d MMM yyyy`, ISO); merchant = text after ` at |Merchant:?|@ `, else longest ALL-CAPS run ≥3 chars.
 
 ## 8. Mobile app structure (`apps/mobile`, expo-router)
 

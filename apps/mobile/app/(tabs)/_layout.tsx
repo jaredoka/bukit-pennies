@@ -54,10 +54,11 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="flag" color={color} size={size} />,
         }}
       />
-      {/* Off the tab bar, reached from the dashboard banner and the Transactions
-          header. It was hidden here with nothing linking to it at all for
-          several releases, which left every low-confidence parse and every
-          flagged duplicate somewhere no user could act on them. */}
+      {/* Off the tab bar, reached from the counted tray button in the
+          Transactions header — the one entry point. It was hidden here with
+          nothing linking to it at all for several releases, which left every
+          low-confidence parse and every flagged duplicate somewhere no user
+          could act on them. */}
       <Tabs.Screen
         name="review"
         options={{

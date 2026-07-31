@@ -2487,19 +2487,19 @@ Typecheck clean; 142 tests pass (feedback gained 4).
 
 ### Not verified
 
-**The 413 is only delivered cleanly up to ~50 KB.** At 200 KB and above the
-local stack leaves the connection to time out instead of returning the
+**The 413 is only delivered cleanly up to ~50 KB locally.** At 200 KB and above
+the local stack leaves the connection to time out instead of returning the
 response — the ordinary HTTP/1.1 outcome when a server stops reading while the
 client is still writing. The security property still holds and was confirmed:
 the body is never materialised or parsed, no database round trip happens, and
 **the worker stays healthy** (a normal request immediately afterwards returns
-200). Production sits behind Cloudflare and Kong, which buffer the request
-before the function sees it, so it may well return the 413 cleanly at any
-size — that is a guess, and it is written here as one. Do not "fix" this by
-removing the gate.
+200).
 
-Nothing in this pass was exercised against the hosted project; that is the
-owner action below.
+> **Resolved on deploy — see the record below.** The guess written here was that
+> production, sitting behind Cloudflare and Kong, might return the 413 cleanly
+> at any size. Half right: it is clean to at least **200 KB** (four times the
+> local ceiling, in 0.35 s), and 500 KB and 2 MB still hang. Do not "fix" that
+> by removing the gate.
 
 ### Deliberately not fixed
 
@@ -2548,3 +2548,103 @@ recorded here and not only in `shortcut-setup.tsx`.
    this project has.
 4. Confirm against production what the local stack could not: that an oversized
    body returns 413 rather than hanging, and that the feedback quota fires.
+
+### Deploy record (2026-07-31)
+
+Pushed to `pzjroqwllrzcbpiugpxl` **ahead of the PR merging** (owner instruction).
+Production therefore carried migration 20 before `main` did; the migration was
+byte-identical on the branch and in the PR, so the window was procedural rather
+than a divergence in content. Noted because §24 was found by exactly the kind of
+drift that starts this way.
+
+**Migration 20 applied.** `supabase db push` reported one pending migration and
+applied it clean.
+
+**All 14 constraints then VALIDATE'd against production data — every one
+succeeded**, i.e. no historical row in this project violates any of the new
+bounds. Confirmed in the catalogue rather than inferred from an empty result:
+`select conname, convalidated from pg_constraint` returns 14 rows, 0 with
+`convalidated = false`. Run with `supabase db query --linked -f`, which is the
+way to execute ad-hoc SQL against the hosted project without a raw connection
+string — worth knowing, it is not in any of the deploy docs here.
+
+**Both functions deployed** (`supabase functions deploy ingest feedback`).
+
+**`verify_jwt = false` survived the deploy** — the thing that would have broken
+every capture. Confirmed twice: an invented bearer token and *no* Authorization
+header at all both return the function's own
+`{"status":"error","error":"invalid_token"}` 401, not a gateway JWT error.
+
+**The body gate, measured in production:**
+
+| body | production | local, for contrast |
+|---|---|---|
+| 25 KB | `413` | `413` |
+| 200 KB | `413` in 0.35 s | connection hangs |
+| 500 KB | hangs | hangs |
+| 2 MB | hangs | hangs |
+
+Function healthy after every one. So the ceiling for a *clean* 413 is ~200 KB
+here versus ~50 KB locally — Cloudflare and Kong buffering, as guessed, but the
+guess that it would hold at any size was wrong. Nothing is parsed either way.
+
+**§23's logged-out probe set re-run, and it is now stricter than §23 recorded.**
+That section noted `200 []` on every table (RLS answering) and the eight global
+`categories` rows. Today every one of `transactions`, `profiles`,
+`ingest_devices`, `bug_reports`, `feature_requests`, `user_cards`, `budgets`,
+`savings_goals`, `savings_goal_entries`, `subscriptions`, `categories` and
+`ingest_rate_limits` returns `42501 permission denied` — the *grant* answering,
+before RLS is consulted. The four views likewise. That is migration 14 (SEC-8)
+working: two layers where §23 still had one. Forged inserts into `transactions`,
+`ingest_devices`, `bug_reports` and `savings_goal_entries` all `42501`;
+`delete_account` `42501`; `create_ingest_token`, `revoke_ingest_device`,
+`resolve_ingest_device` and `rate_limit_bump` all `404 PGRST202`. `/feedback`
+with no auth header is `401`. **Update §23's expected output if you use it as a
+checklist — `200 []` there is now stale.**
+
+### `supabase db advisors` found what this review did not
+
+Run afterwards as an independent check. It is not in any runbook here and
+should be — **`supabase db advisors --type security --linked`**, free, instant.
+
+It surfaced one thing three passes of manual review missed:
+
+**`handle_new_user()` has EXECUTE granted to `anon` and `authenticated`**, and
+is reachable at `/rest/v1/rpc/handle_new_user`. It is the sign-up trigger from
+migration 01, `SECURITY DEFINER`, and it inserts into `profiles`. Calling a
+trigger function directly errors out (`trigger functions can only be called as
+triggers`), so this is not currently exploitable — but nothing about the grant
+says so, and it is the only `SECURITY DEFINER` function in the schema whose
+exposure nobody chose. Migration 20's two new trigger functions explicitly
+revoke execute from `public, anon, authenticated`; migration 01 never did.
+
+Two lower ones, both pre-existing and both a one-line fix:
+`public.touch_updated_at` and `public.base62_encode` have mutable
+`search_path`. Both are `SECURITY INVOKER`, so they run with the caller's
+privileges and the risk is small, but `base62_encode` is called from inside
+`create_ingest_token`, which is `SECURITY DEFINER` — that is the one to fix
+first.
+
+The remaining advisories are the app's own RPCs (`create_ingest_token`,
+`delete_account`, `revoke_ingest_device` executable by `authenticated`), which
+is the intended design, and leaked-password protection being off, which is the
+§18 cost decision.
+
+**Not fixed here** — the deploy the owner asked for was migration 20 and the two
+functions, and quietly widening that into production is not the job. Migration
+21 is a five-line file whenever it is wanted:
+
+```sql
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+alter function public.touch_updated_at() set search_path = '';
+alter function public.base62_encode(bytea) set search_path = '';
+```
+
+### Still to verify after this deploy
+
+The quota and the constraints were proven against **local** Postgres with two
+seeded users (fifteen checks, §35 above). Against production only the
+anonymous surface was probed, because doing better means writing rows into the
+owner's real account — five bug reports to watch the sixth be refused, and a
+savings goal to attach an entry to. Worth doing deliberately on a throwaway
+account rather than incidentally here.

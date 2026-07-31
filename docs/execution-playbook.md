@@ -197,7 +197,29 @@ fixture pinning the new behavior. Negative cases go in `golden/negative/`.
 
 ### Touching the DB schema
 New migration file (never edit an applied migration); keep RLS quartet +
-`security_invoker` views; verify with `supabase db reset` locally.
+`security_invoker` views; verify with `supabase db reset` locally. Then
+`supabase db push` and `supabase db advisors --type security --linked` against
+hosted, comparing the output to `docs/db-advisors.md`. **Hosted is at migration
+22 as of 2026-08-01**; local and hosted are in step.
+
+### Writing something down — pick the file by the question it answers
+Most of what happens in a session does not belong in a document at all. Before
+adding prose anywhere, name the question a future reader will ask:
+
+| The question | Where the answer belongs |
+|---|---|
+| "Why does this line exist?" | the commit message (found via `git blame`) |
+| "Why was this change made this way?" | the PR description |
+| "Why did we choose X over Y?" | §6 decision log, one row |
+| "What must I not break?" | §5 invariants |
+| "How does the system work now?" | `HANDOFF.md` §1–§13, edited in place |
+| "What happened on some date?" | nothing — this is what git history is |
+
+If no question fits, it does not need writing down. **`HANDOFF.md` §14+ is a
+frozen archive, not a place to append** — see its header. New sessions update
+§1–§13 when the design actually changed, add a §6 row when a decision was made,
+and otherwise let the commits and PRs carry the narrative, which they already
+do better.
 
 ## 8. Blocked-on-user registry
 

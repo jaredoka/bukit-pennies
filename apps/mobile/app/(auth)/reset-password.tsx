@@ -58,6 +58,23 @@ export default function ResetPassword() {
       setBusy(false);
       return;
     }
+
+    // Revoke every OTHER session, keeping this one. GoTrue does not invalidate
+    // sibling refresh tokens on a password change, so without this a token
+    // captured from another device survives the reset.
+    //
+    // SEC-4 (HANDOFF §18) fixed only the signed-in path — Settings > Account
+    // signs out globally before mailing the link. It left the path that
+    // matters: someone whose account is compromised cannot sign in, so they
+    // arrive here through "Forgot password" on the sign-in screen, where
+    // nothing had been revoked at all.
+    //
+    // Failure is not surfaced. The password is already changed by this point,
+    // and sending the user back to a form for a step that has succeeded would
+    // be worse than the residual risk of a stale sibling session.
+    const { error: revokeError } = await supabase.auth.signOut({ scope: 'others' });
+    if (revokeError) console.warn('could not revoke other sessions:', revokeError.message);
+
     router.replace('/(tabs)');
   }
 

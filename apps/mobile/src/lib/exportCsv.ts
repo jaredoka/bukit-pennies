@@ -1,30 +1,14 @@
 import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import * as Sharing from 'expo-sharing';
+import { buildCsv } from './csv';
 import { bruneiDayKey, formatTime } from './format';
 import { supabase } from './supabase';
 import type { CategoryRow, TransactionRow } from './types';
 
-const HEADER = [
-  'date',
-  'time',
-  'amount',
-  'currency',
-  'merchant',
-  'category',
-  'bank',
-  'card_last4',
-  'source',
-  'status',
-  'notes',
-  'raw_text',
-];
-
-function csvField(value: string | number | null): string {
-  if (value === null || value === undefined) return '';
-  const s = String(value);
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
+// The I/O half of the CSV export. Rendering — quoting, and the formula
+// neutralisation that makes an exported merchant name safe to open in a
+// spreadsheet — lives in ./csv.ts, which is pure and unit-tested.
 
 async function fetchAllTransactions(): Promise<TransactionRow[]> {
   const PAGE = 1000;
@@ -42,30 +26,6 @@ async function fetchAllTransactions(): Promise<TransactionRow[]> {
   }
 }
 
-export function buildCsv(txs: TransactionRow[], categories: CategoryRow[]): string {
-  const catName = new Map(categories.map((c) => [c.id, c.name]));
-  const lines = [HEADER.join(',')];
-  for (const tx of txs) {
-    lines.push(
-      [
-        csvField(tx.occurred_at ? bruneiDayKey(tx.occurred_at) : null),
-        csvField(tx.occurred_at ? formatTime(tx.occurred_at) : null),
-        csvField(tx.amount === null ? null : Number(tx.amount).toFixed(2)),
-        csvField(tx.currency),
-        csvField(tx.merchant),
-        csvField(tx.category_id ? (catName.get(tx.category_id) ?? '') : null),
-        csvField(tx.bank),
-        csvField(tx.card_last4),
-        csvField(tx.source),
-        csvField(tx.parse_status),
-        csvField(tx.notes),
-        csvField(tx.raw_text),
-      ].join(','),
-    );
-  }
-  return lines.join('\r\n') + '\r\n';
-}
-
 /** Export every transaction as CSV: share sheet on device, download on web. */
 export async function exportTransactionsCsv(): Promise<number> {
   const [txs, { data: categories, error }] = await Promise.all([
@@ -74,7 +34,8 @@ export async function exportTransactionsCsv(): Promise<number> {
   ]);
   if (error) throw new Error(error.message);
 
-  const csv = buildCsv(txs, categories ?? []);
+  const catName = new Map((categories ?? []).map((c: CategoryRow) => [c.id, c.name]));
+  const csv = buildCsv(txs, catName, { day: bruneiDayKey, time: formatTime });
   const filename = `bukit-pennies-${bruneiDayKey(Date.now())}.csv`;
 
   if (Platform.OS === 'web') {

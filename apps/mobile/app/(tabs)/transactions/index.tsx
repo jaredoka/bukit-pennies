@@ -16,7 +16,7 @@ import {
 import { Badge, Button, Centered, Field, Muted, Sheet, SheetShell, useSheetPresence } from '@/components/ui';
 import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
 import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
-import { invalidateTransactionQueries, useCategories, useFilteredTransactions, usePullToRefresh, useTransactionFacets } from '@/lib/queries';
+import { invalidateTransactionQueries, useCategories, useFilteredTransactions, usePullToRefresh, useReviewCount, useTransactionFacets } from '@/lib/queries';
 import { DEFAULT_FILTERS, hasAnyFilter, type TxFilters } from '@/lib/txFilters';
 import type { CategoryRow, TransactionRow } from '@/lib/types';
 import { themedStyles, useTheme } from '@/lib/theme';
@@ -459,8 +459,10 @@ export default function TransactionsList() {
   const { money } = usePrivacy();
   const styles = useStyles();
   const { colors } = useTheme();
+  const router = useRouter();
   const categories = useCategories();
   const facets = useTransactionFacets();
+  const reviewCount = useReviewCount();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<TxFilters>(DEFAULT_FILTERS);
   const debouncedSearch = useDebounced(search, 300);
@@ -572,9 +574,28 @@ export default function TransactionsList() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <Pressable hitSlop={8} onPress={() => setShowAdd(true)} accessibilityLabel="Add transaction">
-              <Ionicons name="add-circle-outline" size={26} color={colors.primary} />
-            </Pressable>
+            <View style={styles.headerActions}>
+              {/* Permanent, not conditional on the count: an inbox you can only
+                  find when it happens to be full is one you never learn is
+                  there. The dot is the "something is waiting" signal. */}
+              <Pressable
+                hitSlop={8}
+                onPress={() => router.push('/(tabs)/review')}
+                accessibilityLabel={
+                  (reviewCount.data ?? 0) > 0
+                    ? `Review inbox, ${reviewCount.data} waiting`
+                    : 'Review inbox'
+                }
+              >
+                <Ionicons name="file-tray-full-outline" size={24} color={colors.primary} />
+                {(reviewCount.data ?? 0) > 0 ? (
+                  <View style={[styles.headerDot, { borderColor: colors.card }]} />
+                ) : null}
+              </Pressable>
+              <Pressable hitSlop={8} onPress={() => setShowAdd(true)} accessibilityLabel="Add transaction">
+                <Ionicons name="add-circle-outline" size={26} color={colors.primary} />
+              </Pressable>
+            </View>
           ),
         }}
       />
@@ -899,6 +920,19 @@ function TxRow({ tx }: { tx: TransactionRow }) {
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  // Sits on the tray icon's upper-right. The ring in `card` is what keeps it
+  // legible where the dot and the icon overlap.
+  headerDot: {
+    position: 'absolute',
+    top: -1,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    backgroundColor: colors.danger,
+  },
   stickyHeader: {
     backgroundColor: colors.bg,
     overflow: 'visible',

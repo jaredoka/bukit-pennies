@@ -195,6 +195,32 @@ export function useReviewItems() {
   });
 }
 
+/**
+ * How many rows are waiting in the review inbox.
+ *
+ * `head: true` with an exact count asks Postgres for the number and transfers
+ * no rows, which is what makes it cheap enough to sit on the dashboard and the
+ * transactions header — the two places that are now the only way in. The inbox
+ * had no entry point at all for several releases: the tab was hidden and
+ * nothing linked to it, so every low-confidence parse and every flagged
+ * duplicate accumulated somewhere no user could reach.
+ *
+ * Keyed under `transactions` so the existing invalidation catches it.
+ */
+export function useReviewCount() {
+  return useQuery({
+    queryKey: ['transactions', 'review-count'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('transactions')
+        .select('id', { count: 'exact', head: true })
+        .or(REVIEW_PREDICATE);
+      if (error) throw new Error(describeRequestError(error.message));
+      return count ?? 0;
+    },
+  });
+}
+
 export function useMonthlyTotals() {
   return useQuery({
     queryKey: ['monthly_totals'],

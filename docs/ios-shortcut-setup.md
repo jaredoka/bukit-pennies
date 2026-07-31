@@ -98,15 +98,16 @@ Then create the Message automation exactly as in step 4 above.
 - On the **free Supabase tier** the project pauses after ~1 week of
   inactivity; the Shortcut then fails **silently** and messages are not
   recorded. Recovery: unpause the project, then select-copy the missed
-  conversation in Messages and use **bulk paste** in the Capture tab — it
-  splits the blob into individual messages and the server ignores duplicates.
+  conversation in Messages and use **bulk paste** (Transactions → **+** →
+  Capture) — it splits the blob into individual messages and the server ignores
+  duplicates.
   The real fix is the paid tier (planned for launch).
 - Automations only fire for **incoming** messages from that sender ID; old
   messages must go through bulk paste.
 
 ## Duplicate messages
 
-If the same SMS arrives twice (e.g. the bank resends it), only the **first** is stored. The server deduplicates by a hash of the raw message text — identical text always maps to the same hash, so the second run is silently ignored. The notification still fires but the transaction is not double-counted. This is intentional: use **bulk paste** in the Capture tab if you need to re-ingest a corrected or re-sent message after editing it.
+If the same SMS arrives twice (e.g. the bank resends it), only the **first** is stored. The server deduplicates by a hash of the raw message text — identical text always maps to the same hash, so the second run is silently ignored. The notification still fires but the transaction is not double-counted. This is intentional: use **bulk paste** (Transactions → **+** → Capture) if you need to re-ingest a corrected or re-sent message after editing it.
 
 ## Troubleshooting
 

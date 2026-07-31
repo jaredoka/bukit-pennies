@@ -2668,43 +2668,70 @@ working: two layers where §23 still had one. Forged inserts into `transactions`
 with no auth header is `401`. **Update §23's expected output if you use it as a
 checklist — `200 []` there is now stale.**
 
-### `supabase db advisors` found what this review did not
+### `supabase db advisors`: a real lead, an unreliable headline
 
-Run afterwards as an independent check. It is not in any runbook here and
-should be — **`supabase db advisors --type security --linked`**, free, instant.
+Run afterwards as an independent check. It is not in any runbook here and now
+is — see `docs/db-advisors.md`, added with migration 21.
 
-It surfaced one thing three passes of manual review missed:
+**Read this before trusting an advisory's description.** The first version of
+this section said the advisor "found what three manual passes missed" and left
+it there. That was too generous to the tool, and probing each advisory changed
+the picture enough to be worth writing down properly.
 
-**`handle_new_user()` has EXECUTE granted to `anon` and `authenticated`**, and
-is reachable at `/rest/v1/rpc/handle_new_user`. It is the sign-up trigger from
-migration 01, `SECURITY DEFINER`, and it inserts into `profiles`. Calling a
-trigger function directly errors out (`trigger functions can only be called as
-triggers`), so this is not currently exploitable — but nothing about the grant
-says so, and it is the only `SECURITY DEFINER` function in the schema whose
-exposure nobody chose. Migration 20's two new trigger functions explicitly
-revoke execute from `public, anon, authenticated`; migration 01 never did.
+**What the advisor said.** `handle_new_user()` "can be executed by the `anon`
+role as a `SECURITY DEFINER` function via `/rest/v1/rpc/handle_new_user`."
 
-Two lower ones, both pre-existing and both a one-line fix:
-`public.touch_updated_at` and `public.base62_encode` have mutable
-`search_path`. Both are `SECURITY INVOKER`, so they run with the caller's
-privileges and the risk is small, but `base62_encode` is called from inside
-`create_ingest_token`, which is `SECURITY DEFINER` — that is the one to fix
-first.
+**What is actually true.** The grant is real — EXECUTE on that function was
+held by `anon` and `authenticated`, the only function in the schema whose
+exposure nobody chose. **The route is not.** PostgREST does not expose
+functions returning `trigger`; that path returns `PGRST202 — no matches were
+found in the schema cache`, verified against production. Believing the summary
+would have meant believing anon could invoke a `SECURITY DEFINER` function
+against `profiles`.
 
-The remaining advisories are the app's own RPCs (`create_ingest_token`,
-`delete_account`, `revoke_ingest_device` executable by `authenticated`), which
-is the intended design, and leaked-password protection being off, which is the
-§18 cost decision.
+**And the item it ranked quieter was the reachable one.** `base62_encode`
+returns `text`, so PostgREST *does* route it — an anon call returns `PGRST102`
+(function found, body rejected), not `PGRST202`. That is the one that was both
+exposed to anon and inside the token-minting path.
 
-**Not fixed here** — the deploy the owner asked for was migration 20 and the two
-functions, and quietly widening that into production is not the job. Migration
-21 is a five-line file whenever it is wanted:
+**Neither `search_path` advisory had an exploit path here**, for two
+independent reasons, both checked rather than assumed:
 
-```sql
-revoke execute on function public.handle_new_user() from public, anon, authenticated;
-alter function public.touch_updated_at() set search_path = '';
-alter function public.base62_encode(bytea) set search_path = '';
-```
+1. `pg_catalog` is implicitly searched **first** unless named explicitly in the
+   path, so a planted `public.trunc()` could never shadow the built-ins these
+   functions rely on.
+2. `has_schema_privilege('anon','public','CREATE')` and the same for
+   `authenticated` both return **false** — there is nowhere to plant the bait.
+
+So: user-facing impact, none. Developer-facing value, real but modest — each
+was a fact a future audit would have to re-derive, and this pass spent four
+probes doing exactly that.
+
+**Fixed anyway in migration 21**, plus a fourth item the advisor does not look
+for (it only inspects `SECURITY DEFINER` functions): EXECUTE on
+`base62_encode` and `touch_updated_at` revoked from the API roles altogether.
+No client has ever called either — every `base62_encode` call site is inside
+`create_ingest_token`, which is `SECURITY DEFINER` and so runs it as
+`postgres` regardless. Pinning the search_path on an endpoint that should not
+be reachable is the smaller half of the fix.
+
+After migration 21 every function in `public` has a pinned `search_path`, and
+the only ones executable by an API role are the three the app actually calls:
+`create_ingest_token`, `delete_account`, `revoke_ingest_device`.
+
+The remaining advisories are those same three RPCs (intended design) and
+leaked-password protection being off (the §18 cost decision). All four are now
+recorded as an explicit baseline in `docs/db-advisors.md`, so a future run
+shows only what is *new*. A linter whose output is 60% known-noise gets
+skimmed, then ignored, and is then worse than not running it.
+
+**The reason to keep running it is none of the above.** It is
+`rls_disabled_in_public`: `04_grants.sql` grants `authenticated` full DML on
+every future table by default, so a table that ships without `enable row level
+security` is readable and writable by every signed-up user, and signup is free.
+Migration 14 closes with precisely that warning, enforced until now by nothing
+but somebody remembering. That check is worth the whole exercise; today's three
+findings were not.
 
 ### Still to verify after this deploy
 
@@ -2714,3 +2741,22 @@ anonymous surface was probed, because doing better means writing rows into the
 owner's real account — five bug reports to watch the sixth be refused, and a
 savings goal to attach an entry to. Worth doing deliberately on a throwaway
 account rather than incidentally here.
+
+### Migration 21 deploy record (2026-07-31)
+
+Verified locally on a clean `supabase db reset` (01–21) before pushing, because
+two of the four changes touch things that would fail *silently* if wrong:
+
+- **Sign-up still works after revoking EXECUTE on `handle_new_user`.** A real
+  `POST /auth/v1/signup` through GoTrue, then confirming the `profiles` row
+  exists with its `display_name` from `raw_user_meta_data`. A trigger's EXECUTE
+  privilege is checked at `CREATE TRIGGER` time, not when it fires — worth
+  proving rather than remembering, since getting it wrong breaks every new
+  account and nothing else.
+- **`updated_at` still advances** on an UPDATE (`touch_updated_at`, now
+  `search_path = ''`).
+- **`create_ingest_token` still mints a 46-character token** (`base62_encode`,
+  now `search_path = ''` and revoked from the API roles).
+- The full `pg_proc` table shows every function with a pinned `search_path`,
+  and `anon_exec = false` on all eleven.
+

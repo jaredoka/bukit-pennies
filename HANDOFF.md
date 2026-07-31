@@ -338,8 +338,9 @@ State reached during on-device testing:
   `https://www.icloud.com/shortcuts/92fe37ee63e04a4785d69517f0c1635e`
   (self-configuring rebuild, shared 2026-07-19).
   **Superseded 2026-07-31 — see §37 for the current link and name.**
-  `scripts/build-shortcut.mjs` + the `ios-shortcut.yml` workflow remain for
-  reference/if Apple ever unblocks CI signing.
+  `scripts/build-shortcut.mjs` + the `ios-shortcut.yml` workflow remained for
+  reference/if Apple ever unblocks CI signing — **both deleted 2026-07-31,
+  see §37.**
 - **Self-configuring shortcut (2026-07-19):** the shortcut was redesigned to
   store its own token (`Bukit Pennies/token.txt` in iCloud Drive) instead of
   a hardcoded `PASTE-YOUR-TOKEN-HERE` edit. The app hands the token over via
@@ -1186,6 +1187,11 @@ Settings → Capture entry carry the prompt.
 a non-technical user, pictures or a 30-second screen recording of the step-4
 automation is worth more to completion than everything above. **Owner is
 providing them**; wire them in when they arrive.
+
+**Update 2026-07-31 (§37):** the screen was deleted — every slot was still a
+placeholder, so the button promised pictures and delivered seven empty boxes.
+The lever itself is unchanged and still the highest-value onboarding work;
+what is gone is the empty shell that was standing in for it.
 
 Related, from §17's post-launch watch: the funnel is measurable from the
 database alone — accounts created vs. `ingest_devices` rows created vs. tokens
@@ -2901,22 +2907,47 @@ i.e. indistinguishable from ordinary drop-off.
 
 `SHORTCUT_NAME` sits beside `SHORTCUT_DOWNLOAD_URL` in `env.ts` — the two must
 be republished together, so they belong together. It feeds the deep link *and*
-every on-screen mention: setup Step 4's action list, the "Allow … to send 1
-text item" note, and the visual guide's caption 7. Those three were separate
-literals, so before this the instructions could drift from the link, or from
-each other, one edit at a time.
+every on-screen mention: setup Step 4's action list and the "Allow … to send 1
+text item" note. Those were separate literals, so before this the instructions
+could drift from the link, or from each other, one edit at a time.
 
 `docs/shortcut-authoring.md` states the rename rule at the point where the
 shortcut is named, and again under Publish.
 
-### Left alone deliberately
+### Two dead shortcut builders, deleted
 
-`scripts/build-shortcut.mjs` and `.github/workflows/ios-shortcut.yml` still say
-"Bukit Pennies Capture". They generate the **superseded** hardcoded-token
-shortcut, not this one, and §15 already records them as reference-only against
-the day Apple unblocks CI signing. Renaming them would imply they produce the
-current shortcut. If they are ever revived they need rewriting for the
-self-configuring design first, and the name comes with that.
+`scripts/build-shortcut.mjs` and `.github/workflows/ios-shortcut.yml` are gone.
+The first pass on this left them alone on the grounds that a stale name marks
+them as belonging to the old design — a weak argument, and the wrong shape of
+one in a change whose whole point was removing that kind of drift.
+
+They were dead twice over:
+
+- **They cannot run.** The workflow signs with `shortcuts sign` on a macOS
+  runner, and §15 records that this needs an iCloud login on every GitHub
+  runner. It has never produced an artifact and cannot.
+- **They build the wrong thing.** `build-shortcut.mjs` bakes in
+  `PASTE-YOUR-TOKEN-HERE` — the hardcoded-token design superseded on
+  2026-07-19 by the self-configuring shortcut. The app links to the owner's
+  iCloud link, not to the GitHub release these publish to.
+
+Reviving them means rewriting `build-shortcut.mjs` for the self-configuring
+design *and* solving the signing problem that killed them. Neither gets easier
+for the files having sat in the tree. §15 keeps the record of why they existed
+and git keeps the code.
+
+### The visual guide is gone too
+
+`settings/shortcut-visual-guide.tsx`, its route in `settings/_layout.tsx`, and
+the "Prefer pictures? Open the visual guide" button in Step 4. Every one of its
+seven slots still rendered "Screenshot coming soon", so the button promised
+pictures and delivered seven empty dashed boxes — worse than not offering it,
+on the screen §22 identifies as where onboarding is won or lost.
+
+**This does not close §22's "still open — the real lever".** Screenshots or a
+30-second recording of the step-4 automation remain the highest-value
+onboarding work there is; what was deleted is the empty shell standing in for
+them, not the plan. When they arrive, the scaffold is one `git show` away.
 
 ### Not verified
 

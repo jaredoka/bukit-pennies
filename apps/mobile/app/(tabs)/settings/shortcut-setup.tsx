@@ -344,14 +344,6 @@ export default function ShortcutSetup() {
             '6. Choose "Run Immediately", then tap "Next".\n' +
             `7. Pick the "${SHORTCUT_NAME}" shortcut.`}
         </Instruction>
-        <View style={{ marginTop: 12 }}>
-          <Button
-            label="Prefer pictures? Open the visual guide"
-            variant="secondary"
-            onPress={() => router.push('/(tabs)/settings/shortcut-visual-guide')}
-          />
-        </View>
-
         <Divider />
         <Text style={[styles.optionLabel, { color: colors.text }]}>Per bank (recommended)</Text>
         <Muted>One automation captures every card from that bank.</Muted>

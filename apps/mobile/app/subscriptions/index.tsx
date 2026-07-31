@@ -61,7 +61,7 @@ export default function SubscriptionsScreen() {
         options={{
           headerRight: () => (
             <Pressable
-              onPress={() => router.push('/(tabs)/subscriptions/edit')}
+              onPress={() => router.push('/subscriptions/edit')}
               hitSlop={8}
               accessibilityLabel="Add a subscription"
               style={{ paddingRight: 4 }}
@@ -120,7 +120,7 @@ export default function SubscriptionsScreen() {
                   <Pressable
                     onPress={() =>
                       router.push({
-                        pathname: '/(tabs)/subscriptions/edit',
+                        pathname: '/subscriptions/edit',
                         params: {
                           name: s.name,
                           amount: String(s.amount),
@@ -171,7 +171,7 @@ function SubscriptionCard({
 
   return (
     <Pressable
-      onPress={() => router.push({ pathname: '/(tabs)/subscriptions/edit', params: { id: sub.id } })}
+      onPress={() => router.push({ pathname: '/subscriptions/edit', params: { id: sub.id } })}
     >
       <Card>
         <View style={styles.cardHead}>
@@ -245,7 +245,7 @@ function CancelledSection({ items }: { items: SubscriptionListItem[] }) {
               key={item.key}
               onPress={() =>
                 router.push({
-                  pathname: '/(tabs)/subscriptions/edit',
+                  pathname: '/subscriptions/edit',
                   params: { id: item.subscription!.id },
                 })
               }

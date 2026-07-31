@@ -532,7 +532,7 @@ export default function Dashboard() {
 
       {/* ---- Subscriptions: what you declared, merged with what we detected ---- */}
       <Card>
-        <Pressable onPress={() => router.push('/(tabs)/subscriptions')} style={styles.subsHeader}>
+        <Pressable onPress={() => router.push('/subscriptions')} style={styles.subsHeader}>
           <View style={{ flex: 1 }}>
             <Title>Subscriptions</Title>
           </View>
@@ -590,7 +590,7 @@ export default function Dashboard() {
             })}
           </View>
         )}
-        <Pressable onPress={() => router.push('/(tabs)/subscriptions')} hitSlop={8}>
+        <Pressable onPress={() => router.push('/subscriptions')} hitSlop={8}>
           <Text style={styles.subsLink}>
             {subscriptionItems.length > 5
               ? `View all ${subscriptionItems.length} →`

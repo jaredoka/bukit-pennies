@@ -54,31 +54,10 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="flag" color={color} size={size} />,
         }}
       />
-      {/* Off the tab bar, reached from the counted tray button in the
-          Transactions header — the one entry point. It was hidden here with
-          nothing linking to it at all for several releases, which left every
-          low-confidence parse and every flagged duplicate somewhere no user
-          could act on them. */}
-      <Tabs.Screen
-        name="review"
-        options={{
-          href: null,
-          // Without this the header falls back to the route name and reads
-          // "review" in lower case — the tab-bar label used to hide that.
-          title: 'Review',
-        }}
-      />
-      {/* Reached from the dashboard card and Settings > Spending & data. Five
-          tabs is already the comfortable maximum on a phone. */}
-      <Tabs.Screen
-        name="subscriptions"
-        options={{
-          href: null,
-          // The nested Stack draws the header; without this the tab header
-          // stacks a second, lowercased "subscriptions" bar above it.
-          headerShown: false,
-        }}
-      />
+      {/* Review and Subscriptions are not tabs. They live above the tab bar as
+          root stack routes (see app/_layout.tsx) because both are pushed *into*
+          from elsewhere — Subscriptions from two different tabs — and a tab has
+          no history to go back through. */}
       <Tabs.Screen
         name="settings"
         options={{

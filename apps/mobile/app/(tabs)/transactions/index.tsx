@@ -578,7 +578,7 @@ export default function TransactionsList() {
                   there. The dot is the "something is waiting" signal. */}
               <Pressable
                 hitSlop={8}
-                onPress={() => router.push('/(tabs)/review')}
+                onPress={() => router.push('/review')}
                 accessibilityLabel={
                   (reviewCount.data ?? 0) > 0
                     ? `Review inbox, ${reviewCount.data} waiting`

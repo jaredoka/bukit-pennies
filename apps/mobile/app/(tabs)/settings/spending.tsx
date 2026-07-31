@@ -33,7 +33,7 @@ export default function Spending() {
           note="Set per-category limits shown on the dashboard"
         />
         <NavRow
-          href="/(tabs)/subscriptions"
+          href="/subscriptions"
           icon="repeat"
           label="Subscriptions"
           note="Record what you subscribe to and see what it costs per month"

@@ -2760,3 +2760,107 @@ two of the four changes touch things that would fail *silently* if wrong:
 - The full `pg_proc` table shows every function with a pinned `search_path`,
   and `anon_exec = false` on all eleven.
 
+---
+
+## 36. Deleting the app now signs you out (2026-07-31)
+
+Branch `fresh-install-signs-out`. Found in the field: the owner deleted the app,
+sideloaded the new IPA, and landed straight on the dashboard still signed in.
+
+### It is standard iOS behaviour, and that is the problem
+
+iOS wipes an app's **container** on delete — Documents, Library, Caches,
+`NSUserDefaults` — and leaves the **Keychain** alone. Apple tried changing this
+in an iOS 10.3 beta and reverted it before release; persistence has been the
+behaviour ever since. `supabase.ts` gives supabase-js an `expo-secure-store`
+adapter with `persistSession`, so the refresh token lands in the Keychain and
+outlives the app. Reinstall, and `getSession()` finds a live token.
+
+So: not a bug, and plenty of apps keep it. It is still wrong **here**. Deleting
+the app is the gesture most people use to mean *my spending history is off this
+phone*, and the failure case — sell, lend or hand over a handset, the next
+person reinstalls, and the dashboard opens on someone else's money — is the
+exact trust story this product is sold on. A fresh install starts signed out.
+
+This is the same class as §18 SEC-1 and the theme reset in §28: Keychain
+survival quietly making device-local state outlive the thing it belongs to.
+
+### Why it lives in the storage adapter and not in `SessionProvider`
+
+The obvious shape is an effect that calls `supabase.auth.signOut()` on a fresh
+install. Both reasons it was rejected are worth keeping, because they are the
+kind of thing a later "simplification" walks straight back into:
+
+- **Ordering.** The GoTrue client reads storage *while `createClient` is still
+  running*. An effect signing out afterwards is racing a session that is already
+  in memory and will be re-persisted on the next refresh. Everything supabase-js
+  reads goes through the adapter, so there is no race to lose.
+- **The network.** `signOut` calls the logout endpoint **even at
+  `scope: 'local'`**, and on any error that is not 401/403/404 it returns early
+  *without* clearing local state. A fresh install with no signal would have
+  stayed signed in — and permanently, because the marker is consumed on that
+  same launch and never reports `true` again. Deleting the value needs no round
+  trip and cannot fail open.
+
+`readAuthKey` purges each auth key once per process, on first read. The
+`purgedKeys` set is load-bearing in the other direction too: without it the
+purge would fire on every read, and the read after sign-in would delete the
+session just written. `setItem` marks the key as well — a value written this
+session is this session's.
+
+What this guarantees is that the credential is **gone from the handset**. The
+refresh token stays valid server-side until it expires; revoking it needs the
+network call this deliberately avoids.
+
+### `isFreshInstall()` was first-caller-wins
+
+Detection *creates* the marker, so it answers `true` exactly once per install.
+`ThemeProvider` already called it — and it is a **child** of `SessionProvider`,
+so React's bottom-up effect order would have handed the theme the only `true`
+and left the session check believing every launch was an update. The sign-out
+would have silently never happened, on a device, with green tests.
+
+`createFreshInstallGate` memoises the *promise* (not the resolved value, so
+concurrent callers share one detection) and `isFreshInstall` is now the gated
+singleton. **Any future caller must go through it.** Five cases in
+`test/installMarker.test.ts` cover the memoisation; the detector itself needs
+expo-file-system and stays untested, which is why it is a separate function.
+
+### What is deliberately *not* cleared
+
+The ingest token (`bukit.ingest_token.<uid>`). Capture runs independently of the
+app — the Shortcut POSTs on its own and holds its own copy in iCloud Drive — so
+clearing it would break capture for a user who did nothing but reinstall, and
+they would have no way to connect the two. It has been user-scoped since SEC-1,
+so it cannot cross accounts. A token belonging to a previous owner of the phone
+is unreadable by any other account and revocable from Settings > Capture.
+
+### Scope, and what this does not cover
+
+Offloading an app keeps the data container, so the marker survives and the user
+stays signed in — correct, offload is not a deletion of intent. Same for
+updates, and for a restore from backup (the marker comes back with the
+container). Only a real delete-and-reinstall signs out.
+
+Not covered: someone holding an unlocked phone with the app still installed.
+That is an app lock (Face ID on launch), considered and deferred as a separate
+piece of work — it does not remove the stale token from the Keychain, so it is
+an addition to this, not an alternative.
+
+One cost worth remembering during sideload testing: re-signing over the top of
+the existing install keeps the container and the session, but a delete-first
+cycle now means signing in again. That matters more than it sounds while reset
+emails still land in spam (§15, Gmail SMTP).
+
+### Verification status
+
+`pnpm -r test` (167) and `pnpm -r typecheck` green. **Device behaviour is not
+yet verified** — Node tests cover the gate's memoisation and nothing else. Still
+to check on the phone:
+
+- Delete, reinstall, launch → the landing screen, not the dashboard.
+- Sign in, force-quit, relaunch → still signed in (the purge must not re-fire).
+- Install the next build *over* the top → still signed in.
+- After a fresh install and sign-in, capture still works without redoing the
+  Shortcut setup.
+

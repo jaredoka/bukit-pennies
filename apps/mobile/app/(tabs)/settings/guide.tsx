@@ -13,16 +13,19 @@ const SECTIONS: Array<{ title: string; body: string }> = [
   {
     title: 'Capturing a spend',
     body:
-      'Paste: copy the bank message, open Capture, and check the live preview before saving. ' +
-      'iPhone: set up the Shortcuts automation (Settings → iOS Shortcut setup) and bank SMS ' +
-      'are forwarded to your private inbox as they arrive. The same message never counts twice.',
+      'Paste: on Transactions, tap + → Capture, paste the bank message, and check the live ' +
+      'preview before saving. You can paste a whole conversation at once. ' +
+      'iPhone: set up the Shortcuts automation (Settings → Capture → iOS Shortcut setup) and ' +
+      'bank SMS are forwarded to your private inbox as they arrive. The same message never ' +
+      'counts twice.',
   },
   {
     title: 'Review inbox',
     body:
       'Messages the parser wasn’t confident about wait in Review. Nothing is guessed silently. ' +
-      'Fill in the amount, merchant, or date and confirm; flagged near-duplicates can be merged ' +
-      'away or kept.',
+      'Open it from the tray icon at the top of Transactions, or from the dashboard when ' +
+      'something is waiting. Fill in the amount, merchant, or date and confirm; flagged ' +
+      'near-duplicates can be merged away or kept.',
   },
   {
     title: 'Notes & categories',

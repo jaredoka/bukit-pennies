@@ -26,7 +26,9 @@ double-captures don't double-count), and stored.
 
 ### Paste (works everywhere, day one)
 1. Copy the bank message text (from SMS or a bank-app notification).
-2. Open the **Capture** tab and paste it.
+2. On **Transactions**, tap **+** in the top right, then **Capture**, and paste
+   it. A whole conversation can go in at once — the messages are split apart
+   and saved one by one.
 3. A live **preview** shows what was understood — amount, merchant, date, card,
    and a confidence score — *before* anything is saved. The preview runs
    entirely on your device.
@@ -70,6 +72,9 @@ The original message text is always kept with the transaction, so nothing is
 ever lost in translation.
 
 ## 5. The Review inbox
+
+Open it from the **tray icon** at the top of Transactions — or from the
+dashboard, which shows a banner whenever something is waiting.
 
 Messages the parser wasn't confident about land in **Review** instead of being
 silently guessed:

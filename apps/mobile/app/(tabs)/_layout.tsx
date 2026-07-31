@@ -62,6 +62,9 @@ export default function TabsLayout() {
         name="review"
         options={{
           href: null,
+          // Without this the header falls back to the route name and reads
+          // "review" in lower case — the tab-bar label used to hide that.
+          title: 'Review',
         }}
       />
       {/* Reached from the dashboard card and Settings > Spending & data. Five

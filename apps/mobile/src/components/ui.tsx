@@ -157,7 +157,13 @@ export function NavRow({
   const accent = danger ? colors.danger : colors.primary;
   return (
     <Link href={href} asChild>
-      <Pressable style={[styles.navRow, inset && styles.navRowInset]}>
+      {/* One resolved style object, never an array. This Pressable is the direct
+          child of `Link asChild`, which expo-router renders through a `Slot`,
+          and a Slot refuses an array of styles on its child — it throws
+          "[expo-router]: You are passing an array of styles to a child of
+          <Slot>" and takes the whole screen down. The two variants are
+          therefore complete styles that are chosen between, not merged. */}
+      <Pressable style={inset ? styles.navRowInset : styles.navRow}>
         <Ionicons name={icon} size={22} color={accent} style={{ marginRight: 12 }} />
         <View style={{ flex: 1 }}>
           <Text style={[styles.navRowLabel, danger && { color: colors.danger }]}>{label}</Text>
@@ -838,7 +844,15 @@ const useStyles = themedStyles((colors) => ({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  navRowInset: { paddingVertical: 14, paddingHorizontal: 16 },
+  // Complete rather than a delta on navRow — see the Slot note above.
+  navRowInset: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
   navRowLabel: { fontWeight: '600' as const, color: colors.text },
   chip: {
     borderWidth: 1,

@@ -12,10 +12,19 @@ export const INGEST_URL = `${SUPABASE_URL}/functions/v1/ingest`;
 
 export const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN ?? '';
 
-// Owner's shared iCloud link to the self-configuring "Bukit Pennies Capture"
-// shortcut (CI cannot sign shortcuts — see docs/shortcut-authoring.md).
+// Owner's shared iCloud link to the self-configuring capture shortcut
+// (CI cannot sign shortcuts — see docs/shortcut-authoring.md).
 export const SHORTCUT_DOWNLOAD_URL =
-  'https://www.icloud.com/shortcuts/92fe37ee63e04a4785d69517f0c1635e';
+  'https://www.icloud.com/shortcuts/e639f5c27dd34f1191a81eeaa80ea27e';
+
+// The shortcut's name in the Shortcuts app, exactly as the owner saved it.
+// `shortcuts://run-shortcut?name=` matches on this string, so a rename that
+// misses this constant breaks Step 3's token handoff — the deep link targets a
+// shortcut that no longer exists and iOS just opens Shortcuts with nothing to
+// run. It lives beside the download URL because the two must be rebuilt and
+// republished together, and it is referenced by every on-screen mention of the
+// name so the instructions cannot drift from the link.
+export const SHORTCUT_NAME = 'Bukit Pennies';
 
 // Public policy pages — GitHub Pages, served from this repo's `docs/` folder.
 // They used to live in a separate public `bukit-pennies-legal` repo only

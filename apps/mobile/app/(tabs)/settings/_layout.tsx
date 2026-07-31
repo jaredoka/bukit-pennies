@@ -23,7 +23,6 @@ export default function SettingsLayout() {
       <Stack.Screen name="weekly-summary" options={{ title: 'Weekly summary' }} />
       <Stack.Screen name="devices" options={{ title: 'Capture devices' }} />
       <Stack.Screen name="shortcut-setup" options={{ title: 'iOS Shortcut setup' }} />
-      <Stack.Screen name="shortcut-visual-guide" options={{ title: 'Visual guide' }} />
       <Stack.Screen name="android-capture" options={{ title: 'Android capture' }} />
       <Stack.Screen name="report-bug" options={{ title: 'Report a bug' }} />
       <Stack.Screen name="feature-request" options={{ title: 'Request a feature' }} />

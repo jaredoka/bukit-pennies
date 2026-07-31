@@ -13,7 +13,19 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Badge, Button, Centered, Field, Muted, Sheet, SheetShell, useSheetPresence } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Centered,
+  DAY_NAMES,
+  Field,
+  MONTH_NAMES,
+  Muted,
+  Sheet,
+  SheetShell,
+  useSheetPresence,
+} from '@/components/ui';
+import { DAY_KEY_RE, dayKeyOf, monthGrid, stepMonth } from '@/lib/calendar';
 import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
 import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
 import { invalidateTransactionQueries, useCategories, useFilteredTransactions, usePullToRefresh, useReviewCount, useTransactionFacets } from '@/lib/queries';
@@ -21,6 +33,7 @@ import { DEFAULT_FILTERS, hasAnyFilter, type TxFilters } from '@/lib/txFilters';
 import type { CategoryRow, TransactionRow } from '@/lib/types';
 import { themedStyles, useTheme } from '@/lib/theme';
 import { usePrivacy } from '@/lib/privacy';
+import { usePrimaryCurrency } from '@/lib/primaryCurrency';
 
 const BANK_LABELS: Record<string, string> = {
   baiduri: 'Baiduri Bank',
@@ -28,12 +41,6 @@ const BANK_LABELS: Record<string, string> = {
   scb: 'Standard Chartered Bank',
   unknown: 'Other',
 };
-
-const DAY_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
 
 type SheetKey = 'bank' | 'card' | 'category' | 'currency' | 'date' | 'recipient';
 
@@ -85,10 +92,14 @@ function SelectRow({
 }
 
 // ---- Calendar date-range picker -------------------------------------------
-
-function toDateStr(year: number, month: number, day: number): string {
-  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
+//
+// Stays a separate component from `DateSheet` in components/ui.tsx — picking a
+// range is genuinely different from picking a date, and merging them would mean
+// one component with two modes. It does share the grid arithmetic, which is
+// pure and tested in `lib/calendar.ts`: this file used to roll its own
+// `new Date(y, m, 1).getDay()` version, and to read "today" from the device
+// clock rather than from Brunei time, so a user abroad saw the wrong day
+// highlighted.
 
 function CalendarSheet({
   visible,
@@ -105,37 +116,26 @@ function CalendarSheet({
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const today = new Date();
+  // Brunei time, not the device's: "today" is a calendar day in the country
+  // this app is for, and every stored date is already +08:00.
+  const todayKey = bruneiDayKey(Date.now());
 
-  const initDate = dateFrom ? new Date(dateFrom + 'T12:00:00') : today;
-  const [viewYear, setViewYear] = useState(initDate.getFullYear());
-  const [viewMonth, setViewMonth] = useState(initDate.getMonth());
+  const initKey = DAY_KEY_RE.test(dateFrom) ? dateFrom : todayKey;
+  const [viewYear, setViewYear] = useState(Number(initKey.slice(0, 4)));
+  const [viewMonth, setViewMonth] = useState(Number(initKey.slice(5, 7)) - 1);
   // 'start' = next tap sets dateFrom; 'end' = next tap sets dateTo
   const [picking, setPicking] = useState<'start' | 'end'>(dateFrom ? 'end' : 'start');
 
-  const grid = useMemo(() => {
-    const firstDow = new Date(viewYear, viewMonth, 1).getDay();
-    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-    const cells: (number | null)[] = Array(firstDow).fill(null);
-    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-    // Always pad to exactly 6 rows so grid height never shifts
-    while (cells.length < 42) cells.push(null);
-    return cells;
-  }, [viewYear, viewMonth]);
+  const weeks = useMemo(() => monthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
 
-  function prevMonth() {
-    if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
-    else setViewMonth(m => m - 1);
+  function step(months: number) {
+    const next = stepMonth(viewYear, viewMonth, months);
+    setViewYear(next.year);
+    setViewMonth(next.month);
   }
-  function nextMonth() {
-    if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0); }
-    else setViewMonth(m => m + 1);
-  }
-  function prevYear() { setViewYear(y => y - 1); }
-  function nextYear() { setViewYear(y => y + 1); }
 
   function handleDay(day: number) {
-    const ds = toDateStr(viewYear, viewMonth, day);
+    const ds = dayKeyOf(viewYear, viewMonth, day);
     if (picking === 'start') {
       onChange({ dateFrom: ds, dateTo: '' });
       setPicking('end');
@@ -152,21 +152,13 @@ function CalendarSheet({
   }
 
   function dayState(day: number): 'start' | 'end' | 'range' | 'today' | 'none' {
-    const ds = toDateStr(viewYear, viewMonth, day);
+    const ds = dayKeyOf(viewYear, viewMonth, day);
     if (ds === dateFrom) return 'start';
     if (ds === dateTo) return 'end';
     if (dateFrom && dateTo && ds > dateFrom && ds < dateTo) return 'range';
-    if (
-      day === today.getDate() &&
-      viewMonth === today.getMonth() &&
-      viewYear === today.getFullYear()
-    )
-      return 'today';
+    if (ds === todayKey) return 'today';
     return 'none';
   }
-
-  const weeks: (number | null)[][] = [];
-  for (let i = 0; i < grid.length; i += 7) weeks.push(grid.slice(i, i + 7));
 
   return (
     <Sheet
@@ -177,22 +169,22 @@ function CalendarSheet({
     >
       {/* Month + year nav */}
       <View style={styles.calNav}>
-        <Pressable onPress={prevYear} hitSlop={12} style={styles.calNavYearBtn}>
+        <Pressable onPress={() => setViewYear((y) => y - 1)} hitSlop={12} style={styles.calNavYearBtn}>
           <Ionicons name="chevron-back" size={14} color={colors.muted} />
           <Ionicons name="chevron-back" size={14} color={colors.muted} style={{ marginLeft: -8 }} />
         </Pressable>
         <View style={styles.calNavCenter}>
-          <Pressable onPress={prevMonth} hitSlop={12} style={styles.calNavBtn}>
+          <Pressable onPress={() => step(-1)} hitSlop={12} style={styles.calNavBtn}>
             <Ionicons name="chevron-back" size={20} color={colors.text} />
           </Pressable>
           <Text style={styles.calNavTitle}>
             {MONTH_NAMES[viewMonth]} {viewYear}
           </Text>
-          <Pressable onPress={nextMonth} hitSlop={12} style={styles.calNavBtn}>
+          <Pressable onPress={() => step(1)} hitSlop={12} style={styles.calNavBtn}>
             <Ionicons name="chevron-forward" size={20} color={colors.text} />
           </Pressable>
         </View>
-        <Pressable onPress={nextYear} hitSlop={12} style={styles.calNavYearBtn}>
+        <Pressable onPress={() => setViewYear((y) => y + 1)} hitSlop={12} style={styles.calNavYearBtn}>
           <Ionicons name="chevron-forward" size={14} color={colors.muted} />
           <Ionicons name="chevron-forward" size={14} color={colors.muted} style={{ marginLeft: -8 }} />
         </Pressable>
@@ -293,6 +285,10 @@ function CurrencySheet({
   onClose: () => void;
 }) {
   const styles = useStyles();
+  const { colors } = useTheme();
+  // Read, not hard-coded: this note used to say "Only BND", which stopped being
+  // true the moment the primary currency became a setting.
+  const { currency: primaryCurrency } = usePrimaryCurrency();
   return (
     <Sheet visible={visible} title="Currency" onClose={onClose} onClear={() => onChange([])}>
       <View style={{ marginBottom: 8 }}>
@@ -306,9 +302,11 @@ function CurrencySheet({
         ))}
       </View>
       <View style={styles.currencyNote}>
-        <Ionicons name="information-circle-outline" size={15} color="#6B7A8C" style={{ marginTop: 1 }} />
+        <Ionicons name="information-circle-outline" size={15} color={colors.muted} style={{ marginTop: 1 }} />
         <Text style={styles.currencyNoteText}>
-          Only BND transactions are counted in the Dashboard totals and donut. Foreign-currency transactions are recorded here for your reference but are not converted or included in spending summaries.
+          {`Only ${primaryCurrency} transactions count toward the Dashboard and Insights totals. ` +
+            'Anything else is recorded here for your reference, never converted. You can change ' +
+            'your primary currency in Settings → Appearance.'}
         </Text>
       </View>
     </Sheet>
@@ -580,7 +578,7 @@ export default function TransactionsList() {
                   there. The dot is the "something is waiting" signal. */}
               <Pressable
                 hitSlop={8}
-                onPress={() => router.push('/(tabs)/review')}
+                onPress={() => router.push('/review')}
                 accessibilityLabel={
                   (reviewCount.data ?? 0) > 0
                     ? `Review inbox, ${reviewCount.data} waiting`
@@ -589,7 +587,11 @@ export default function TransactionsList() {
               >
                 <Ionicons name="file-tray-full-outline" size={24} color={colors.primary} />
                 {(reviewCount.data ?? 0) > 0 ? (
-                  <View style={[styles.headerDot, { borderColor: colors.card }]} />
+                  <View style={[styles.headerBadge, { borderColor: colors.card }]}>
+                    <Text style={styles.headerBadgeText}>
+                      {reviewCount.data! > 99 ? '99+' : reviewCount.data}
+                    </Text>
+                  </View>
                 ) : null}
               </Pressable>
               <Pressable hitSlop={8} onPress={() => setShowAdd(true)} accessibilityLabel="Add transaction">
@@ -921,17 +923,29 @@ function TxRow({ tx }: { tx: TransactionRow }) {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  // Sits on the tray icon's upper-right. The ring in `card` is what keeps it
-  // legible where the dot and the icon overlap.
-  headerDot: {
+  // Count badge on the tray icon's upper-right, the shape Mail uses. `minWidth`
+  // with horizontal padding keeps one digit circular and lets two or three
+  // widen into a pill rather than clipping; the ring in `card` keeps it legible
+  // where it overlaps the icon.
+  headerBadge: {
     position: 'absolute',
-    top: -1,
-    right: -2,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    top: -5,
+    right: -9,
+    minWidth: 17,
+    height: 17,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1.5,
     backgroundColor: colors.danger,
+  },
+  headerBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'] as const,
+    includeFontPadding: false,
   },
   stickyHeader: {
     backgroundColor: colors.bg,

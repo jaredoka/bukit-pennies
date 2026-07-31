@@ -18,6 +18,7 @@ import {
 // drags in the glyph map of every family (FontAwesome, MaterialCommunity, …),
 // which is ~1 MB of names nothing here renders.
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Link, type Href } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { DAY_KEY_RE, TIME_RE, dayKeyOf, monthGrid, stepMonth } from '@/lib/calendar';
 import { bruneiDayKey, bruneiParts, formatDayDate } from '@/lib/format';
@@ -120,6 +121,58 @@ export function Badge({ label, tone = 'muted' }: { label: string; tone?: 'muted'
 export function Centered({ children }: { children: ReactNode }) {
   const styles = useStyles();
   return <View style={styles.centered}>{children}</View>;
+}
+
+/**
+ * A settings row that navigates: icon, label, sub-label, chevron.
+ *
+ * Three byte-identical copies of this lived in `settings/index.tsx`,
+ * `settings/spending.tsx` and `settings/capture.tsx`, each with its own
+ * identical `row` and `rowLabel` style block — so a change to how a settings
+ * row looks had to be made in three files, and was twice made in fewer. The
+ * only real difference was the `danger` variant on the index screen, which is
+ * a prop here.
+ */
+export function NavRow({
+  href,
+  icon,
+  label,
+  note,
+  danger,
+  inset,
+}: {
+  href: Href;
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  note: string;
+  danger?: boolean;
+  /** For a row in a bare grouped container (the Settings index) rather than
+   *  inside a `Card`. A Card already pads its contents by 16, so the default
+   *  adds no horizontal padding of its own — setting it in both places is what
+   *  double-indents the row. */
+  inset?: boolean;
+}) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const accent = danger ? colors.danger : colors.primary;
+  return (
+    <Link href={href} asChild>
+      {/* One resolved style object, never an array. This Pressable is the direct
+          child of `Link asChild`, which expo-router renders through a `Slot`,
+          and a Slot refuses an array of styles on its child — it throws
+          "[expo-router]: You are passing an array of styles to a child of
+          <Slot>" and takes the whole screen down. The two variants are
+          therefore complete styles that are chosen between, not merged. */}
+      <Pressable style={inset ? styles.navRowInset : styles.navRow}>
+        <Ionicons name={icon} size={22} color={accent} style={{ marginRight: 12 }} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.navRowLabel, danger && { color: colors.danger }]}>{label}</Text>
+          <Muted>{note}</Muted>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+      </Pressable>
+    </Link>
+  );
 }
 
 /** Selectable pill used for filters and option pickers. */
@@ -784,6 +837,23 @@ const useStyles = themedStyles((colors) => ({
     alignSelf: 'flex-start' as const,
   },
   centered: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, padding: 24 },
+  navRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  // Complete rather than a delta on navRow — see the Slot note above.
+  navRowInset: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  navRowLabel: { fontWeight: '600' as const, color: colors.text },
   chip: {
     borderWidth: 1,
     borderColor: colors.border,

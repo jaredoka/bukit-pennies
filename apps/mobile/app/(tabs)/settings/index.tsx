@@ -1,28 +1,7 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { Link, type Href } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Muted } from '@/components/ui';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { NavRow } from '@/components/ui';
 import { themedStyles, useTheme } from '@/lib/theme';
 import Constants from 'expo-constants';
-
-function Row({ href, icon, label, note, danger }: { href: Href; icon: keyof typeof Ionicons.glyphMap; label: string; note: string; danger?: boolean }) {
-  const styles = useStyles();
-  const { colors } = useTheme();
-  const iconColor = danger ? colors.danger : colors.primary;
-  const labelStyle = danger ? [styles.rowLabel, { color: colors.danger }] : styles.rowLabel;
-  return (
-    <Link href={href} asChild>
-      <Pressable style={styles.row}>
-        <Ionicons name={icon} size={22} color={iconColor} style={{ marginRight: 12 }} />
-        <View style={{ flex: 1 }}>
-          <Text style={labelStyle}>{label}</Text>
-          <Muted>{note}</Muted>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-      </Pressable>
-    </Link>
-  );
-}
 
 export default function Settings() {
   const styles = useStyles();
@@ -32,61 +11,71 @@ export default function Settings() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.group}>
-        <Row
+        <NavRow
+          inset
           href="/(tabs)/settings/account"
           icon="person"
           label="Account"
           note="Sign out, reset password, manage your account"
         />
-        <Row
+        <NavRow
+          inset
           href="/(tabs)/settings/appearance"
           icon="color-palette"
           label="Appearance"
           note="Light, dark, or follow system theme"
         />
-        <Row
+        <NavRow
+          inset
           href="/(tabs)/settings/budget"
           icon="wallet"
           label="Monthly limit"
           note="Set the amount the dashboard measures against"
         />
-        <Row
+        <NavRow
+          inset
           href="/(tabs)/settings/spending"
           icon="pie-chart"
           label="Spending & data"
           note="Category budgets, subscriptions, export"
         />
-        <Row
+        <NavRow
+          inset
           href="/(tabs)/settings/notifications"
           icon="notifications"
           label="Notifications"
           note="Weekly summary and spending alerts"
         />
-        <Row
+        <NavRow
+          inset
           href="/(tabs)/settings/capture"
           icon="clipboard"
           label="Capture"
-          note="Devices, iOS Shortcut, Android listener"
+          note="Devices and capture setup"
         />
-        <Row
+        <NavRow
+          inset
           href="/(tabs)/settings/guide"
           icon="help-circle"
           label="How the app works"
           note="Using the app and where your data is stored"
         />
-        <Row
+        <NavRow
+          inset
           href="/(tabs)/settings/report-bug"
           icon="bug"
           label="Report a bug"
           note="Let us know if something isn't working"
         />
-        <Row
+        <NavRow
+          inset
           href="/(tabs)/settings/feature-request"
           icon="bulb"
           label="Request a feature"
           note="Tell us what you'd like the app to do"
         />
-        <Row
+        <NavRow
+          inset
           href="/(tabs)/settings/about"
           icon="information-circle"
           label="About"
@@ -111,14 +100,5 @@ const useStyles = themedStyles((colors) => ({
     borderColor: colors.border,
     overflow: 'hidden',
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  rowLabel: { fontWeight: '600', color: colors.text },
   versionNote: { textAlign: 'center', fontSize: 12 },
 }));

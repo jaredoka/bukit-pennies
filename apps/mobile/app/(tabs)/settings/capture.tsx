@@ -1,25 +1,6 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { Link, type Href } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Card, Muted, Title } from '@/components/ui';
-import { themedStyles, useTheme } from '@/lib/theme';
-
-function Row({ href, icon, label, note }: { href: Href; icon: keyof typeof Ionicons.glyphMap; label: string; note: string }) {
-  const styles = useStyles();
-  const { colors } = useTheme();
-  return (
-    <Link href={href} asChild>
-      <Pressable style={styles.row}>
-        <Ionicons name={icon} size={22} color={colors.primary} style={{ marginRight: 12 }} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.rowLabel}>{label}</Text>
-          <Muted>{note}</Muted>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-      </Pressable>
-    </Link>
-  );
-}
+import { Platform, ScrollView } from 'react-native';
+import { Card, NavRow, Title } from '@/components/ui';
+import { themedStyles } from '@/lib/theme';
 
 export default function Capture() {
   const styles = useStyles();
@@ -28,24 +9,34 @@ export default function Capture() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Card>
         <Title>Capture</Title>
-        <Row
+        <NavRow
           href="/(tabs)/settings/devices"
           icon="key"
           label="Capture devices & tokens"
           note="Create, reveal once, and revoke ingest tokens"
         />
-        <Row
+        <NavRow
           href="/(tabs)/settings/shortcut-setup"
           icon="logo-apple"
           label="iOS Shortcut setup"
           note="Near-automatic capture of bank SMS on iPhone"
         />
-        <Row
-          href="/(tabs)/settings/android-capture"
-          icon="logo-android"
-          label="Android capture"
-          note="Notification listener (coming in a later phase)"
-        />
+        {/* Android only. The listener module is designed (HANDOFF §9) but
+            deferred until after iOS testing, so on iPhone this row was a
+            settings entry promising a feature the device will never run — and
+            placeholder "coming in a later phase" content is exactly what App
+            Review objects to. The screen stays routable (its Stack.Screen is
+            still declared) because it becomes reachable on its own the moment
+            an Android build ships; this is a platform gate, not the orphaned
+            `href: null` mistake that stranded Review. */}
+        {Platform.OS === 'android' ? (
+          <NavRow
+            href="/(tabs)/settings/android-capture"
+            icon="logo-android"
+            label="Android capture"
+            note="Automatic capture from bank notifications"
+          />
+        ) : null}
       </Card>
     </ScrollView>
   );
@@ -54,12 +45,4 @@ export default function Capture() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  rowLabel: { fontWeight: '600', color: colors.text },
 }));

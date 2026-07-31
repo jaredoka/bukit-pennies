@@ -1,6 +1,8 @@
 # Hosted Supabase Deploy Guide
 
-Set up a free-tier Supabase project so the app works on real devices.
+Set up a free-tier Supabase project so the app works on real devices — the
+phone cannot reach `supabase start` on your PC. Everything below runs from the
+repo root.
 
 ## 1. Create the project
 
@@ -8,19 +10,35 @@ Set up a free-tier Supabase project so the app works on real devices.
 2. **New project** → name it `bukit-pennies`, pick `Southeast Asia (Singapore)`
    region for low latency from Brunei, generate a strong database password.
 3. Wait for the project to provision (~2 min).
+4. Note the **project ref** (in the dashboard URL), the **Project URL**
+   (`https://<ref>.supabase.co`) and the **anon/publishable key**
+   (Settings → API Keys). All three are needed below.
 
 ## 2. Apply migrations
 
 ```bash
 # Link the CLI to the hosted project (one-time)
+pnpm exec supabase login
 pnpm exec supabase link --project-ref YOUR_PROJECT_REF
 
 # Push all migrations
 pnpm exec supabase db push
 
-# Deploy the edge functions
+# Deploy the edge functions (sync the parser copy first, or you ship a stale one)
+node scripts/sync-parsers.mjs
 pnpm exec supabase functions deploy ingest feedback
 ```
+
+> **Never run `supabase/seed.sql` against the hosted project.** It is dev-only —
+> demo users and fake transactions. `db push` alone is correct. The same goes
+> for `scripts/verify-ingest.sh`, which targets the local stack;
+> `scripts/verify-ingest-hosted.sh` is its hosted counterpart (see §6).
+
+`ingest` runs with `verify_jwt = false` (`supabase/config.toml`) because it
+authenticates with our own `bp_…` device tokens — an iOS Shortcut can only
+attach a static header. The CLI reads that from `config.toml`; if you are on an
+older CLI that does not, pass `--no-verify-jwt` when deploying `ingest` alone.
+`feedback` keeps JWT verification, so RLS stays the boundary there.
 
 If a migration added a constraint as `NOT VALID` (migration 20 does), run its
 `VALIDATE CONSTRAINT` block afterwards — the statements are listed at the foot
@@ -57,8 +75,10 @@ In the Supabase dashboard under **Authentication → Providers**:
 - **Email**: enabled (the only provider for now).
 - **Site URL**: set to your app's deep-link scheme: `bukitpennies://`
 - **Redirect URLs**: add `bukitpennies://reset-password`
-- **Email confirmations**: enable for production (prevents signup abuse with
-  fake emails).
+- **Email confirmations**: ON by default on hosted projects, and should stay on
+  for production (it prevents signup abuse with fake addresses). Mail arrives
+  via Supabase's built-in sender; to test without it, disable it temporarily
+  under Authentication → Providers → Email.
 
 Under **Authentication → Rate Limits** (dashboard → Auth → Rate Limits):
 
@@ -69,6 +89,16 @@ Under **Authentication → Rate Limits** (dashboard → Auth → Rate Limits):
 These are Supabase's built-in GoTrue rate limits — no custom code needed.
 
 ## 4. Configure the app
+
+Three different consumers need the same two values, in three different places:
+
+- **Local web/dev run against the hosted project:** `apps/mobile/.env` (already
+  gitignored), or export the two variables before
+  `pnpm --filter @bukit/mobile web`. Without them the app falls back to the
+  local stack — see `src/lib/env.ts`.
+- **iOS unsigned-IPA build:** pass both as inputs to the *iOS unsigned IPA*
+  workflow run; they are baked into the bundle.
+- **EAS / production builds:** `.env.production` or EAS secrets, below.
 
 Create `apps/mobile/.env.production` from the example:
 
@@ -101,7 +131,20 @@ SELECT vault.create_secret('test-user-password', 'your-password-here');
 Or sign up through the app — the profile trigger creates the `profiles` row
 automatically.
 
-## 6. Free-tier limitations
+## 6. Smoke-check the deployment
+
+Sign up a real account in the app, create a token in Settings → Capture →
+Capture devices, then run the hosted curl matrix (bad token 401, Baiduri sample
+created + parsed, re-send duplicate, OTP ignored):
+
+```bash
+FUNC_URL=https://YOUR_REF.supabase.co/functions/v1/ingest TOKEN=bp_… \
+  bash scripts/verify-ingest-hosted.sh
+```
+
+On Windows, run it through Git Bash.
+
+## 7. Free-tier limitations
 
 | Concern | Free tier | Paid tier ($25/mo) |
 |---|---|---|

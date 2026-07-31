@@ -23,8 +23,8 @@ const SECTIONS: Array<{ title: string; body: string }> = [
     title: 'Review inbox',
     body:
       'Messages the parser wasn’t confident about wait in Review. Nothing is guessed silently. ' +
-      'Open it from the tray icon at the top of Transactions, or from the dashboard when ' +
-      'something is waiting. Fill in the amount, merchant, or date and confirm; flagged ' +
+      'Open it from the tray icon at the top of Transactions — it carries a count when ' +
+      'anything is waiting. Fill in the amount, merchant, or date and confirm; flagged ' +
       'near-duplicates can be merged away or kept.',
   },
   {

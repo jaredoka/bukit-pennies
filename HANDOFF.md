@@ -337,6 +337,7 @@ State reached during on-device testing:
   `SHORTCUT_DOWNLOAD_URL` (`apps/mobile/src/lib/env.ts`) —
   `https://www.icloud.com/shortcuts/92fe37ee63e04a4785d69517f0c1635e`
   (self-configuring rebuild, shared 2026-07-19).
+  **Superseded 2026-07-31 — see §37 for the current link and name.**
   `scripts/build-shortcut.mjs` + the `ios-shortcut.yml` workflow remain for
   reference/if Apple ever unblocks CI signing.
 - **Self-configuring shortcut (2026-07-19):** the shortcut was redesigned to
@@ -462,8 +463,9 @@ trend/insight screens, no widgets, no shared/household budgets.
    key, Apple Team ID, ASC App ID) and **`docs/testflight-deploy.md` is
    the step-by-step runbook** (build → TestFlight → on-device test
    checklist → App Store review notes → share extension later).
-   Shortcut download link live (self-configuring rebuild):
-   `https://www.icloud.com/shortcuts/92fe37ee63e04a4785d69517f0c1635e`.
+   Shortcut download link live (self-configuring rebuild, relinked
+   2026-07-31 — §37):
+   `https://www.icloud.com/shortcuts/e639f5c27dd34f1191a81eeaa80ea27e`.
 
    **iOS build facts (recorded 2026-07-19):** IPAs cannot be built on
    Windows (Xcode/macOS only). Path of record is **EAS cloud builds**
@@ -2863,4 +2865,64 @@ to check on the phone:
 - Install the next build *over* the top → still signed in.
 - After a fresh install and sign-in, capture still works without redoing the
   Shortcut setup.
+
+---
+
+## 37. The shortcut is called "Bukit Pennies" now (2026-07-31)
+
+The owner rebuilt and re-shared the capture shortcut under the shorter name
+**`Bukit Pennies`** (was `Bukit Pennies Capture`). New iCloud link:
+
+```
+https://www.icloud.com/shortcuts/e639f5c27dd34f1191a81eeaa80ea27e
+```
+
+`SHORTCUT_DOWNLOAD_URL` in `apps/mobile/src/lib/env.ts` points at it. The old
+link is superseded; the §15 and §16.4 entries carrying it now say so.
+
+### The rename broke Step 3, silently
+
+"Send the token to the Shortcut" opens
+`shortcuts://run-shortcut?name=Bukit%20Pennies%20Capture`, and that name was a
+string literal at the call site. Renaming the shortcut left the deep link
+pointing at something that no longer exists, so the token went to a shortcut
+called `Bukit Pennies Capture` — the owner saw this on-device before the link
+was even updated.
+
+**How it fails is the reason to care.** iOS does not report an unresolvable
+`run-shortcut` name; it opens the Shortcuts app and nothing runs. There is no
+error for the user to act on and nothing for the app to catch, so the only
+symptom is capture quietly never working, on the one screen where a new user
+has least ability to tell setup from breakage. §17's onboarding-funnel watch
+would have shown this as tokens created but `last_seen_at` staying null —
+i.e. indistinguishable from ordinary drop-off.
+
+### The name is one constant now
+
+`SHORTCUT_NAME` sits beside `SHORTCUT_DOWNLOAD_URL` in `env.ts` — the two must
+be republished together, so they belong together. It feeds the deep link *and*
+every on-screen mention: setup Step 4's action list, the "Allow … to send 1
+text item" note, and the visual guide's caption 7. Those three were separate
+literals, so before this the instructions could drift from the link, or from
+each other, one edit at a time.
+
+`docs/shortcut-authoring.md` states the rename rule at the point where the
+shortcut is named, and again under Publish.
+
+### Left alone deliberately
+
+`scripts/build-shortcut.mjs` and `.github/workflows/ios-shortcut.yml` still say
+"Bukit Pennies Capture". They generate the **superseded** hardcoded-token
+shortcut, not this one, and §15 already records them as reference-only against
+the day Apple unblocks CI signing. Renaming them would imply they produce the
+current shortcut. If they are ever revived they need rewriting for the
+self-configuring design first, and the name comes with that.
+
+### Not verified
+
+The link and the name are the owner's; neither the download nor the token
+handoff has been exercised from a build carrying this change. On the phone:
+download from Step 2 adds a shortcut named `Bukit Pennies`, and Step 3 lands on
+the "Connected. Capture is ready." notification rather than opening Shortcuts
+and stopping.
 

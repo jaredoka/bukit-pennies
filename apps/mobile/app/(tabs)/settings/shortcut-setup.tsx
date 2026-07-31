@@ -3,7 +3,7 @@ import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { Button, Card, Field, Muted } from '@/components/ui';
-import { SHORTCUT_DOWNLOAD_URL } from '@/lib/env';
+import { SHORTCUT_DOWNLOAD_URL, SHORTCUT_NAME } from '@/lib/env';
 import { kvGet, kvSet } from '@/lib/kvStore';
 import {
   getCompletedSteps,
@@ -318,7 +318,7 @@ export default function ShortcutSetup() {
             onPress={() =>
               Linking.openURL(
                 'shortcuts://run-shortcut?name=' +
-                  encodeURIComponent('Bukit Pennies Capture') +
+                  encodeURIComponent(SHORTCUT_NAME) +
                   '&input=text&text=' +
                   encodeURIComponent(token ?? ''),
               )
@@ -342,7 +342,7 @@ export default function ShortcutSetup() {
             '4. Leave "Sender" empty.\n' +
             '5. In "Message Contains", paste a template from below.\n' +
             '6. Choose "Run Immediately", then tap "Next".\n' +
-            '7. Pick the "Bukit Pennies Capture" shortcut.'}
+            `7. Pick the "${SHORTCUT_NAME}" shortcut.`}
         </Instruction>
         <View style={{ marginTop: 12 }}>
           <Button
@@ -411,7 +411,7 @@ export default function ShortcutSetup() {
           <Text style={styles.infoIcon}>✓</Text>
           <Text style={[styles.infoText, { color: colors.text }]}>
             <Text style={{ fontWeight: '700' }}>Confirmation tap.</Text>
-            {'  '}iOS may show a prompt saying "Allow Bukit Pennies Capture to send 1 text item to…" the first time the automation runs. Tap <Text style={{ fontWeight: '700' }}>Always Allow</Text> and it will never ask again.
+            {'  '}iOS may show a prompt saying "Allow {SHORTCUT_NAME} to send 1 text item to…" the first time the automation runs. Tap <Text style={{ fontWeight: '700' }}>Always Allow</Text> and it will never ask again.
           </Text>
         </View>
 

@@ -1,5 +1,6 @@
 import { Image, ScrollView, Text, View } from 'react-native';
 import { Card, Muted } from '@/components/ui';
+import { SHORTCUT_NAME } from '@/lib/env';
 import { themedStyles, useTheme } from '@/lib/theme';
 
 // Screenshot walkthrough of Step 4 (the Message automation). Images are
@@ -13,7 +14,7 @@ const STEPS: Array<{ caption: string; image: number | null }> = [
   { caption: '4. Leave "Sender" empty.', image: null },
   { caption: '5. In "Message Contains", paste your template.', image: null },
   { caption: '6. Choose "Run Immediately", then tap "Next".', image: null },
-  { caption: '7. Pick the "Bukit Pennies Capture" shortcut.', image: null },
+  { caption: `7. Pick the "${SHORTCUT_NAME}" shortcut.`, image: null },
 ];
 
 export default function ShortcutVisualGuide() {

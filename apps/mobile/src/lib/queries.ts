@@ -44,9 +44,55 @@ async function unwrap<T>(promise: PromiseLike<{ data: T | null; error: { message
   return result.data as T;
 }
 
+/**
+ * The most rows PostgREST will return in one response — `max_rows` in
+ * `supabase/config.toml`, and the same figure by default on the hosted
+ * project. **Lowering `max_rows` without changing this constant reintroduces
+ * the bug below**, so the two move together.
+ *
+ * It is a cap, not an error: a query for a year of transactions came back with
+ * the first thousand and no indication that there were more. The dashboard's
+ * "All year" donut, every Insights total and the recurring-spend detector all
+ * read whole periods that way, so past about a thousand transactions in the
+ * window they quietly understated. `exportCsv` had always paged; the query
+ * layer had not.
+ */
+const MAX_ROWS_PER_REQUEST = 1000;
+
+/**
+ * Reads every row of a query, a page at a time.
+ *
+ * `page` must impose a **total** order — a column with ties is not enough,
+ * because `range()` slices the ordered result and rows that tie can swap
+ * between two requests, which loses one and repeats another. Every caller here
+ * ends its ordering with `id`.
+ */
+export async function fetchAllPages<T>(
+  page: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += MAX_ROWS_PER_REQUEST) {
+    const batch = await unwrap<T[]>(page(from, from + MAX_ROWS_PER_REQUEST - 1));
+    rows.push(...batch);
+    if (batch.length < MAX_ROWS_PER_REQUEST) return rows;
+  }
+}
+
 // ------------------------------------------------------------------ queries
 
 export const TX_PAGE_SIZE = 50;
+
+/** The projection every whole-period aggregate reads: enough to bucket by day,
+ *  month, category and merchant, and nothing else — these queries can pull
+ *  thousands of rows, so `select *` would move a lot of `raw_text` for nothing. */
+const TX_AGGREGATE_COLUMNS = 'occurred_at, amount, currency, category_id, merchant_normalized';
+type TxAggregateRow = Pick<
+  TransactionRow,
+  'occurred_at' | 'amount' | 'currency' | 'category_id' | 'merchant_normalized'
+>;
 
 /**
  * Everything derived from the transactions table. One helper because the list
@@ -120,7 +166,20 @@ export function useTransaction(id: string | undefined) {
   });
 }
 
-/** needs_review rows plus flagged near-duplicates, oldest first. */
+/** The `or` that defines the review inbox: anything the parser was unsure of,
+ *  plus anything flagged as a possible second capture of the same spend. */
+const REVIEW_PREDICATE = 'parse_status.eq.needs_review,possible_duplicate_of.not.is.null';
+
+/**
+ * needs_review rows plus flagged near-duplicates, oldest first.
+ *
+ * Capped, and deliberately not paged like the aggregates: this is a queue to
+ * be worked down, not a total to be correct. Oldest-first plus a cap is
+ * self-refilling — clear some and the next ones move into the window — where
+ * rendering ten thousand editable cards into a FlatList is just a stall.
+ */
+const REVIEW_LIMIT = 200;
+
 export function useReviewItems() {
   return useQuery({
     queryKey: ['transactions', 'review'],
@@ -129,8 +188,9 @@ export function useReviewItems() {
         supabase
           .from('transactions')
           .select('*')
-          .or('parse_status.eq.needs_review,possible_duplicate_of.not.is.null')
-          .order('created_at', { ascending: true }),
+          .or(REVIEW_PREDICATE)
+          .order('created_at', { ascending: true })
+          .limit(REVIEW_LIMIT),
       ),
   });
 }
@@ -167,14 +227,17 @@ export function useThisMonthTransactions() {
   return useQuery({
     queryKey: ['transactions', 'month', since],
     queryFn: () =>
-      unwrap<Pick<TransactionRow, 'occurred_at' | 'amount' | 'currency' | 'category_id' | 'merchant_normalized'>[]>(
+      fetchAllPages<TxAggregateRow>((from, to) =>
         supabase
           .from('transactions')
-          .select('occurred_at, amount, currency, category_id, merchant_normalized')
+          .select(TX_AGGREGATE_COLUMNS)
           .eq('parse_status', 'parsed')
           .not('amount', 'is', null)
           .in('currency', PAR_CURRENCIES)
-          .gte('occurred_at', since),
+          .gte('occurred_at', since)
+          .order('occurred_at', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, to),
       ),
   });
 }
@@ -191,15 +254,18 @@ export function useTransactionsForPeriod(year: number, month: number | null) {
   return useQuery({
     queryKey: ['transactions', 'period', year, month],
     queryFn: () =>
-      unwrap<Pick<TransactionRow, 'occurred_at' | 'amount' | 'currency' | 'category_id' | 'merchant_normalized'>[]>(
+      fetchAllPages<TxAggregateRow>((from, to) =>
         supabase
           .from('transactions')
-          .select('occurred_at, amount, currency, category_id, merchant_normalized')
+          .select(TX_AGGREGATE_COLUMNS)
           .eq('parse_status', 'parsed')
           .not('amount', 'is', null)
           .in('currency', PAR_CURRENCIES)
           .gte('occurred_at', start)
-          .lt('occurred_at', end),
+          .lt('occurred_at', end)
+          .order('occurred_at', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, to),
       ),
   });
 }
@@ -233,14 +299,17 @@ export function useRecentMonthsTransactions(monthsBack = 6) {
   return useQuery({
     queryKey: ['transactions', 'recent-months', since],
     queryFn: () =>
-      unwrap<Pick<TransactionRow, 'occurred_at' | 'amount' | 'currency' | 'category_id' | 'merchant_normalized'>[]>(
+      fetchAllPages<TxAggregateRow>((from, to) =>
         supabase
           .from('transactions')
-          .select('occurred_at, amount, currency, category_id, merchant_normalized')
+          .select(TX_AGGREGATE_COLUMNS)
           .eq('parse_status', 'parsed')
           .not('amount', 'is', null)
           .not('occurred_at', 'is', null)
-          .gte('occurred_at', since),
+          .gte('occurred_at', since)
+          .order('occurred_at', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, to),
       ),
   });
 }

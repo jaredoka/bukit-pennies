@@ -35,7 +35,7 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-type SheetKey = 'bank' | 'card' | 'category' | 'currency' | 'date' | 'direction' | 'recipient';
+type SheetKey = 'bank' | 'card' | 'category' | 'currency' | 'date' | 'recipient';
 
 function toggleItem<T>(arr: T[], item: T): T[] {
   return arr.includes(item) ? arr.filter((x) => x !== item) : [...arr, item];
@@ -278,33 +278,6 @@ function CalendarSheet({
 }
 
 // ---- Per-filter sheets (row-based) -----------------------------------------
-
-function DirectionSheet({
-  visible,
-  value,
-  onChange,
-  onClose,
-}: {
-  visible: boolean;
-  value: TxFilters['direction'];
-  onChange: (v: TxFilters['direction']) => void;
-  onClose: () => void;
-}) {
-  return (
-    <Sheet visible={visible} title="Direction" onClose={onClose} onClear={() => onChange('all')}>
-      <View style={{ marginBottom: 8 }}>
-        {(['all', 'incoming', 'outgoing'] as const).map((d) => (
-          <SelectRow
-            key={d}
-            label={d === 'all' ? 'All' : d === 'incoming' ? 'Incoming' : 'Outgoing'}
-            selected={value === d}
-            onPress={() => onChange(d)}
-          />
-        ))}
-      </View>
-    </Sheet>
-  );
-}
 
 function CurrencySheet({
   visible,
@@ -556,10 +529,6 @@ export default function TransactionsList() {
     : filters.dateFrom ? `From ${filters.dateFrom}`
     : filters.dateTo ? `To ${filters.dateTo}`
     : 'Date';
-  const dirLabel =
-    filters.direction === 'outgoing' ? 'Outgoing'
-    : filters.direction === 'incoming' ? 'Incoming'
-    : 'Direction';
   const recipLabel = filters.recipient.trim() || 'Recipient';
 
   const anyFilter = hasAnyFilter(filters);
@@ -643,7 +612,6 @@ export default function TransactionsList() {
             <FBarChip label={currLabel} active={filters.currencies.length > 0} onPress={() => setActiveSheet('currency')} />
           ) : null}
           <FBarChip label={dateLabel} active={!!(filters.dateFrom || filters.dateTo)} onPress={() => setActiveSheet('date')} />
-          <FBarChip label={dirLabel} active={filters.direction !== 'all'} onPress={() => setActiveSheet('direction')} />
           <FBarChip label={recipLabel} active={!!filters.recipient.trim()} onPress={() => setActiveSheet('recipient')} />
           {anyFilter ? (
             <>
@@ -709,8 +677,6 @@ export default function TransactionsList() {
         <CurrencySheet visible={activeSheet === 'currency'} available={availCurrencies} selected={filters.currencies} onChange={(v) => patch({ currencies: v })} onClose={() => setActiveSheet(null)} />
       ) : renderedSheet === 'date' ? (
         <CalendarSheet visible={activeSheet === 'date'} dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={(p) => patch(p)} onClose={() => setActiveSheet(null)} />
-      ) : renderedSheet === 'direction' ? (
-        <DirectionSheet visible={activeSheet === 'direction'} value={filters.direction} onChange={(v) => patch({ direction: v })} onClose={() => setActiveSheet(null)} />
       ) : renderedSheet === 'recipient' ? (
         <RecipientSheet visible={activeSheet === 'recipient'} value={filters.recipient} onChange={(v) => patch({ recipient: v })} onClose={() => setActiveSheet(null)} />
       ) : null}

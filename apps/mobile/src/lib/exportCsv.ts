@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import { buildCsv } from './csv';
 import { bruneiDayKey, formatTime } from './format';
+import { fetchAllPages } from './queries';
 import { supabase } from './supabase';
 import type { CategoryRow, TransactionRow } from './types';
 
@@ -10,20 +11,20 @@ import type { CategoryRow, TransactionRow } from './types';
 // neutralisation that makes an exported merchant name safe to open in a
 // spreadsheet — lives in ./csv.ts, which is pure and unit-tested.
 
-async function fetchAllTransactions(): Promise<TransactionRow[]> {
-  const PAGE = 1000;
-  const rows: TransactionRow[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
+// Paging is shared with the dashboard aggregates now (queries.ts). This is
+// where it was first done correctly; `id` was added to the ordering because
+// `occurred_at` + `created_at` can still tie, and a tie is what makes a paged
+// read drop one row and repeat another.
+function fetchAllTransactions(): Promise<TransactionRow[]> {
+  return fetchAllPages<TransactionRow>((from, to) =>
+    supabase
       .from('transactions')
       .select('*')
       .order('occurred_at', { ascending: true, nullsFirst: true })
       .order('created_at', { ascending: true })
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error(error.message);
-    rows.push(...(data ?? []));
-    if (!data || data.length < PAGE) return rows;
-  }
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
 }
 
 /** Export every transaction as CSV: share sheet on device, download on web. */

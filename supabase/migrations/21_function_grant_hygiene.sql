@@ -1,0 +1,91 @@
+-- 21_function_grant_hygiene.sql — three leftovers surfaced by `supabase db
+-- advisors` after the migration 20 deploy (HANDOFF §35).
+--
+-- None of these is exploitable, and the analysis below records *why* so the
+-- next person does not have to redo it. They are fixed because an unnecessary
+-- grant is a fact every future audit has to re-derive, not because anything is
+-- at risk. That is the whole return here: less to reason about.
+--
+-- Read this before "improving" the migration: the advisor's own description of
+-- the first item is wrong about impact, and believing it would send you
+-- chasing a vulnerability that does not exist.
+
+-- ── 1. handle_new_user was executable by anon and authenticated ────────────
+-- The sign-up trigger from 01_schema.sql: SECURITY DEFINER, inserts into
+-- `profiles`. Nobody granted it deliberately — it predates the convention that
+-- every other function in this schema follows (migration 12 revokes the rate
+-- limiters, 20 revokes the two quota triggers, 03/05/11 narrow the rest).
+--
+-- The advisor reports it as "can be executed by the anon role via
+-- /rest/v1/rpc/handle_new_user". **That part is false.** PostgREST does not
+-- expose functions returning `trigger`; calling that path returns
+-- `PGRST202 — no matches were found in the schema cache`, verified against
+-- production 2026-07-31. The grant is real, the route is not.
+--
+-- So this is hygiene, with one forward-looking reason to bother: the grant
+-- outlives the property that makes it harmless. Change the return type, or
+-- wrap it in a callable function, and it becomes live with nothing in the diff
+-- to say so.
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+
+-- ── 2 & 3. Two functions with a mutable search_path ────────────────────────
+-- `touch_updated_at` (01_schema.sql) and `base62_encode` (03_functions_views.sql)
+-- never had `set search_path`. Both are SECURITY INVOKER, so they already run
+-- with the caller's own privileges rather than the owner's.
+--
+-- Neither is attackable in this project, for two independent reasons, both
+-- checked against production rather than assumed:
+--
+--   1. `pg_catalog` is implicitly searched FIRST unless it is named explicitly
+--      in the path. Every call these two make — length, get_byte, substr,
+--      trunc, now, and the numeric operators — resolves there before any
+--      schema an attacker could reach.
+--   2. A search_path attack needs somewhere to plant the shadowing object, and
+--      there is nowhere: `has_schema_privilege('anon','public','CREATE')` and
+--      the same for `authenticated` both return false.
+--
+-- Setting it anyway costs nothing and removes the reasoning above from every
+-- future audit. `= ''` rather than `= 'public'` on purpose: neither function
+-- references a single schema-qualified object, so an empty path is the honest
+-- description of what they need, and it fails loudly if that ever stops being
+-- true.
+--
+-- `base62_encode` is the one to care about of the two. It returns `text`, so
+-- unlike the trigger functions PostgREST *does* route it (an anon call returns
+-- PGRST102 — body rejected — not PGRST202), and it is called from inside
+-- `create_ingest_token`, which is SECURITY DEFINER. Exposed and in the
+-- token-minting path is a combination worth not having to think about again.
+alter function public.touch_updated_at() set search_path = '';
+alter function public.base62_encode(bytea) set search_path = '';
+
+-- ── 4. …and neither should be callable from the API at all ─────────────────
+-- Not flagged by the advisor, which only looks at SECURITY DEFINER functions.
+-- Added because pinning the search_path on an endpoint nobody should be able
+-- to reach is the smaller half of the fix.
+--
+-- `base62_encode` returns `text`, so PostgREST really does route it — an anon
+-- call returns PGRST102 (found it, rejected the body), not PGRST202. It is a
+-- pure encoder that no client has ever needed: every call site is inside
+-- `create_ingest_token`, which is SECURITY DEFINER and therefore executes it
+-- as `postgres` regardless of what anon and authenticated may do. Verified by
+-- grep across apps/, packages/, supabase/ and scripts/ — 03, 13, 15 and 20,
+-- all of them the token minter.
+--
+-- `touch_updated_at` returns `trigger` and so is not routable today; revoked
+-- for the same reason as handle_new_user above, that the grant outlives the
+-- property making it harmless.
+--
+-- Both remain SECURITY INVOKER and both keep firing: a trigger's EXECUTE
+-- privilege is checked at CREATE TRIGGER time, not when it fires. Proven
+-- locally rather than assumed — sign-up through GoTrue still produces its
+-- `profiles` row, `updated_at` still advances on an UPDATE, and
+-- `create_ingest_token` still mints a 46-character token.
+revoke execute on function public.base62_encode(bytea) from public, anon, authenticated;
+revoke execute on function public.touch_updated_at() from public, anon, authenticated;
+
+-- Note for whoever adds the next function: the convention this schema follows
+-- is `security definer` + `set search_path` + an explicit grant to exactly the
+-- role that needs it, and a matching revoke from the ones that do not. After
+-- this migration every function in `public` complies. `supabase db advisors
+-- --type security --linked` is how you check it stayed that way — see
+-- docs/db-advisors.md.

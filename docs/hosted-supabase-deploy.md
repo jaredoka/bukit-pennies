@@ -18,9 +18,37 @@ pnpm exec supabase link --project-ref YOUR_PROJECT_REF
 # Push all migrations
 pnpm exec supabase db push
 
-# Deploy the ingest edge function
-pnpm exec supabase functions deploy ingest
+# Deploy the edge functions
+pnpm exec supabase functions deploy ingest feedback
 ```
+
+If a migration added a constraint as `NOT VALID` (migration 20 does), run its
+`VALIDATE CONSTRAINT` block afterwards — the statements are listed at the foot
+of the migration file. The constraint is already enforced for new writes
+without this; validating additionally proves the existing rows comply, and a
+failure names the row to fix and changes nothing else.
+
+Ad-hoc SQL against the hosted project, without needing a connection string:
+
+```bash
+pnpm exec supabase db query --linked -f path/to/file.sql
+```
+
+### Required after every push: run the advisors
+
+```bash
+pnpm exec supabase db advisors --type security --linked
+```
+
+Three seconds, free. It is the only automatic check that a new table shipped
+with `enable row level security` — and because `04_grants.sql` grants
+`authenticated` full DML on every future table by default, a table without RLS
+is readable and writable by **every signed-up user**.
+
+Compare the output against the baseline in
+[db-advisors.md](db-advisors.md). Anything on that list is a recorded decision;
+anything not on it is new and needs thought. That file also explains why the
+advisor's own text is not always right about impact.
 
 ## 3. Configure auth
 

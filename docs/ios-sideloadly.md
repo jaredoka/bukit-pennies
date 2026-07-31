@@ -45,8 +45,8 @@ ID** via **Sideloadly**, and installed over USB.
 - [ ] App launches; sign-up creates an account; sign-in persists after
       relaunch (session in SecureStore).
 - [ ] Dashboard renders charts with your data.
-- [ ] Capture tab: paste a real Baiduri SMS → preview parses → save →
-      appears in Transactions.
+- [ ] Transactions → **+** → Capture: paste a real Baiduri SMS → preview
+      parses → save → appears in Transactions.
 - [ ] Settings → Capture devices: create an `ios_shortcut` token (shown
       once — keep it for the next step).
 - [ ] Set up the Shortcuts automation per the in-app guide (Settings → iOS

@@ -172,6 +172,7 @@ structure in §8, Sideloadly constraints in §10).
 | 2026-07-31 | Re-parse is guarded by `lib/reparse.ts`, not written inline on the detail screen: it passes the row's own timestamp back as `receivedAt` (BIBD messages carry no date, so re-parsing without one used to blank `occurred_at` and drop the row out of every dashboard query), never overwrites a date it cannot replace, is not offered for `source='manual'`, and asks before overwriting. `test/reparse.test.ts` is the contract. |
 | 2026-07-31 | Whole-period reads page through `fetchAllPages` (§5). `REVIEW_CONFIDENCE_THRESHOLD` moves into `@bukit/parsers` beside the weights, joining `MAX_TEXT_BYTES` as a number the server gate and the client previews cannot state differently. |
 | 2026-07-31 | The Direction (incoming/outgoing) filter is removed rather than fixed — no write path can produce a negative amount, so "Incoming" could only ever return nothing. It returns with refunds, if refunds are ever built. |
+| 2026-07-31 | Review stays off the tab bar (five tabs is the maximum) but is reached from a permanent tray button in the Transactions header and a dashboard banner when `useReviewCount()` is non-zero. **A screen hidden with `href: null` needs an explicit link in the same PR** — `review` and `capture` were both hidden in PR #32 and neither got one. `capture.tsx` is deleted outright: `CaptureSheet` in `transactions/index.tsx` is the reachable copy of the same feature. |
 
 ## 7. Standard procedures
 

@@ -11,7 +11,7 @@ export default function AndroidCapture() {
         <Muted>
           On Android, Bukit Pennies will use a notification listener to capture bank SMS and
           bank-app notifications automatically, with no manual steps per message. This module ships in
-          a later phase; until then, use the Capture tab to paste messages.
+          a later phase; until then, paste messages from Transactions → + → Capture.
         </Muted>
       </Card>
       <Card>

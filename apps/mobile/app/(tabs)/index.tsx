@@ -672,11 +672,6 @@ const useStyles = themedStyles((colors) => ({
   captureBannerText: { flex: 1, fontSize: 13, fontWeight: '600' },
   heroHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   heroActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  currencyPills: { flexDirection: 'row', gap: 4 },
-  currencyPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1, borderColor: colors.border },
-  currencyPillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  currencyPillText: { fontSize: 11, fontWeight: '600', color: colors.muted },
-  currencyPillTextActive: { color: colors.onPrimary },
   periodPill: {
     flexDirection: 'row',
     alignItems: 'center',

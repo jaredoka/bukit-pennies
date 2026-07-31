@@ -33,10 +33,10 @@ select gen_random_uuid(), u.id, u.id::text,
 from auth.users u
 where u.email in ('demo@bukitpennies.test', 'rls@bukitpennies.test');
 
--- ------------------------------------------------------ demo card + device
-insert into public.user_cards (user_id, bank, card_last4, label)
-values ('11111111-1111-1111-1111-111111111111', 'baiduri', '0213', 'Baiduri Visa');
-
+-- ----------------------------------------------------------- demo device
+-- (The demo `user_cards` row went with the table in migration 22 — nothing in
+-- the app ever read it.)
+--
 -- token_hash = sha256 of the dev token above
 insert into public.ingest_devices (user_id, name, kind, token_hash)
 values (

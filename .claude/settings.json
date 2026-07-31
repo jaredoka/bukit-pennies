@@ -6,5 +6,8 @@
       "PowerShell(gh pr create *)",
       "PowerShell(gh pr merge *)"
     ]
+  },
+  "attribution": {
+    "sessionUrl": false
   }
 }

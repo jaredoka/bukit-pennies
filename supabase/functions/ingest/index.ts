@@ -3,6 +3,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
   handleIngest,
+  MAX_TEXT_BYTES,
   type IngestStore,
   type TransactionInsert,
   type TransactionRow,
@@ -126,9 +127,51 @@ function normalizeRow(data: Record<string, unknown>): TransactionRow {
   };
 }
 
+/**
+ * Largest request body we will read, in bytes.
+ *
+ * Twice `MAX_TEXT_BYTES` plus an envelope allowance, not `MAX_TEXT_BYTES + n`:
+ * JSON escaping can double the text's byte count, since every `"`, `\` and
+ * control character serialises to two bytes. A message at exactly the
+ * documented 4 KB limit that happened to be quote-heavy would otherwise be
+ * refused here with 413 instead of being processed — a limit that rejects
+ * input the contract promises to accept is a bug, not a tighter bound. The
+ * 1 KB tail covers `source`, `sender`, `received_at` and the punctuation.
+ *
+ * A real capture is a fraction of this; the point is only that it is
+ * kilobytes rather than whatever the platform would otherwise allow.
+ */
+const MAX_BODY_BYTES = MAX_TEXT_BYTES * 2 + 1024;
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {
     return Response.json({ status: 'error', error: 'method_not_allowed' }, { status: 405 });
+  }
+
+  // Ingress bound, BEFORE the body is read. `verify_jwt = false` on this
+  // function, so everything below this line is reachable by anyone who can
+  // resolve the hostname — and the rate limits cannot help, because both
+  // budgets live in `resolveDevice`, which runs after the parse they would be
+  // protecting. Without this, a peer with no token at all could make us
+  // materialise a multi-megabyte body per request for free.
+  //
+  // A missing or unparseable Content-Length is refused rather than allowed
+  // through: both `fetch` and the iOS Shortcut set it for a JSON body, and a
+  // chunked request is the one shape that could stream past a length check.
+  const declaredBytes = Number(req.headers.get('content-length'));
+  if (!Number.isFinite(declaredBytes) || declaredBytes <= 0 || declaredBytes > MAX_BODY_BYTES) {
+    // Cancel the stream before responding. Returning a response while an
+    // unread body is still arriving makes the runtime log "user body write
+    // aborted" and drop the connection, so the caller sees a hang or a 504
+    // instead of this 413 — verified against the local edge runtime. Cancel
+    // discards the remainder without materialising it, which is the whole
+    // point of rejecting here.
+    try {
+      await req.body?.cancel();
+    } catch {
+      // Peer already gone; the response below is best-effort either way.
+    }
+    return Response.json({ status: 'error', error: 'payload_too_large' }, { status: 413 });
   }
 
   let body: unknown = null;

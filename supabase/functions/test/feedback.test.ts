@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  AREAS,
   MAX_DESCRIPTION,
   feedbackEmail,
   handleFeedback,
@@ -63,12 +64,32 @@ describe('parseFeedback', () => {
     expect(parsed.ok && parsed.value.area).toBe(null);
   });
 
+  it('accepts every area the picker can produce', () => {
+    for (const area of AREAS) {
+      const parsed = parseFeedback({ ...FEATURE, area });
+      expect(parsed.ok && parsed.value.area).toBe(area);
+    }
+  });
+
+  // The area reaches the subject line of an outgoing email, so an off-list
+  // value is dropped rather than passed through. Dropped, not rejected: the
+  // description is what matters and must never be lost over its label.
+  it.each([
+    ['a newline (header injection attempt)', 'Insights\r\nBcc: victim@example.com'],
+    ['an off-list label', 'Something I made up'],
+    ['an oversized label', 'x'.repeat(500)],
+  ])('drops an area carrying %s, keeping the submission', (_label, area) => {
+    const parsed = parseFeedback({ ...FEATURE, area });
+    expect(parsed.ok).toBe(true);
+    expect(parsed.ok && parsed.value.area).toBe(null);
+    expect(parsed.ok && parsed.value.description).toBe('Show a yearly chart.');
+  });
+
   it.each([
     ['non-object body', 'not an object', 'invalid_body'],
     ['unknown kind', { ...BUG, kind: 'praise' }, 'invalid_kind'],
     ['missing description', { ...BUG, description: '   ' }, 'description_required'],
     ['oversized description', { ...BUG, description: 'x'.repeat(MAX_DESCRIPTION + 1) }, 'description_too_long'],
-    ['oversized area', { ...FEATURE, area: 'x'.repeat(65) }, 'area_too_long'],
   ])('rejects %s', (_label, body, error) => {
     expect(parseFeedback(body)).toEqual({ ok: false, error });
   });
@@ -93,6 +114,18 @@ describe('feedbackEmail', () => {
     const parsed = parseFeedback(BUG);
     const mail = feedbackEmail((parsed as { ok: true; value: FeedbackSubmission }).value);
     expect(mail.subject).toBe('[Bukit Pennies] Bug report');
+  });
+
+  // The end-to-end property the allowlist exists for: whatever a caller sends,
+  // the subject line is single-line. Asserted on the subject rather than on
+  // the parser so it keeps holding if the headline is ever rebuilt.
+  it('never puts a line break in the subject, whatever the caller sends', () => {
+    for (const area of ['Insights\nBcc: x@y.z', 'Insights\r\nSubject: spam', '\n\n\n']) {
+      const parsed = parseFeedback({ ...FEATURE, area });
+      const mail = feedbackEmail((parsed as { ok: true; value: FeedbackSubmission }).value);
+      expect(mail.subject).toBe('[Bukit Pennies] Feature request');
+      expect(mail.subject).not.toMatch(/[\r\n]/);
+    }
   });
 });
 

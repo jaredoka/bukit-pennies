@@ -2353,3 +2353,198 @@ the cause.
 
 Typecheck clean, 138 tests pass, entry editing proven in SQL. The UI itself was
 exercised by the owner against the local stack, not by an agent.
+
+---
+
+## 35. Third security pass (2026-07-31) — the bounds nobody set
+
+§18 audited RLS, the ingest function, auth flows and token storage. §23 covered
+the anonymous surface as deployed, the limiter's arithmetic, and parser
+behaviour on hostile input. §24 fixed the `anon` grants. Every one of them
+asked **who may write this row**. None asked **how big the row may be**, and
+none went back over the surfaces added after them: `feature_requests`
+(migration 16), the `feedback` function (§27), `savings_goal_entries`
+(migration 19).
+
+This pass is migration 20 plus two edge-function changes. A second PR carries
+the client-side fixes; they are separate because **there is no OTA channel —
+`expo-updates` is not a dependency**, so every client fix waits for a new
+binary while everything here deploys in minutes. That asymmetry is worth
+remembering when triaging anything security-related from now on: prefer the
+server-side fix when both are available.
+
+### The application layer was stating rules the database did not enforce
+
+That is the shape of four of the five findings, and it is worth naming because
+it predicts where the next one will be.
+
+**Text columns had no length bound at all.** `04_grants.sql` gives
+`authenticated` direct INSERT on every table, so every cap living in
+application code is reachable around it: the ingest function's 4 KB
+`MAX_TEXT_BYTES` and the feedback function's 4,000-character `MAX_DESCRIPTION`
+are both bypassed by a plain PostgREST insert with the app's own anon key and
+any signed-in session. One account could fill the 500 MB free-tier database
+(§16.5) a `notes` field at a time. `18_subscriptions.sql` already does this
+right — `check (length(btrim(name)) between 1 and 80)`. The pattern was known;
+it was just never applied to the tables that predate it.
+
+All constraints are added `NOT VALID`, and that is not a hedge: a `NOT VALID`
+check constraint is **fully enforced on INSERT and UPDATE** from the moment it
+exists. What it skips is the scan proving existing rows comply — the part that
+could fail a deploy or lock live data for no security gain. The `VALIDATE`
+statements are listed at the foot of migration 20 to run separately.
+
+**`/feedback` had no quota of any kind.** `/ingest` got a durable Postgres
+limiter across migrations 12 and 13 after two rounds of analysis; the feedback
+function shipped two days ago with none. Signup is free, and §23 already
+established that "needs an account" is not a control here. The quota lives in
+Postgres as a `before insert` trigger rather than in the function, for three
+reasons: `feedback/index.ts` deliberately holds no service-role key, so calling
+a service_role-only limiter would give that property up; the insert happens
+*before* the email, so bounding the row bounds Resend for free; and a trigger
+also binds the direct-PostgREST path the function cannot see. 5/hour, 20/day.
+`SECURITY DEFINER` is required, not decorative — both tables are insert-only by
+design, so an invoker-rights function would count zero rows every time and the
+quota would never fire.
+
+**A goal entry could name a goal the caller does not own.** Migration 19's
+insert policy checks `user_id = auth.uid()` and nothing else; `goal_id` was
+constrained only by its foreign key to `savings_goals` — to the table, not to
+the caller's rows in it. Contained today (both readers are RLS-scoped, so the
+rows are orphans only their author sees), but it is a valid/invalid oracle for
+goal UUIDs and it stops being contained the moment anything sums entries
+without joining back through `savings_goals` — which is exactly what migration
+19 exists to encourage.
+
+**"Remove is only for revoked devices" was a UI claim.** §19 decided removal is
+offered only on already-revoked devices because `last_seen_at` on a revoked
+token is the evidence of when it was last used. The devices screen honours it;
+`02_rls.sql`'s delete policy never did.
+
+### The ingest body was read before anything checked it
+
+`index.ts` called `await req.json()` before `handleIngest`, which is where both
+rate-limit budgets live. `verify_jwt = false` on this function, so an
+unauthenticated peer could make us materialise and parse a multi-megabyte body
+per request, and the peer budget could not help — it is evaluated *after* the
+parse it would be protecting. A `content-length` gate now runs first.
+
+Two things that had to be got right, both found by testing rather than by
+reading:
+
+1. **Cancel the stream before responding.** Returning a response while an
+   unread body is still arriving makes the runtime log `user body write
+   aborted` and drop the connection, so the caller sees a hang or a 504 instead
+   of the 413. `await req.body?.cancel()` fixes it.
+2. **The limit is `MAX_TEXT_BYTES * 2 + 1024`, not `+ 1024`.** JSON escaping
+   can double the text's byte count — every `"`, `\` and control character
+   serialises to two bytes. The first version rejected a message at exactly the
+   documented 4 KB limit if it was quote-heavy. A limit that refuses input the
+   contract promises to accept is a bug, not a tighter bound.
+
+A missing or unparseable `Content-Length` is refused rather than allowed
+through: `fetch` and the Shortcut both set it for a JSON body, and chunked is
+the one shape that could stream past a length check.
+
+### The feedback area is an allowlist now
+
+`area` is the one piece of caller-supplied text reaching the **subject line**
+of an outgoing email. `parseFeedback` only trimmed and length-capped it, so CR
+and LF survived, and whether a newline in a subject becomes a header injection
+then depends entirely on how Resend sanitises the field — not a guarantee this
+code gets to make on someone else's behalf. The client can only ever send one
+of six literals, so only those six are accepted. An off-list value is
+**dropped, not rejected**: the description is what matters and must never be
+lost over its label.
+
+### Verified
+
+Migrations 01–20 applied clean on a full `supabase db reset`, then fifteen
+checks run against local Postgres as the two seeded users — all GOOD:
+
+- Normal rows still insert; 201-char merchant, 2001-char notes, 4097-char
+  `raw_text`, malformed `card_last4` and a free-text goal currency all refused.
+- Entry on own goal accepted; the cross-account entry refused by RLS **and**
+  re-pointing an owned entry at another user's goal refused by the `with check`.
+- Active device not deletable, revoked device deletable (so removal still works).
+- 81-char device name refused, ordinary name still works.
+- Feedback quota: 5 accepted, 2 refused out of 7.
+- A 4001-char description straight to the table refused — the path that
+  bypasses the edge function entirely.
+- Regression: user A still sees 0 of user B's transactions.
+
+Against the local edge runtime, after a clean stack restart:
+
+| body | result |
+|---|---|
+| 4 KB of `"` (8,220-byte body) | `200` — the escaping case that broke the first attempt |
+| 4,096-char text | `200` |
+| 4,097-char text | `422 text_too_large` |
+| 9,000-char text | `422 text_too_large` |
+| 10 KB / 25 KB / 40 KB / 50 KB body | `413 payload_too_large`, ~8 ms, no parse |
+
+Typecheck clean; 142 tests pass (feedback gained 4).
+
+### Not verified
+
+**The 413 is only delivered cleanly up to ~50 KB.** At 200 KB and above the
+local stack leaves the connection to time out instead of returning the
+response — the ordinary HTTP/1.1 outcome when a server stops reading while the
+client is still writing. The security property still holds and was confirmed:
+the body is never materialised or parsed, no database round trip happens, and
+**the worker stays healthy** (a normal request immediately afterwards returns
+200). Production sits behind Cloudflare and Kong, which buffer the request
+before the function sees it, so it may well return the 413 cleanly at any
+size — that is a guess, and it is written here as one. Do not "fix" this by
+removing the gate.
+
+Nothing in this pass was exercised against the hosted project; that is the
+owner action below.
+
+### Deliberately not fixed
+
+Two findings were raised and closed as accepted risks by owner decision
+(2026-07-31). Recorded here so they are decisions rather than oversights.
+
+**Account deletion and password change require no reauthentication.**
+`delete_account()` checks only that `auth.uid()` is not null; the "type DELETE
+to confirm" gate is a `disabled` prop on a button, i.e. a client-side check on
+an irreversible cascading delete. Anyone holding a valid JWT can call the RPC
+directly. `updateUser({ password })` has the same shape — a session takeover
+converts straight into permanent account takeover. Accepted because Sign in
+with Apple is planned for the TestFlight stage (§18) and removes the password
+from this flow for most users, making reauthentication work that would be
+rebuilt. **If Sign in with Apple slips, this should be reopened.** The
+server-enforceable version, for whoever does: `delete_account()` can require a
+recent authentication itself by checking the JWT's `amr` timestamps —
+
+```sql
+if not exists (
+  select 1 from jsonb_array_elements(coalesce(auth.jwt() -> 'amr', '[]'::jsonb)) a
+  where (a ->> 'timestamp')::bigint > extract(epoch from now()) - 300
+) then raise exception 'reauthentication required'; end if;
+```
+
+A token refresh does not add an `amr` entry, so that genuinely means "signed in
+within the last five minutes" and holds against a stolen JWT.
+
+**Capture accepts a bank-format SMS from any sender.** Step 4 of the setup
+guide tells users to leave "Sender" empty, and `handler.ts` treats `sender` as
+a parser hint only. Anyone who knows a user's phone number can write arbitrary
+rows into their financial history. This is also the delivery vector for the
+CSV-injection finding fixed in the client PR. Accepted: the per-bank automation
+is what makes capture survive a card replacement, fixing the CSV sink removes
+the sharp edge, and the residual harm is junk transactions the user can delete.
+**It is a security decision, not just a setup instruction** — that is why it is
+recorded here and not only in `shortcut-setup.tsx`.
+
+### Owner action at merge
+
+1. `supabase db push` for migration 20, then run the `VALIDATE CONSTRAINT`
+   block at the foot of that file — a failure names the row to fix and changes
+   nothing else.
+2. `supabase functions deploy ingest feedback`. Both changed.
+3. Re-run §23's logged-out probe set. It remains the cheapest regression test
+   this project has.
+4. Confirm against production what the local stack could not: that an oversized
+   body returns 413 rather than hanging, and that the feedback quota fires.

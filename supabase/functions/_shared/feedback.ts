@@ -22,9 +22,28 @@ export interface FeedbackSubmission {
 
 /** Client-side caps mirror these; the server is the one that counts. */
 export const MAX_DESCRIPTION = 4000;
-export const MAX_AREA = 64;
 export const MAX_APP_VERSION = 32;
 export const MAX_SHORT_ID = 32;
+
+/**
+ * The six labels the feature-request picker offers (`feature-request.tsx`).
+ *
+ * An allowlist rather than a length check, because `area` is the one piece of
+ * caller-supplied text that reaches the *subject line* of an outgoing email
+ * (see `feedbackEmail`). Trimming leaves CR and LF intact, and whether a
+ * newline in a subject becomes a header injection then depends entirely on how
+ * Resend sanitises the field — which is not a guarantee this code gets to make
+ * on someone else's behalf. Since the client can only ever send one of six
+ * literals, accepting only those six removes the question.
+ */
+export const AREAS = [
+  'Capture',
+  'Transactions',
+  'Budgets & goals',
+  'Insights',
+  'Notifications',
+  'Something else',
+] as const;
 
 export type ParsedFeedback =
   | { ok: true; value: FeedbackSubmission }
@@ -51,10 +70,11 @@ export function parseFeedback(body: unknown): ParsedFeedback {
   const shortId = str(b.short_id) ?? '';
   if (shortId.length > MAX_SHORT_ID) return { ok: false, error: 'short_id_too_long' };
 
-  // Bug reports have no area; a feature request without one is still accepted
-  // rather than rejected — losing the request over a missing label is worse.
-  const area = kind === 'feature' ? str(b.area) : null;
-  if (area && area.length > MAX_AREA) return { ok: false, error: 'area_too_long' };
+  // Bug reports have no area; a feature request whose area is missing or
+  // unrecognised is still accepted, with the label dropped — losing somebody's
+  // request over a bad label is worse than filing it as Unspecified.
+  const rawArea = kind === 'feature' ? str(b.area) : null;
+  const area = rawArea && (AREAS as readonly string[]).includes(rawArea) ? rawArea : null;
 
   return { ok: true, value: { kind, shortId, appVersion, area, description } };
 }

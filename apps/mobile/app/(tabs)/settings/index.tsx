@@ -51,7 +51,7 @@ export default function Settings() {
           href="/(tabs)/settings/capture"
           icon="clipboard"
           label="Capture"
-          note="Devices, iOS Shortcut, Android listener"
+          note="Devices and capture setup"
         />
         <NavRow
           inset

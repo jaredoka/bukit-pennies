@@ -1,4 +1,4 @@
-import { ScrollView } from 'react-native';
+import { Platform, ScrollView } from 'react-native';
 import { Card, NavRow, Title } from '@/components/ui';
 import { themedStyles } from '@/lib/theme';
 
@@ -21,12 +21,22 @@ export default function Capture() {
           label="iOS Shortcut setup"
           note="Near-automatic capture of bank SMS on iPhone"
         />
-        <NavRow
-          href="/(tabs)/settings/android-capture"
-          icon="logo-android"
-          label="Android capture"
-          note="Notification listener (coming in a later phase)"
-        />
+        {/* Android only. The listener module is designed (HANDOFF §9) but
+            deferred until after iOS testing, so on iPhone this row was a
+            settings entry promising a feature the device will never run — and
+            placeholder "coming in a later phase" content is exactly what App
+            Review objects to. The screen stays routable (its Stack.Screen is
+            still declared) because it becomes reachable on its own the moment
+            an Android build ships; this is a platform gate, not the orphaned
+            `href: null` mistake that stranded Review. */}
+        {Platform.OS === 'android' ? (
+          <NavRow
+            href="/(tabs)/settings/android-capture"
+            icon="logo-android"
+            label="Android capture"
+            note="Automatic capture from bank notifications"
+          />
+        ) : null}
       </Card>
     </ScrollView>
   );

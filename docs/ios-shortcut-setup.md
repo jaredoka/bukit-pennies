@@ -33,7 +33,7 @@ never open the shortcut editor.
    picker cannot select them; the Message Contains filter does the work. Set
    **Message Contains** from the per-card template below, choose **Run
    Immediately** if offered, and set the action to **Run Shortcut → Bukit
-   Pennies Capture**.
+   Pennies**.
 
    | Bank | Message Contains template | Example |
    |---|---|---|

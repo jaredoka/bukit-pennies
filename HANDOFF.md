@@ -337,8 +337,10 @@ State reached during on-device testing:
   `SHORTCUT_DOWNLOAD_URL` (`apps/mobile/src/lib/env.ts`) —
   `https://www.icloud.com/shortcuts/92fe37ee63e04a4785d69517f0c1635e`
   (self-configuring rebuild, shared 2026-07-19).
-  `scripts/build-shortcut.mjs` + the `ios-shortcut.yml` workflow remain for
-  reference/if Apple ever unblocks CI signing.
+  **Superseded 2026-07-31 — see §37 for the current link and name.**
+  `scripts/build-shortcut.mjs` + the `ios-shortcut.yml` workflow remained for
+  reference/if Apple ever unblocks CI signing — **both deleted 2026-07-31,
+  see §37.**
 - **Self-configuring shortcut (2026-07-19):** the shortcut was redesigned to
   store its own token (`Bukit Pennies/token.txt` in iCloud Drive) instead of
   a hardcoded `PASTE-YOUR-TOKEN-HERE` edit. The app hands the token over via
@@ -462,8 +464,9 @@ trend/insight screens, no widgets, no shared/household budgets.
    key, Apple Team ID, ASC App ID) and **`docs/testflight-deploy.md` is
    the step-by-step runbook** (build → TestFlight → on-device test
    checklist → App Store review notes → share extension later).
-   Shortcut download link live (self-configuring rebuild):
-   `https://www.icloud.com/shortcuts/92fe37ee63e04a4785d69517f0c1635e`.
+   Shortcut download link live (self-configuring rebuild, relinked
+   2026-07-31 — §37):
+   `https://www.icloud.com/shortcuts/e639f5c27dd34f1191a81eeaa80ea27e`.
 
    **iOS build facts (recorded 2026-07-19):** IPAs cannot be built on
    Windows (Xcode/macOS only). Path of record is **EAS cloud builds**
@@ -1184,6 +1187,11 @@ Settings → Capture entry carry the prompt.
 a non-technical user, pictures or a 30-second screen recording of the step-4
 automation is worth more to completion than everything above. **Owner is
 providing them**; wire them in when they arrive.
+
+**Update 2026-07-31 (§37):** the screen was deleted — every slot was still a
+placeholder, so the button promised pictures and delivered seven empty boxes.
+The lever itself is unchanged and still the highest-value onboarding work;
+what is gone is the empty shell that was standing in for it.
 
 Related, from §17's post-launch watch: the funnel is measurable from the
 database alone — accounts created vs. `ingest_devices` rows created vs. tokens
@@ -2759,4 +2767,193 @@ two of the four changes touch things that would fail *silently* if wrong:
   now `search_path = ''` and revoked from the API roles).
 - The full `pg_proc` table shows every function with a pinned `search_path`,
   and `anon_exec = false` on all eleven.
+
+---
+
+## 36. Deleting the app now signs you out (2026-07-31)
+
+Branch `fresh-install-signs-out`. Found in the field: the owner deleted the app,
+sideloaded the new IPA, and landed straight on the dashboard still signed in.
+
+### It is standard iOS behaviour, and that is the problem
+
+iOS wipes an app's **container** on delete — Documents, Library, Caches,
+`NSUserDefaults` — and leaves the **Keychain** alone. Apple tried changing this
+in an iOS 10.3 beta and reverted it before release; persistence has been the
+behaviour ever since. `supabase.ts` gives supabase-js an `expo-secure-store`
+adapter with `persistSession`, so the refresh token lands in the Keychain and
+outlives the app. Reinstall, and `getSession()` finds a live token.
+
+So: not a bug, and plenty of apps keep it. It is still wrong **here**. Deleting
+the app is the gesture most people use to mean *my spending history is off this
+phone*, and the failure case — sell, lend or hand over a handset, the next
+person reinstalls, and the dashboard opens on someone else's money — is the
+exact trust story this product is sold on. A fresh install starts signed out.
+
+This is the same class as §18 SEC-1 and the theme reset in §28: Keychain
+survival quietly making device-local state outlive the thing it belongs to.
+
+### Why it lives in the storage adapter and not in `SessionProvider`
+
+The obvious shape is an effect that calls `supabase.auth.signOut()` on a fresh
+install. Both reasons it was rejected are worth keeping, because they are the
+kind of thing a later "simplification" walks straight back into:
+
+- **Ordering.** The GoTrue client reads storage *while `createClient` is still
+  running*. An effect signing out afterwards is racing a session that is already
+  in memory and will be re-persisted on the next refresh. Everything supabase-js
+  reads goes through the adapter, so there is no race to lose.
+- **The network.** `signOut` calls the logout endpoint **even at
+  `scope: 'local'`**, and on any error that is not 401/403/404 it returns early
+  *without* clearing local state. A fresh install with no signal would have
+  stayed signed in — and permanently, because the marker is consumed on that
+  same launch and never reports `true` again. Deleting the value needs no round
+  trip and cannot fail open.
+
+`readAuthKey` purges each auth key once per process, on first read. The
+`purgedKeys` set is load-bearing in the other direction too: without it the
+purge would fire on every read, and the read after sign-in would delete the
+session just written. `setItem` marks the key as well — a value written this
+session is this session's.
+
+What this guarantees is that the credential is **gone from the handset**. The
+refresh token stays valid server-side until it expires; revoking it needs the
+network call this deliberately avoids.
+
+### `isFreshInstall()` was first-caller-wins
+
+Detection *creates* the marker, so it answers `true` exactly once per install.
+`ThemeProvider` already called it — and it is a **child** of `SessionProvider`,
+so React's bottom-up effect order would have handed the theme the only `true`
+and left the session check believing every launch was an update. The sign-out
+would have silently never happened, on a device, with green tests.
+
+`createFreshInstallGate` memoises the *promise* (not the resolved value, so
+concurrent callers share one detection) and `isFreshInstall` is now the gated
+singleton. **Any future caller must go through it.** Five cases in
+`test/installMarker.test.ts` cover the memoisation; the detector itself needs
+expo-file-system and stays untested, which is why it is a separate function.
+
+### What is deliberately *not* cleared
+
+The ingest token (`bukit.ingest_token.<uid>`). Capture runs independently of the
+app — the Shortcut POSTs on its own and holds its own copy in iCloud Drive — so
+clearing it would break capture for a user who did nothing but reinstall, and
+they would have no way to connect the two. It has been user-scoped since SEC-1,
+so it cannot cross accounts. A token belonging to a previous owner of the phone
+is unreadable by any other account and revocable from Settings > Capture.
+
+### Scope, and what this does not cover
+
+Offloading an app keeps the data container, so the marker survives and the user
+stays signed in — correct, offload is not a deletion of intent. Same for
+updates, and for a restore from backup (the marker comes back with the
+container). Only a real delete-and-reinstall signs out.
+
+Not covered: someone holding an unlocked phone with the app still installed.
+That is an app lock (Face ID on launch), considered and deferred as a separate
+piece of work — it does not remove the stale token from the Keychain, so it is
+an addition to this, not an alternative.
+
+One cost worth remembering during sideload testing: re-signing over the top of
+the existing install keeps the container and the session, but a delete-first
+cycle now means signing in again. That matters more than it sounds while reset
+emails still land in spam (§15, Gmail SMTP).
+
+### Verification status
+
+`pnpm -r test` (167) and `pnpm -r typecheck` green. **Device behaviour is not
+yet verified** — Node tests cover the gate's memoisation and nothing else. Still
+to check on the phone:
+
+- Delete, reinstall, launch → the landing screen, not the dashboard.
+- Sign in, force-quit, relaunch → still signed in (the purge must not re-fire).
+- Install the next build *over* the top → still signed in.
+- After a fresh install and sign-in, capture still works without redoing the
+  Shortcut setup.
+
+---
+
+## 37. The shortcut is called "Bukit Pennies" now (2026-07-31)
+
+The owner rebuilt and re-shared the capture shortcut under the shorter name
+**`Bukit Pennies`** (was `Bukit Pennies Capture`). New iCloud link:
+
+```
+https://www.icloud.com/shortcuts/e639f5c27dd34f1191a81eeaa80ea27e
+```
+
+`SHORTCUT_DOWNLOAD_URL` in `apps/mobile/src/lib/env.ts` points at it. The old
+link is superseded; the §15 and §16.4 entries carrying it now say so.
+
+### The rename broke Step 3, silently
+
+"Send the token to the Shortcut" opens
+`shortcuts://run-shortcut?name=Bukit%20Pennies%20Capture`, and that name was a
+string literal at the call site. Renaming the shortcut left the deep link
+pointing at something that no longer exists, so the token went to a shortcut
+called `Bukit Pennies Capture` — the owner saw this on-device before the link
+was even updated.
+
+**How it fails is the reason to care.** iOS does not report an unresolvable
+`run-shortcut` name; it opens the Shortcuts app and nothing runs. There is no
+error for the user to act on and nothing for the app to catch, so the only
+symptom is capture quietly never working, on the one screen where a new user
+has least ability to tell setup from breakage. §17's onboarding-funnel watch
+would have shown this as tokens created but `last_seen_at` staying null —
+i.e. indistinguishable from ordinary drop-off.
+
+### The name is one constant now
+
+`SHORTCUT_NAME` sits beside `SHORTCUT_DOWNLOAD_URL` in `env.ts` — the two must
+be republished together, so they belong together. It feeds the deep link *and*
+every on-screen mention: setup Step 4's action list and the "Allow … to send 1
+text item" note. Those were separate literals, so before this the instructions
+could drift from the link, or from each other, one edit at a time.
+
+`docs/shortcut-authoring.md` states the rename rule at the point where the
+shortcut is named, and again under Publish.
+
+### Two dead shortcut builders, deleted
+
+`scripts/build-shortcut.mjs` and `.github/workflows/ios-shortcut.yml` are gone.
+The first pass on this left them alone on the grounds that a stale name marks
+them as belonging to the old design — a weak argument, and the wrong shape of
+one in a change whose whole point was removing that kind of drift.
+
+They were dead twice over:
+
+- **They cannot run.** The workflow signs with `shortcuts sign` on a macOS
+  runner, and §15 records that this needs an iCloud login on every GitHub
+  runner. It has never produced an artifact and cannot.
+- **They build the wrong thing.** `build-shortcut.mjs` bakes in
+  `PASTE-YOUR-TOKEN-HERE` — the hardcoded-token design superseded on
+  2026-07-19 by the self-configuring shortcut. The app links to the owner's
+  iCloud link, not to the GitHub release these publish to.
+
+Reviving them means rewriting `build-shortcut.mjs` for the self-configuring
+design *and* solving the signing problem that killed them. Neither gets easier
+for the files having sat in the tree. §15 keeps the record of why they existed
+and git keeps the code.
+
+### The visual guide is gone too
+
+`settings/shortcut-visual-guide.tsx`, its route in `settings/_layout.tsx`, and
+the "Prefer pictures? Open the visual guide" button in Step 4. Every one of its
+seven slots still rendered "Screenshot coming soon", so the button promised
+pictures and delivered seven empty dashed boxes — worse than not offering it,
+on the screen §22 identifies as where onboarding is won or lost.
+
+**This does not close §22's "still open — the real lever".** Screenshots or a
+30-second recording of the step-4 automation remain the highest-value
+onboarding work there is; what was deleted is the empty shell standing in for
+them, not the plan. When they arrive, the scaffold is one `git show` away.
+
+### Not verified
+
+The link and the name are the owner's; neither the download nor the token
+handoff has been exercised from a build carrying this change. On the phone:
+download from Step 2 adds a shortcut named `Bukit Pennies`, and Step 3 lands on
+the "Connected. Capture is ready." notification rather than opening Shortcuts
+and stopping.
 

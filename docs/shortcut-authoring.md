@@ -1,4 +1,4 @@
-# Authoring the self-configuring "Bukit Pennies Capture" shortcut
+# Authoring the self-configuring "Bukit Pennies" shortcut
 
 Owner-only runbook. CI cannot sign shortcut files (`shortcuts sign` needs an
 iCloud login — HANDOFF §15), so the shortcut is built by hand on the owner's
@@ -24,8 +24,16 @@ A bank SMS can never start with `bp_`, so prefix-sniffing the input is safe.
 
 ## Build it (Shortcuts app, exact action order)
 
-Create a new shortcut named exactly **`Bukit Pennies Capture`** (the app's
-deep link targets this name — do not rename).
+Create a new shortcut named exactly **`Bukit Pennies`** — the value of
+`SHORTCUT_NAME` in `apps/mobile/src/lib/env.ts`.
+
+**Renaming the shortcut is a breaking change.** Step 3's token handoff is a
+`shortcuts://run-shortcut?name=` deep link, which matches on this string, so a
+rename that does not update `SHORTCUT_NAME` sends the token to a shortcut that
+no longer exists: iOS opens the Shortcuts app, nothing runs, and the user gets
+no error to act on. That is exactly how it broke when the shortcut was
+shortened from `Bukit Pennies Capture` (2026-07-31). Rename in both places or
+neither, and republish (the name is baked into the shared iCloud link too).
 
 1. **If** — Input: **Shortcut Input** · Condition: **begins with** · text: `bp_`
 
@@ -121,6 +129,8 @@ saved). Check, in order:
 
 Shortcuts app → long-press the shortcut → **Share** → **Copy iCloud Link**,
 then update `SHORTCUT_DOWNLOAD_URL` in `apps/mobile/src/lib/env.ts` and the
-link references in `docs/ios-shortcut-setup.md` / HANDOFF §16. The old link
-keeps working for existing users; the new shortcut is backward-compatible
-(same ingest contract).
+link references in `docs/ios-shortcut-setup.md` / HANDOFF §16. If the name
+changed, update `SHORTCUT_NAME` in the same file — every on-screen mention of
+the name reads from that constant, so the app's instructions and its deep link
+move together. The old link keeps working for existing users; the new shortcut
+is backward-compatible (same ingest contract).

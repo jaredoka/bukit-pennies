@@ -587,7 +587,11 @@ export default function TransactionsList() {
               >
                 <Ionicons name="file-tray-full-outline" size={24} color={colors.primary} />
                 {(reviewCount.data ?? 0) > 0 ? (
-                  <View style={[styles.headerDot, { borderColor: colors.card }]} />
+                  <View style={[styles.headerBadge, { borderColor: colors.card }]}>
+                    <Text style={styles.headerBadgeText}>
+                      {reviewCount.data! > 99 ? '99+' : reviewCount.data}
+                    </Text>
+                  </View>
                 ) : null}
               </Pressable>
               <Pressable hitSlop={8} onPress={() => setShowAdd(true)} accessibilityLabel="Add transaction">
@@ -919,17 +923,29 @@ function TxRow({ tx }: { tx: TransactionRow }) {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  // Sits on the tray icon's upper-right. The ring in `card` is what keeps it
-  // legible where the dot and the icon overlap.
-  headerDot: {
+  // Count badge on the tray icon's upper-right, the shape Mail uses. `minWidth`
+  // with horizontal padding keeps one digit circular and lets two or three
+  // widen into a pill rather than clipping; the ring in `card` keeps it legible
+  // where it overlaps the icon.
+  headerBadge: {
     position: 'absolute',
-    top: -1,
-    right: -2,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    top: -5,
+    right: -9,
+    minWidth: 17,
+    height: 17,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1.5,
     backgroundColor: colors.danger,
+  },
+  headerBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'] as const,
+    includeFontPadding: false,
   },
   stickyHeader: {
     backgroundColor: colors.bg,

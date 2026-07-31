@@ -47,6 +47,12 @@ import {
 } from '@/lib/onboarding';
 import { usePrivacy } from '@/lib/privacy';
 import { usePrimaryCurrency } from '@/lib/primaryCurrency';
+import {
+  getReviewDismissal,
+  reconcileDismissal,
+  setReviewDismissal,
+  shouldShowReviewBanner,
+} from '@/lib/reviewBanner';
 import { detectRecurring } from '@/lib/recurring';
 import { useSession } from '@/lib/session';
 import {
@@ -181,6 +187,42 @@ export default function Dashboard() {
     if (!userId) return;
     getReminderPrefs(userId).then(setReminderPrefs);
   }, [userId]);
+
+  // ---- Review banner ------------------------------------------------------
+  // null = not read back yet, so the banner never flashes on before we know
+  // whether it was already dismissed.
+  const [reviewDismissedAt, setReviewDismissedAt] = useState<number | null>(null);
+  const reviewTotal = reviewCount.data ?? 0;
+
+  useEffect(() => {
+    if (!userId) return;
+    let live = true;
+    void (async () => {
+      const stored = await getReviewDismissal(userId);
+      if (live) setReviewDismissedAt(stored);
+    })();
+    return () => {
+      live = false;
+    };
+  }, [userId]);
+
+  // The watermark follows the queue down; see lib/reviewBanner.ts.
+  useEffect(() => {
+    if (!userId || reviewDismissedAt === null) return;
+    const next = reconcileDismissal(reviewTotal, reviewDismissedAt);
+    if (next !== reviewDismissedAt) {
+      setReviewDismissedAt(next);
+      void setReviewDismissal(userId, next);
+    }
+  }, [userId, reviewTotal, reviewDismissedAt]);
+
+  const showReviewBanner =
+    reviewDismissedAt !== null && shouldShowReviewBanner(reviewTotal, reviewDismissedAt);
+
+  async function dismissReviewBanner() {
+    setReviewDismissedAt(reviewTotal);
+    if (userId) await setReviewDismissal(userId, reviewTotal);
+  }
 
   const thisMonthData = monthly.data?.find(
     (r) => r.month.startsWith(thisMonthKey.slice(0, 7)) && r.currency === primaryCurrency,
@@ -371,28 +413,41 @@ export default function Dashboard() {
            Shown only when there is something to do. Below the capture prompt on
            purpose: a user who has not set capture up yet has nothing in the
            inbox anyway. */}
-      {(reviewCount.data ?? 0) > 0 ? (
-        <Pressable
+      {showReviewBanner ? (
+        <View
           style={[
             styles.captureBanner,
             { backgroundColor: colors.warning + '18', borderColor: colors.warning + '40' },
           ]}
-          onPress={() => router.push('/(tabs)/review')}
-          accessibilityLabel={`${reviewCount.data} waiting in the review inbox`}
         >
-          <Ionicons name="file-tray-full-outline" size={15} color={colors.warning} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.captureBannerText, { color: colors.warning }]}>
-              {reviewCount.data === 1
-                ? '1 transaction needs review'
-                : `${reviewCount.data} transactions need review`}
-            </Text>
-            <Text style={[styles.captureBannerSub, { color: colors.warning }]}>
-              Amounts the parser was unsure of, and possible duplicates
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={14} color={colors.warning} />
-        </Pressable>
+          <Pressable
+            style={styles.captureBannerMain}
+            onPress={() => router.push('/(tabs)/review')}
+            accessibilityLabel={`${reviewTotal} waiting in the review inbox`}
+          >
+            <Ionicons name="file-tray-full-outline" size={15} color={colors.warning} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.captureBannerText, { color: colors.warning }]}>
+                {reviewTotal === 1
+                  ? '1 transaction needs review'
+                  : `${reviewTotal} transactions need review`}
+              </Text>
+              <Text style={[styles.captureBannerSub, { color: colors.warning }]}>
+                Amounts the parser was unsure of, and possible duplicates
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={colors.warning} />
+          </Pressable>
+          {/* Dismissing hides the interruption, not the state — the badge on
+              the Transactions header stays. */}
+          <Pressable
+            onPress={() => void dismissReviewBanner()}
+            hitSlop={10}
+            accessibilityLabel="Dismiss review reminder"
+          >
+            <Ionicons name="close" size={16} color={colors.warning} />
+          </Pressable>
+        </View>
       ) : null}
 
       {/* ---- Hero: interactive donut + period wheels ---- */}

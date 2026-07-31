@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { kvGet, kvGetJson, kvSet, kvSetJson } from '../src/lib/kvStore';
 import { onboardedKey } from '../src/lib/onboarding';
+import { reviewDismissedKey } from '../src/lib/reviewBanner';
 
 /**
  * The rule expo-secure-store enforces on keys. Anything outside this set makes
@@ -65,6 +66,7 @@ describe('keys the app actually builds', () => {
       `bukit.digest.${USER_ID}`,
       `bukit.alerted.${USER_ID}`,
       `bukit.ingest_token.${USER_ID}`,
+      reviewDismissedKey(USER_ID),
       'bukit.theme',
       'bukit.privacy',
       'bukit.primary_currency',

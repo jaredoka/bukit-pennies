@@ -8,19 +8,8 @@ import {
 
 const f = (patch: Partial<TxFilters> = {}): TxFilters => ({ ...DEFAULT_FILTERS, ...patch });
 
-describe('direction', () => {
-  it('treats zero as neither incoming nor outgoing', () => {
-    // The client-side version used `amount <= 0` for incoming, so a BND 0.00
-    // card verification counted as money in.
-    expect(buildTransactionOps(f({ direction: 'outgoing' }), '')).toEqual([
-      { op: 'gt', column: 'amount', value: 0 },
-    ]);
-    expect(buildTransactionOps(f({ direction: 'incoming' }), '')).toEqual([
-      { op: 'lt', column: 'amount', value: 0 },
-    ]);
-  });
-
-  it('adds nothing for "all"', () => {
+describe('no filters', () => {
+  it('adds nothing at all', () => {
     expect(buildTransactionOps(f(), '')).toEqual([]);
   });
 });
@@ -118,7 +107,8 @@ describe('hasAnyFilter', () => {
   });
 
   it('notices each filter', () => {
-    expect(hasAnyFilter(f({ direction: 'incoming' }))).toBe(true);
+    expect(hasAnyFilter(f({ currencies: ['SGD'] }))).toBe(true);
+    expect(hasAnyFilter(f({ cards: ['0213'] }))).toBe(true);
     expect(hasAnyFilter(f({ banks: ['baiduri'] }))).toBe(true);
     expect(hasAnyFilter(f({ categoryIds: [null] }))).toBe(true);
     expect(hasAnyFilter(f({ dateTo: '2026-01-01' }))).toBe(true);
@@ -128,9 +118,9 @@ describe('hasAnyFilter', () => {
 describe('combining', () => {
   it('ands every active filter together', () => {
     const ops = buildTransactionOps(
-      f({ direction: 'outgoing', banks: ['baiduri'], currencies: ['BND'], cards: ['0213'] }),
+      f({ banks: ['baiduri'], currencies: ['BND'], cards: ['0213'], dateFrom: '2026-03-01' }),
       'ho',
     );
-    expect(ops.map((o) => o.op)).toEqual(['gt', 'in', 'in', 'in', 'or']);
+    expect(ops.map((o) => o.op)).toEqual(['in', 'in', 'in', 'gte', 'or']);
   });
 });

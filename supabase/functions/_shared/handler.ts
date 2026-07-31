@@ -7,6 +7,7 @@ import {
   MAX_TEXT_BYTES,
   normalizeText,
   parseBankMessage,
+  REVIEW_CONFIDENCE_THRESHOLD,
 } from './parsers/index.ts';
 import type { BankId } from './parsers/index.ts';
 import { extractBearerToken, sha256Hex } from './auth.ts';
@@ -14,10 +15,10 @@ import { extractBearerToken, sha256Hex } from './auth.ts';
 export const INGEST_SOURCES = ['android_listener', 'ios_shortcut', 'share', 'paste'] as const;
 export type IngestSource = (typeof INGEST_SOURCES)[number];
 
-// Single source of truth: the parsers own this limit so the client preview and
-// this gate cannot drift apart (they are the same check on the same input).
-export { MAX_TEXT_BYTES };
-export const REVIEW_CONFIDENCE_THRESHOLD = 0.75;
+// Single source of truth: the parsers own both of these so the client preview
+// and this gate cannot drift apart (they are the same checks on the same
+// input). Re-exported here because this module is the ingest contract.
+export { MAX_TEXT_BYTES, REVIEW_CONFIDENCE_THRESHOLD };
 export const NEAR_DUPE_WINDOW_MS = 3 * 60 * 1000;
 
 export interface TransactionInsert {

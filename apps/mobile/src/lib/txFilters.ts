@@ -14,10 +14,7 @@
  * down in tests.
  */
 
-export type Direction = 'all' | 'incoming' | 'outgoing';
-
 export interface TxFilters {
-  direction: Direction;
   currencies: string[];
   /** 'YYYY-MM-DD' in Brunei time, or '' for unset. */
   dateFrom: string;
@@ -29,7 +26,6 @@ export interface TxFilters {
 }
 
 export const DEFAULT_FILTERS: TxFilters = {
-  direction: 'all',
   currencies: [],
   dateFrom: '',
   dateTo: '',
@@ -48,7 +44,6 @@ export type TxQueryOp =
 
 export function hasAnyFilter(f: TxFilters): boolean {
   return (
-    f.direction !== 'all' ||
     f.currencies.length > 0 ||
     !!f.dateFrom ||
     !!f.dateTo ||
@@ -92,25 +87,22 @@ export function bruneiDayEndIso(day: string): string {
 /**
  * Filters + free-text search → PostgREST operations, ANDed together.
  *
- * Two semantics that were wrong when this ran client-side:
+ * **An undated row cannot satisfy a date range.** The old client-side check was
+ * `if (dateFrom && tx.occurred_at)`, so a row with no date skipped the
+ * comparison and passed *every* range — the same transaction appearing under
+ * "January 2025" and "last week". SQL comparisons against NULL are false, which
+ * is the behaviour we want and now get for free. Undated rows remain fully
+ * visible with no date filter set, and Review is where they belong.
  *
- * - **Zero is neither direction.** `outgoing` was `amount > 0` but `incoming`
- *   was `amount <= 0`, so a BND 0.00 row — a card verification or a declined
- *   charge — counted as money in. It is now excluded from both; a zero-value
- *   movement is not a movement.
- *
- * - **An undated row cannot satisfy a date range.** The old check was
- *   `if (dateFrom && tx.occurred_at)`, so a row with no date skipped the
- *   comparison and passed *every* range — the same transaction appearing under
- *   "January 2025" and "last week". SQL comparisons against NULL are false,
- *   which is the behaviour we want and now get for free. Undated rows remain
- *   fully visible with no date filter set, and Review is where they belong.
+ * There is no direction filter. `parseAmount` refuses anything at or below
+ * zero, manual entry requires a positive amount and so does confirming a row in
+ * Review, so no write path in this app can produce a negative — an "incoming"
+ * option could only ever return an empty list. Refunds and credits are a real
+ * gap; when they are built, the filter comes back with them (and with a golden
+ * fixture for whatever a refund message looks like).
  */
 export function buildTransactionOps(filters: TxFilters, search: string): TxQueryOp[] {
   const ops: TxQueryOp[] = [];
-
-  if (filters.direction === 'outgoing') ops.push({ op: 'gt', column: 'amount', value: 0 });
-  if (filters.direction === 'incoming') ops.push({ op: 'lt', column: 'amount', value: 0 });
 
   if (filters.currencies.length > 0) {
     ops.push({ op: 'in', column: 'currency', values: filters.currencies });

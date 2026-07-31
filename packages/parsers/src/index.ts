@@ -11,7 +11,12 @@ export type {
 export { normalizeText, normalizeMerchant, parseAmount, normalizeCurrency, extractLast4 } from './normalize.ts';
 export { splitBankMessages } from './split.ts';
 export { buildBruneiIso, scanDate, BRUNEI_OFFSET } from './dates.ts';
-export { scoreConfidence, WEIGHTS, UNVERIFIED_CONFIDENCE_CAP } from './confidence.ts';
+export {
+  scoreConfidence,
+  WEIGHTS,
+  UNVERIFIED_CONFIDENCE_CAP,
+  REVIEW_CONFIDENCE_THRESHOLD,
+} from './confidence.ts';
 export { categorizeMerchant, type CategoryName } from './merchants.ts';
 export { baiduri, bibd, scb, generic };
 

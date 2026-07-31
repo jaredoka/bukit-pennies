@@ -13,6 +13,23 @@ export const WEIGHTS: Record<FieldName, number> = {
 /** Generic fallback and UNVERIFIED skeleton parsers never exceed this → always needs_review. */
 export const UNVERIFIED_CONFIDENCE_CAP = 0.7;
 
+/**
+ * At or above this a parse is trusted (`parsed`); below it the row goes to
+ * `needs_review`. Note that confidence is only half the server's gate — a
+ * missing amount sends a row to review at any score (see `handleIngest`).
+ *
+ * It lives here, beside the weights that produce the score, for the same
+ * reason `MAX_TEXT_BYTES` lives in this package: the ingest function and every
+ * client-side preview are answering the same question about the same input, so
+ * they must not be able to answer it differently. It sat as a bare `0.75` in
+ * six places before this, one of which was a screen that wrote the verdict
+ * back to the database.
+ *
+ * `UNVERIFIED_CONFIDENCE_CAP` above is deliberately below this line: that is
+ * what makes "unverified format" and "always needs review" the same statement.
+ */
+export const REVIEW_CONFIDENCE_THRESHOLD = 0.75;
+
 const STATUS_FACTOR: Record<FieldStatus, number> = {
   exact: 1,
   heuristic: 0.5,

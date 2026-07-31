@@ -1,5 +1,4 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { parseBankMessage } from '@bukit/parsers';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import { Badge, Button, Card, Centered, Field, Muted, Sheet, Title, useSheetPresence } from '@/components/ui';
 import { formatTime, bruneiParts } from '@/lib/format';
+import { buildReparsePatch, canReparse } from '@/lib/reparse';
 import { themedStyles, useTheme } from '@/lib/theme';
 import { usePrivacy } from '@/lib/privacy';
 import {
@@ -42,14 +42,14 @@ function bankName(id: string): string {
   return BANK_FULL_NAMES[id.toLowerCase()] ?? id;
 }
 
-function confirmAsync(title: string, message: string): Promise<boolean> {
+function confirmAsync(title: string, message: string, confirmLabel = 'Delete'): Promise<boolean> {
   if (Platform.OS === 'web') {
     return Promise.resolve(globalThis.confirm ? globalThis.confirm(`${title}\n\n${message}`) : true);
   }
   return new Promise((resolve) => {
     Alert.alert(title, message, [
       { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-      { text: 'Delete', style: 'destructive', onPress: () => resolve(true) },
+      { text: confirmLabel, style: 'destructive', onPress: () => resolve(true) },
     ]);
   });
 }
@@ -66,6 +66,7 @@ export default function TransactionDetail() {
   const createCategory = useCreateCategory();
 
   const [notes, setNotes] = useState('');
+  const [reparseNote, setReparseNote] = useState<string | null>(null);
   const [newCategory, setNewCategory] = useState('');
   const [catSheetOpen, setCatSheetOpen] = useState(false);
   const catSheetPresent = useSheetPresence(catSheetOpen ? 'cat' : null) !== null;
@@ -83,24 +84,24 @@ export default function TransactionDetail() {
 
   const notesDirty = notes !== (tx.notes ?? '');
 
-  function reparse() {
+  // Overwrites fields the user may have corrected by hand, with no undo — so
+  // it asks first. The rules about what it may and may not overwrite live in
+  // lib/reparse.ts, where they are unit-tested.
+  async function reparse() {
     if (!tx) return;
-    const { tx: parsed } = parseBankMessage(tx.raw_text);
-    if (!parsed) return;
-    update.mutate({
-      id: tx.id,
-      patch: {
-        amount: parsed.amount,
-        currency: parsed.currency,
-        merchant: parsed.merchant,
-        merchant_normalized: parsed.merchantNormalized,
-        occurred_at: parsed.occurredAt,
-        card_last4: parsed.cardLast4,
-        bank: parsed.bank,
-        confidence: parsed.confidence,
-        parse_status: parsed.confidence >= 0.75 && parsed.amount !== null ? 'parsed' : 'needs_review',
-      },
-    });
+    const patch = buildReparsePatch(tx);
+    if (!patch) {
+      setReparseNote('Nothing could be read from the original message, so the transaction is unchanged.');
+      return;
+    }
+    const ok = await confirmAsync(
+      'Re-parse from original text',
+      'This replaces the amount, merchant, date and card with whatever the original message says. Your notes and category are kept.',
+      'Re-parse',
+    );
+    if (!ok) return;
+    setReparseNote(null);
+    update.mutate({ id: tx.id, patch });
   }
 
   async function remove() {
@@ -180,7 +181,19 @@ export default function TransactionDetail() {
       <Card>
         <Title>Original message</Title>
         <Text style={styles.raw}>{tx.raw_text}</Text>
-        <Button label="Re-parse from original text" variant="secondary" onPress={reparse} busy={update.isPending} />
+        {canReparse(tx) ? (
+          <>
+            <Button
+              label="Re-parse from original text"
+              variant="secondary"
+              onPress={() => void reparse()}
+              busy={update.isPending}
+            />
+            {reparseNote ? <Muted>{reparseNote}</Muted> : null}
+          </>
+        ) : (
+          <Muted>You typed this one in, so there is no bank message to read it back from.</Muted>
+        )}
       </Card>
 
       <Button label="Delete transaction" variant="danger" onPress={remove} busy={del.isPending} />

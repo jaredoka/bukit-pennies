@@ -140,6 +140,19 @@ structure in §8, Sideloadly constraints in §10).
   — and must be scoped per user id whenever the value derives from account
   data rather than from the handset. `test/kvStore.test.ts` asserts both;
   add new key builders to its list (HANDOFF §28).
+- **Any query that reads a whole period goes through `fetchAllPages`.**
+  PostgREST truncates a response at `max_rows` (1000, `supabase/config.toml`)
+  and says nothing about having done so, so an unpaged read of a month or a
+  year silently understates every total built from it. The paging callback must
+  end its ordering with `id`: `range()` slices an ordered result, and rows that
+  tie on the sort column can swap between requests, dropping one and repeating
+  another. Screens that show a list rather than a total (the transactions list,
+  the review inbox) page or cap on purpose instead.
+- **Nothing in this app can produce a negative amount.** `parseAmount` refuses
+  anything at or below zero, and both manual entry and Review confirmation
+  require a positive figure. Any feature phrased as "money in" — refunds,
+  credits, reversals — is therefore new work with a golden fixture, not a
+  filter over data that already exists.
 
 ## 6. Decision log (do not re-open without user say-so)
 
@@ -156,6 +169,9 @@ structure in §8, Sideloadly constraints in §10).
 | 2026-07-30 | The hornbill mascot is removed from the app entirely (HANDOFF §29) and its art and generator scripts are deleted from `art/` (§32). The owner is drawing replacement pixel art by hand; until it lands the app has no mascot and the penny coin is the only brand mark. Do not reintroduce a mascot or regenerate the bird. |
 | 2026-07-30 | Dashboard drops Daily spend, Month by month and Top merchants — Insights covers the last two better. Day-level spending now exists nowhere; if it returns it goes on Insights (HANDOFF §30). |
 | 2026-07-30 | Subscriptions (migration 18) live on a dashboard card → full screen, not a sixth tab. Declared rows and `detectRecurring` clusters merge into one list. **Display-only: never a budget input** — the captured transaction is what counts toward the monthly limit. No reminders are scheduled from subscriptions (HANDOFF §29). |
+| 2026-07-31 | Re-parse is guarded by `lib/reparse.ts`, not written inline on the detail screen: it passes the row's own timestamp back as `receivedAt` (BIBD messages carry no date, so re-parsing without one used to blank `occurred_at` and drop the row out of every dashboard query), never overwrites a date it cannot replace, is not offered for `source='manual'`, and asks before overwriting. `test/reparse.test.ts` is the contract. |
+| 2026-07-31 | Whole-period reads page through `fetchAllPages` (§5). `REVIEW_CONFIDENCE_THRESHOLD` moves into `@bukit/parsers` beside the weights, joining `MAX_TEXT_BYTES` as a number the server gate and the client previews cannot state differently. |
+| 2026-07-31 | The Direction (incoming/outgoing) filter is removed rather than fixed — no write path can produce a negative amount, so "Incoming" could only ever return nothing. It returns with refunds, if refunds are ever built. |
 
 ## 7. Standard procedures
 

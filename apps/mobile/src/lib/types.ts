@@ -127,12 +127,3 @@ export interface MonthlyTotalRow {
   total: number;
   tx_count: number;
 }
-
-export interface MerchantTotalRow {
-  user_id: string;
-  merchant_normalized: string;
-  currency: string;
-  total: number;
-  tx_count: number;
-  last_seen: string;
-}

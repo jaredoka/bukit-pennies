@@ -16,7 +16,6 @@ import type {
   BudgetRow,
   CategoryRow,
   IngestDeviceRow,
-  MerchantTotalRow,
   MonthlyTotalRow,
   ProfileRow,
   SavingsGoalEntryRow,
@@ -100,7 +99,7 @@ type TxAggregateRow = Pick<
  * six call sites each repeating the set is how one of them gets missed.
  */
 export function invalidateTransactionQueries(qc: QueryClient): void {
-  for (const key of ['transactions', 'monthly_totals', 'merchant_totals', 'transaction_facets']) {
+  for (const key of ['transactions', 'monthly_totals', 'transaction_facets']) {
     qc.invalidateQueries({ queryKey: [key] });
   }
 }
@@ -227,21 +226,6 @@ export function useMonthlyTotals() {
     queryFn: () =>
       unwrap<MonthlyTotalRow[]>(
         supabase.from('monthly_totals').select('*').order('month', { ascending: false }),
-      ),
-  });
-}
-
-export function useTopMerchants(limit = 8, currency = 'BND') {
-  return useQuery({
-    queryKey: ['merchant_totals', limit, currency],
-    queryFn: () =>
-      unwrap<MerchantTotalRow[]>(
-        supabase
-          .from('merchant_totals')
-          .select('*')
-          .eq('currency', currency)
-          .order('total', { ascending: false })
-          .limit(limit),
       ),
   });
 }

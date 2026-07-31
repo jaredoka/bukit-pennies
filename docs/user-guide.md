@@ -73,8 +73,8 @@ ever lost in translation.
 
 ## 5. The Review inbox
 
-Open it from the **tray icon** at the top of Transactions — or from the
-dashboard, which shows a banner whenever something is waiting.
+Open it from the **tray icon** at the top of Transactions. It carries a count
+badge whenever something is waiting, and no badge when the queue is empty.
 
 Messages the parser wasn't confident about land in **Review** instead of being
 silently guessed:

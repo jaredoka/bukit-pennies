@@ -1,27 +1,8 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { Link, type Href } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Button, Card, Muted, Title } from '@/components/ui';
+import { ScrollView, View } from 'react-native';
+import { Button, Card, Muted, NavRow, Title } from '@/components/ui';
 import { exportTransactionsCsv } from '@/lib/exportCsv';
-import { themedStyles, useTheme } from '@/lib/theme';
-
-function Row({ href, icon, label, note }: { href: Href; icon: keyof typeof Ionicons.glyphMap; label: string; note: string }) {
-  const styles = useStyles();
-  const { colors } = useTheme();
-  return (
-    <Link href={href} asChild>
-      <Pressable style={styles.row}>
-        <Ionicons name={icon} size={22} color={colors.primary} style={{ marginRight: 12 }} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.rowLabel}>{label}</Text>
-          <Muted>{note}</Muted>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-      </Pressable>
-    </Link>
-  );
-}
+import { themedStyles } from '@/lib/theme';
 
 export default function Spending() {
   const styles = useStyles();
@@ -44,20 +25,20 @@ export default function Spending() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Card>
-        <Title>Spending & data</Title>
-        <Row
+        <Title>Spending &amp; data</Title>
+        <NavRow
           href="/(tabs)/settings/budgets"
           icon="pie-chart"
           label="Set category budgets"
           note="Set per-category limits shown on the dashboard"
         />
-        <Row
-          href="/(tabs)/subscriptions"
+        <NavRow
+          href="/subscriptions"
           icon="repeat"
           label="Subscriptions"
           note="Record what you subscribe to and see what it costs per month"
         />
-        <Row
+        <NavRow
           href="/(tabs)/settings/weekly-summary"
           icon="notifications"
           label="Weekly summary"
@@ -75,12 +56,4 @@ export default function Spending() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  rowLabel: { fontWeight: '600', color: colors.text },
 }));

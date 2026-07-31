@@ -194,7 +194,6 @@ const useStyles = themedStyles((colors) => ({
     color: colors.muted,
     marginBottom: 12,
   },
-  error: { color: colors.danger, marginBottom: 8 },
   dateRow: { flexDirection: 'row', gap: 12 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 4 },
 }));

@@ -6,7 +6,7 @@ import { ActivityIndicator } from 'react-native';
 import { Centered } from '@/components/ui';
 import { initSentry, Sentry } from '@/lib/sentry';
 import { SessionProvider, useSession } from '@/lib/session';
-import { ThemeProvider, useTheme } from '@/lib/theme';
+import { ThemeProvider, useStackTheme, useTheme } from '@/lib/theme';
 import { PrivacyProvider } from '@/lib/privacy';
 import { PrimaryCurrencyProvider } from '@/lib/primaryCurrency';
 import { kvGet, kvSet } from '@/lib/kvStore';
@@ -103,12 +103,46 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 function ThemedApp() {
   const { colors, resolved } = useTheme();
+  const stackTheme = useStackTheme();
+  // Screens that sit *above* the tab bar rather than inside it.
+  //
+  // Both used to live under `(tabs)` and be hidden with `href: null`, which
+  // made reaching them a tab *switch* rather than a push: nothing to pop, so
+  // `canGoBack()` was false, no back button was drawn, and Review could only be
+  // left via the tab bar. Subscriptions is the case that proved it — it is
+  // entered from two different tabs (the dashboard card and Settings >
+  // Spending & data), and a tab has no way to know which one you came from, so
+  // back always guessed the dashboard.
+  //
+  // Up here they are genuine pushes onto the root stack, so the navigator draws
+  // the back button and pops to wherever you actually came from. The tab bar is
+  // hidden while they are open, which is the normal shape for a screen you
+  // finish and leave.
+  // `headerBackTitle` is not decoration. The screen underneath these is the
+  // whole tab group, whose route name is the literal string "(tabs)" — so
+  // without this the back button reads "(tabs)" beside the chevron on iOS and
+  // announces "(tabs), back" to a screen reader. "Back" is deliberately
+  // generic: Subscriptions is entered from two different tabs, so naming the
+  // destination would be wrong half the time.
+  const pushedScreen = (title: string) => ({
+    ...stackTheme,
+    headerShown: true,
+    title,
+    headerBackTitle: 'Back',
+  });
   return (
     <AuthGate>
       <StatusBar style={resolved === 'dark' ? 'light' : 'dark'} />
       <Stack
         screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
-      />
+      >
+        {/* Never rendered as a header (headerShown is false for the group), but
+            it is what the back button above reads. */}
+        <Stack.Screen name="(tabs)" options={{ title: 'Back' }} />
+        <Stack.Screen name="review" options={pushedScreen('Review')} />
+        <Stack.Screen name="subscriptions/index" options={pushedScreen('Subscriptions')} />
+        <Stack.Screen name="subscriptions/edit" options={pushedScreen('Subscription')} />
+      </Stack>
     </AuthGate>
   );
 }

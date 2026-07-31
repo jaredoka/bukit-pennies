@@ -19,7 +19,7 @@ ID** via **Sideloadly**, and installed over USB.
 ## One-time setup
 
 1. Deploy the hosted Supabase project first — see
-   [supabase-hosted-deploy.md](supabase-hosted-deploy.md). The phone can't
+   [hosted-supabase-deploy.md](hosted-supabase-deploy.md). The phone can't
    reach your PC's local stack; the build needs a real URL.
 2. Install [Sideloadly](https://sideloadly.io/) on Windows. It bundles the
    Apple drivers it needs; if the device isn't detected, install iTunes

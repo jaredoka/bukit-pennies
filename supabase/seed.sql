@@ -3,6 +3,22 @@
 -- RLS-proof user: rls@bukitpennies.test  / rls12345
 -- Seeded ingest token (plaintext, dev only): bp_devSeedToken0000000000000000000000000001
 
+-- Guard: this file is dev-only, so refuse to run anywhere but the CLI's local
+-- database. The local stack always names its database "postgres"; a hosted
+-- Supabase project's primary database is named after the project ref, never
+-- "postgres" — so the check cannot false-positive on production. It runs
+-- first and `\set ON_ERROR_STOP on` makes the raise abort the whole script
+-- instead of letting psql carry on past it (plain psql without that flag
+-- would report the error and keep going).
+\set ON_ERROR_STOP on
+do $$
+begin
+  if current_database() <> 'postgres' then
+    raise exception 'seed.sql is dev-only: refusing to seed database "%". Only the local Supabase database ("postgres") may be seeded.', current_database();
+  end if;
+end;
+$$;
+
 -- ------------------------------------------------------------- auth users
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,

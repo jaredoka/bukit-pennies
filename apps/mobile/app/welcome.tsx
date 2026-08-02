@@ -130,7 +130,7 @@ function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void 
         ) : preview ? (
           <Muted>
             {oversized
-              ? 'That is over 4 KB — too long to process. Paste a single bank message.'
+              ? 'That is over 4 KB, too long to process. Paste a single bank message.'
               : preview.isTransactional
                 ? 'Could not extract a transaction. You can still save it and fix it in Review.'
                 : 'This does not look like a purchase message (OTP, promo, or balance alert).'}

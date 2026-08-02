@@ -110,5 +110,5 @@ export async function checkPasswordBreached(password: string): Promise<BreachChe
 /** User-facing copy for a confirmed hit. */
 export function breachWarning(count: number): string {
   const times = count === 1 ? 'once' : `${count.toLocaleString()} times`;
-  return `This password has appeared ${times} in known data breaches. It is not safe to use here — please choose a different one.`;
+  return `This password has appeared ${times} in known data breaches. It is not safe to use here. Please choose a different one.`;
 }

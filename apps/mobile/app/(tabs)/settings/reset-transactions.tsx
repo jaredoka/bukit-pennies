@@ -40,8 +40,8 @@ export default function ResetTransactions() {
       <Card>
         <Title>Reset all transactions</Title>
         <Text style={styles.body}>
-          Deletes your spending history — every transaction in the Transactions tab, including
-          the notes and categories on each one. This cannot be undone.
+          Deletes your spending history, including every transaction in the Transactions tab
+          and the notes and categories on each one. This cannot be undone.
         </Text>
         <Muted>
           Your budgets, goals, subscriptions, cards, and settings are kept. Recording new
@@ -50,11 +50,11 @@ export default function ResetTransactions() {
       </Card>
       <Card>
         <Field
-          label={'Type RESET TRANSACTIONS to confirm'}
+          label={'Type RESET-TRANSACTIONS to confirm'}
           value={confirmText}
           onChangeText={setConfirmText}
           autoCapitalize="characters"
-          placeholder="RESET TRANSACTIONS"
+          placeholder="RESET-TRANSACTIONS"
         />
         {note ? (
           <Text style={[styles.note, note.ok ? styles.noteOk : styles.noteErr]}>
@@ -65,7 +65,7 @@ export default function ResetTransactions() {
           label="Reset all transactions"
           variant="danger"
           onPress={resetTransactions}
-          disabled={confirmText.trim().toUpperCase() !== 'RESET TRANSACTIONS'}
+          disabled={confirmText.trim().toUpperCase() !== 'RESET-TRANSACTIONS'}
           busy={busy}
         />
       </Card>

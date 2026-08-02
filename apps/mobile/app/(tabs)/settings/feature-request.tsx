@@ -49,7 +49,7 @@ export default function FeatureRequest() {
         <Card>
           <Title>Thank you</Title>
           <Muted>
-            Your request has been sent. We read every one — it helps us decide what to build next.
+            Your request has been sent. We read every one. It helps us decide what to build next.
           </Muted>
           <View style={{ marginTop: 12 }}>
             <Button

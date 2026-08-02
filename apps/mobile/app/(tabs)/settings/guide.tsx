@@ -23,14 +23,14 @@ const SECTIONS: Array<{ title: string; body: string }> = [
     title: 'Review inbox',
     body:
       'Messages the parser wasn’t confident about wait in Review. Nothing is guessed silently. ' +
-      'Open it from the tray icon at the top of Transactions — it carries a count when ' +
+      'Open it from the tray icon at the top of Transactions. It carries a count when ' +
       'anything is waiting. Fill in the amount, merchant, or date and confirm; flagged ' +
-      'near-duplicates can be merged away or kept.',
+      'near duplicates can be merged away or kept.',
   },
   {
     title: 'Notes & categories',
     body:
-      'Tap any transaction to add notes, pick a category (or create your own), re-parse it from ' +
+      'Tap any transaction to add notes, pick a category (or create your own), reparse it from ' +
       'the original text, or delete it. The original message always stays with the transaction.',
   },
   {

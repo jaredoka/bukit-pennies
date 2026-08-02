@@ -24,7 +24,7 @@
 **Status:** Phases 0–6 built and merged; app is live against hosted Supabase and field-tested on the owner's iPhone.
 
 **Branch:** `main` (GitHub Flow — feature branches off `main`, merged via pull request)
-**Date:** 2026-07-16 (original) · last updated 2026-07-25
+**Date:** 2026-07-16 (original) · last updated 2026-08-03
 
 **§18 is a security audit (2026-07-25)** — five issues found, all fixed and
 deployed (migrations 11 and 12 applied to the hosted project, ingest function
@@ -36,6 +36,14 @@ limits now live in Postgres and are verified working against production.
 secret. The `bukit-pennies-legal` repo is retired; policy pages are now served
 by GitHub Pages from this repo's `docs/` folder. Also records why native
 dependencies force a fresh store build.
+
+**§39 (2026-08-03):** the repo is now genuinely **open source** (MIT, Jared
+Ong) with contributing docs and issue/PR templates, and there is a **live web
+demo** at https://bukit-pennies.netlify.app that **auto-deploys on every push
+to main** via `netlify.toml`. The reset-confirm phrase is **RESET-TRANSACTIONS**
+and the app's user-facing copy is free of em-dashes/hyphens. The Netlify *Drop*
+site from this day should be deleted so the Git-connected site owns the
+`bukit-pennies` name.
 
 ---
 
@@ -3039,4 +3047,67 @@ subscriptions, cards, capture tokens and settings survive; the global default
 invalidates every transaction-derived cache via `invalidateTransactionQueries`.
 Verified locally (guard + two-user delete scope) and migrations 24–25 pushed to
 hosted; advisors clean.
+
+## 39. Open-source + live web demo (2026-08-03)
+
+The owner began using the project as a job-hunt portfolio piece. This session
+turned the repo into a genuinely open-source project and stood up a live,
+auto-deploying web demo. PRs #92–#96 merged this day.
+
+### Copy polish (PR #93)
+
+- The reset-confirm phrase is now **RESET-TRANSACTIONS** (hyphen,
+  owner-specified). The field label, the placeholder and the disabled gate all
+  compare against that exact string.
+- **Export transactions (CSV)** moved to the bottom of Settings → Spending &
+  data. The Reset row sits above it and is styled the same yellow as the other
+  nav rows (not red danger).
+- Whole-app copy sweep: removed em-dashes and hyphenated compounds from
+  user-facing strings (`per-category`, `Re-parse`, `One-time`,
+  `Near-automatic`) so the copy does not read like generated prose. The dash
+  survives as an empty-value placeholder (`'—'`) and in the Malay proverb on
+  the Our story page.
+
+### Open-sourcing (PR #94)
+
+- **MIT License** — `Copyright (c) 2026 Jared Ong`. The repo was already public
+  but had no license, so "open source" wasn't legally true; it is now.
+- `CONTRIBUTING.md` tailored to this repo's conventions (pnpm workspace
+  commands, GitHub Flow, parser golden fixtures, RLS/`security_invoker` rules,
+  RPC-only write surface).
+- GitHub issue templates (bug report, feature request) and a PR template.
+- Repo description + topics set on GitHub: react-native, expo, supabase,
+  typescript, postgres, deno, fintech, brunei, row-level-security, mobile-app.
+- README gained a full-stack **Architecture** section, a live-demo link, and a
+  "Maintained by [jaredoka]" line.
+
+### Live web demo + Netlify auto-deploy (PR #95, #96)
+
+- The web build is live at **https://bukit-pennies.netlify.app**, served from
+  the same hosted Supabase project (the anon key is public by design).
+- `netlify.toml` at the repo root: `pnpm install` + `expo export --platform
+  web`, publish dir `apps/mobile/dist`, Node 22, baked hosted env,
+  `SENTRY_DISABLE_AUTO_UPLOAD` set. **Every push to `main` auto-deploys.**
+- `apps/mobile/public/_redirects` (SPA fallback, copied into `dist` by Expo) is
+  committed so deep links work on the static host.
+- Netlify's monorepo detection first set `base = apps/mobile`, doubling the
+  publish path (`apps/mobile/apps/mobile/dist`); `base = "."` pins the root.
+- The Netlify *Drop* site (manual drag-and-drop of `dist`) is superseded by the
+  Git-connected site and is to be deleted so the `bukit-pennies` name belongs
+  to the auto-deploying site.
+
+### Fresh unsigned IPA
+
+- Rebuilt 2026-08-03 via the **iOS unsigned IPA** workflow (run
+  30753843671, macOS runner, 8m41s, warnings only). Artifact downloaded to
+  `builds/ipa/bukit-pennies-unsigned.ipa` (~11.6 MB, gitignored) — ready for
+  the weekly Sideloadly re-sign loop (`docs/ios-sideloadly.md`).
+
+### Note for the next session
+
+- The demo shares the hosted Supabase project with the owner's own testing;
+  public sign-ups consume the free tier. If it grows or approaches limits, spin
+  up a separate demo Supabase project (migrations 1–25) and repoint the Netlify
+  env vars — nothing in the client needs to change.
+
 

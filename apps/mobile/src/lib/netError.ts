@@ -14,7 +14,12 @@ export const NETWORK_ERROR_MESSAGE =
 
 /** Whether a message describes a transport failure rather than a server reply. */
 export function isNetworkFailure(message: string): boolean {
-  return /failed to fetch|network request failed|networkerror|load failed|fetch failed|err_(?:internet_disconnected|connection_refused|network_changed)/i.test(
+  // "network connection was lost" is iOS NSURLErrorNetworkConnectionLost,
+  // which arrives wrapped: "fetch failed: UnexpectedException: The network
+  // connection was lost. (at ExpoModulesCore/Promise.swift:56)". The leading
+  // "fetch failed" already matches, but the wrapper is not ours and the inner
+  // sentence is the part that is actually stable.
+  return /failed to fetch|network request failed|networkerror|load failed|fetch failed|network connection was lost|err_(?:internet_disconnected|connection_refused|network_changed)/i.test(
     message,
   );
 }
@@ -24,4 +29,36 @@ export function isNetworkFailure(message: string): boolean {
  *  refusal) — those are the useful ones and must survive untouched. */
 export function describeRequestError(message: string): string {
   return isNetworkFailure(message) ? NETWORK_ERROR_MESSAGE : message;
+}
+
+/**
+ * Runs a supabase-js call, and if it fails *in transport*, runs it once more.
+ *
+ * iOS keeps HTTP connections pooled between requests. When the far end has
+ * already closed one, the OS does not find out until it writes to the socket,
+ * so the request fails instantly with "The network connection was lost"
+ * (NSURLErrorNetworkConnectionLost). URLSession will not retry that itself for
+ * a POST, and it is right not to — it cannot know whether the request was
+ * processed. The second attempt gets a fresh connection and simply works,
+ * which is why signing in failed once and then succeeded untouched.
+ *
+ * Only transport failures are retried. A real reply — wrong password, user
+ * already registered — is returned as-is on the first attempt.
+ *
+ * Retrying a POST is safe here specifically because the alternative is not "no
+ * retry", it is the user tapping the button again: the request is going to be
+ * repeated either way, and the only question is whether they have to do it by
+ * hand. That reasoning covers the awkward case too — a sign-up whose request
+ * did land before the connection dropped is reported as an existing account
+ * whether this retries it or the user does.
+ *
+ * Errors are returned rather than thrown by supabase-js, so this inspects the
+ * result instead of catching.
+ */
+export async function withNetworkRetry<T extends { error: { message: string } | null }>(
+  call: () => Promise<T>,
+): Promise<T> {
+  const first = await call();
+  if (!first.error || !isNetworkFailure(first.error.message)) return first;
+  return call();
 }

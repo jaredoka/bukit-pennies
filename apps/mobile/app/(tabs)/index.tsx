@@ -28,14 +28,7 @@ import {
   useTransactionsForPeriod,
   usePullToRefresh,
 } from '@/lib/queries';
-import {
-  getReminderPrefs,
-  maybeOverspendAlert,
-  setReminderPref,
-  syncScheduledNotifications,
-  type ReminderDays,
-  type ReminderPrefs,
-} from '@/lib/notifications';
+import { maybeOverspendAlert, syncScheduledNotifications } from '@/lib/notifications';
 import {
   dismissSetupCard,
   getCompletedSteps,
@@ -55,10 +48,6 @@ import {
   monthlyTotal,
 } from '@/lib/subscriptions';
 import { themedStyles, useTheme } from '@/lib/theme';
-
-/** off → on due day → 1 day before → 3 days before → off */
-const REMINDER_CYCLE: (ReminderDays | null)[] = [null, 0, 1, 3];
-const reminderLabel = (d: ReminderDays) => (d === 0 ? 'due day' : `${d}d before`);
 
 const REMAINING_KEY = '__remaining__';
 
@@ -171,14 +160,12 @@ export default function Dashboard() {
   // ---- Data queries -------------------------------------------------------
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
-  const [reminderPrefs, setReminderPrefs] = useState<ReminderPrefs>({});
+  // The multi-currency note below the donut. Collapsed by default: it is
+  // standing context, not news, and three lines of it under the chart pulled
+  // the eye away from the donut and legend every single time the tab opened.
+  const [currencyNoteOpen, setCurrencyNoteOpen] = useState(false);
 
   const userId = session?.user.id;
-
-  useEffect(() => {
-    if (!userId) return;
-    getReminderPrefs(userId).then(setReminderPrefs);
-  }, [userId]);
 
   const thisMonthData = monthly.data?.find(
     (r) => r.month.startsWith(thisMonthKey.slice(0, 7)) && r.currency === primaryCurrency,
@@ -304,24 +291,15 @@ export default function Dashboard() {
     if (!userId || thisMonthTx.isLoading || recentTx.isLoading) return;
     void syncScheduledNotifications({
       userId,
-      recurring,
       spentThisMonth: thisMonthData ? Number(thisMonthData.total) : 0,
       income,
     });
-  }, [userId, recurring, thisMonthData, income, thisMonthTx.isLoading, recentTx.isLoading]);
+  }, [userId, thisMonthData, income, thisMonthTx.isLoading, recentTx.isLoading]);
 
   useEffect(() => {
     if (!userId || budgetProgress.items.length === 0) return;
     void maybeOverspendAlert(userId, budgetProgress.items);
   }, [userId, budgetProgress]);
-
-  async function cycleReminder(merchant: string) {
-    if (!userId) return;
-    const current = reminderPrefs[merchant]?.daysBefore ?? null;
-    const next = REMINDER_CYCLE[(REMINDER_CYCLE.indexOf(current) + 1) % REMINDER_CYCLE.length]!;
-    setReminderPrefs(await setReminderPref(userId, merchant, next));
-  }
-
 
   const periodLabel = isYearMode ? 'this year' : 'this month';
   const saved = effectiveIncome !== null && !isYearMode ? effectiveIncome - donut.spent : null;
@@ -461,13 +439,40 @@ export default function Dashboard() {
           </View>
         )}
         {excludedCurrencies.length > 0 ? (
-          <Link href="/(tabs)/settings/appearance" asChild>
-            <Pressable style={{ marginTop: 8, gap: 2 }}>
-              <Muted>{`Only ${primaryCurrency} transactions are shown above.`}</Muted>
-              <Muted>{`You also have ${excludedCurrencies.join(' and ')} transactions recorded.`}</Muted>
-              <Muted>Tap to change your primary currency in Settings &gt; Appearance.</Muted>
+          <View style={styles.currencyNote}>
+            {/* Header carries the one fact worth reading at a glance; the
+                explanation and the way to change it sit behind the chevron. */}
+            <Pressable
+              onPress={() => setCurrencyNoteOpen((o) => !o)}
+              style={styles.currencyNoteHead}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: currencyNoteOpen }}
+              accessibilityLabel={`Only ${primaryCurrency} shown. ${currencyNoteOpen ? 'Collapse' : 'Expand'} for details.`}
+            >
+              <Ionicons name="information-circle-outline" size={14} color={colors.muted} />
+              <Muted>{`Only ${primaryCurrency} shown`}</Muted>
+              <Ionicons
+                name={currencyNoteOpen ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color={colors.muted}
+              />
             </Pressable>
-          </Link>
+            {currencyNoteOpen ? (
+              <View style={styles.currencyNoteBody}>
+                <Muted>{`You also have ${excludedCurrencies.join(' and ')} transactions recorded, which the donut above leaves out.`}</Muted>
+                {/* Its own Link, not the whole block: with the block tappable,
+                    a tap meant to collapse the note navigated to Settings. */}
+                <Link href="/(tabs)/settings/appearance" asChild>
+                  <Pressable hitSlop={6}>
+                    <Text style={styles.currencyNoteLink}>
+                      Change your primary currency in Settings &gt; Appearance →
+                    </Text>
+                  </Pressable>
+                </Link>
+              </View>
+            ) : null}
+          </View>
         ) : null}
       </Card>
 
@@ -546,48 +551,27 @@ export default function Dashboard() {
           </Muted>
         ) : (
           <View style={{ marginTop: 4 }}>
-            {subscriptionItems.slice(0, 5).map((item) => {
-              const detectedMerchant = item.detected?.merchant;
-              const pref = detectedMerchant ? reminderPrefs[detectedMerchant] : undefined;
-              return (
-                <View key={item.key} style={styles.recurringRow}>
-                  <View style={{ flex: 1, marginRight: 8 }}>
-                    <Text style={styles.legendName} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <Muted>
-                      {item.kind === 'suggestion'
-                        ? `Detected · ${item.detected!.months.length} months`
-                        : // No due date is the common case for something you
-                          // recorded without knowing its billing day — saying so
-                          // adds nothing, so the cycle stands alone.
-                          [
-                            cycleLabel(item.cycle, item.cycleDays),
-                            ...(item.nextDueOn ? [`due ${dueLabel(item.daysUntilDue)}`] : []),
-                          ].join(' · ')}
-                    </Muted>
-                  </View>
-                  <Text style={styles.legendValue}>{money(item.amount, item.currency)}</Text>
-                  {detectedMerchant ? (
-                    <Pressable
-                      onPress={() => cycleReminder(detectedMerchant)}
-                      hitSlop={8}
-                      style={styles.bellWrap}
-                      accessibilityLabel={`Reminder for ${item.name}`}
-                    >
-                      <Ionicons
-                        name={pref ? 'notifications' : 'notifications-off-outline'}
-                        size={18}
-                        color={pref ? colors.primary : colors.muted}
-                      />
-                      {pref ? <Text style={styles.bellLabel}>{reminderLabel(pref.daysBefore)}</Text> : null}
-                    </Pressable>
-                  ) : (
-                    <View style={styles.bellWrap} />
-                  )}
+            {subscriptionItems.slice(0, 5).map((item) => (
+              <View key={item.key} style={styles.recurringRow}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={styles.legendName} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Muted>
+                    {item.kind === 'suggestion'
+                      ? `Detected · ${item.detected!.months.length} months`
+                      : // No due date is the common case for something you
+                        // recorded without knowing its billing day — saying so
+                        // adds nothing, so the cycle stands alone.
+                        [
+                          cycleLabel(item.cycle, item.cycleDays),
+                          ...(item.nextDueOn ? [`due ${dueLabel(item.daysUntilDue)}`] : []),
+                        ].join(' · ')}
+                  </Muted>
                 </View>
-              );
-            })}
+                <Text style={styles.legendValue}>{money(item.amount, item.currency)}</Text>
+              </View>
+            ))}
           </View>
         )}
         <Pressable onPress={() => router.push('/subscriptions')} hitSlop={8}>
@@ -669,6 +653,10 @@ const useStyles = themedStyles((colors) => ({
     borderRadius: 8,
   },
   legendRowActive: { backgroundColor: colors.primary + '28' },
+  currencyNote: { marginTop: 10 },
+  currencyNoteHead: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2 },
+  currencyNoteBody: { gap: 6, marginTop: 6, paddingLeft: 20 },
+  currencyNoteLink: { color: colors.primary, fontSize: 13, lineHeight: 18 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendName: { flex: 1, color: colors.text, fontSize: 13 },
   legendValue: { color: colors.muted, fontSize: 13, fontVariant: ['tabular-nums'] },
@@ -680,12 +668,15 @@ const useStyles = themedStyles((colors) => ({
   budgetAmounts: { color: colors.text, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] },
   budgetTrack: { height: 8, borderRadius: 4, backgroundColor: colors.border, overflow: 'hidden' },
   budgetFill: { height: '100%', borderRadius: 4 },
-  bellWrap: { alignItems: 'center', marginLeft: 10, minWidth: 44 },
-  bellLabel: { color: colors.primary, fontSize: 10, marginTop: 2 },
   recurringRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
+    // Matches the 8 that `legendRow` reserves on its right, so a subscription
+    // amount and a donut-category amount end at the same x. The left stays
+    // flush: the legend's extra inset there is its colour dot, which these
+    // rows have no equivalent of.
+    paddingRight: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },

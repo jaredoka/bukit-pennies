@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Badge, Button, Card, Centered, Muted, Title } from '@/components/ui';
+import { Badge, Button, Card, Centered, CollapsibleSection, Muted, Title } from '@/components/ui';
 import { bruneiDayKey, bruneiMonthKey, formatDayDate } from '@/lib/format';
 import { usePrimaryCurrency } from '@/lib/primaryCurrency';
 import { usePrivacy } from '@/lib/privacy';
@@ -29,6 +29,10 @@ export default function SubscriptionsScreen() {
   const subs = useSubscriptions();
   const recentTx = useRecentMonthsTransactions();
   const categories = useCategories();
+
+  // The count is the only part worth reading every visit; the explanation of
+  // how the figure is built is standing context that was crowding the total.
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   const todayKey = bruneiDayKey(Date.now());
   const thisMonthKey = bruneiMonthKey(Date.now());
@@ -75,18 +79,39 @@ export default function SubscriptionsScreen() {
         <Card>
           <Title>What you pay every month</Title>
           <Text style={styles.total}>{money(total, primaryCurrency)}</Text>
-          <Muted>
-            {active.length === 0
-              ? 'Nothing added yet. Tap + to record what you are subscribed to.'
-              : `${active.length} active subscription${active.length === 1 ? '' : 's'}, each converted to what it costs per month.`}
-          </Muted>
-          {otherCurrencies.length > 0 ? (
-            <Muted>{`Not included: subscriptions in ${otherCurrencies.join(', ')}. Change your primary currency in Settings > Appearance to total those instead.`}</Muted>
+          {active.length === 0 ? (
+            // Nothing to caveat when there is nothing recorded, so the empty
+            // state stays a plain prompt rather than a chevron over "0 active
+            // subscriptions".
+            <Muted>Nothing added yet. Tap + to record what you are subscribed to.</Muted>
+          ) : (
+            <Pressable
+              onPress={() => setSummaryOpen((o) => !o)}
+              style={styles.summaryHead}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: summaryOpen }}
+            >
+              <Muted>{`${active.length} active subscription${active.length === 1 ? '' : 's'}`}</Muted>
+              <Ionicons
+                name={summaryOpen ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color={colors.muted}
+              />
+            </Pressable>
+          )}
+          {active.length > 0 && summaryOpen ? (
+            <View style={styles.summaryBody}>
+              <Muted>Each one is converted to what it costs per month.</Muted>
+              {otherCurrencies.length > 0 ? (
+                <Muted>{`Not included: subscriptions in ${otherCurrencies.join(', ')}. Change your primary currency in Settings > Appearance to total those instead.`}</Muted>
+              ) : null}
+              <Muted>
+                This is a record, not a budget. The real charge arrives as a transaction and is
+                already counted against your monthly limit, so nothing here is added on top.
+              </Muted>
+            </View>
           ) : null}
-          <Muted>
-            This is a record, not a budget. The real charge arrives as a transaction and is already
-            counted against your monthly limit, so nothing here is added on top.
-          </Muted>
         </Card>
 
         {active.map((item) => (
@@ -227,17 +252,10 @@ function CancelledSection({ items }: { items: SubscriptionListItem[] }) {
   const { colors } = useTheme();
   const router = useRouter();
   const { money } = usePrivacy();
-  const [open, setOpen] = useState(false);
 
   return (
     <Card>
-      <Pressable onPress={() => setOpen((o) => !o)} style={styles.cardHead}>
-        <View style={{ flex: 1 }}>
-          <Title>{`Cancelled (${items.length})`}</Title>
-        </View>
-        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.muted} />
-      </Pressable>
-      {open ? (
+      <CollapsibleSection title={`Cancelled (${items.length})`}>
         <View>
           <Muted>Kept so they stay out of the suggestions above, and so you can restore one.</Muted>
           {items.map((item) => (
@@ -259,7 +277,7 @@ function CancelledSection({ items }: { items: SubscriptionListItem[] }) {
             </Pressable>
           ))}
         </View>
-      ) : null}
+      </CollapsibleSection>
     </Card>
   );
 }
@@ -275,6 +293,8 @@ const useStyles = themedStyles((colors) => ({
     fontVariant: ['tabular-nums'] as const,
   },
   cardHead: { flexDirection: 'row', alignItems: 'center' },
+  summaryHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  summaryBody: { gap: 6, marginTop: 8 },
   name: { fontSize: 16, fontWeight: '700', color: colors.text },
   amount: { fontSize: 16, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] as const },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 10 },

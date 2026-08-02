@@ -1,7 +1,17 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
-import { Button, Card, Centered, Chip, DateField, Field, Muted, Title } from '@/components/ui';
+import {
+  Button,
+  Card,
+  Centered,
+  Chip,
+  CollapsibleSection,
+  DateField,
+  Field,
+  Muted,
+  Title,
+} from '@/components/ui';
 import { CURRENCY_OPTIONS } from '@/lib/primaryCurrency';
 import {
   useCategories,
@@ -78,6 +88,14 @@ function Form({
   const [status, setStatus] = useState<SubscriptionStatus>(existing?.status ?? 'active');
   const [error, setError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  // Read once, on mount, to decide whether Details starts open: a saved trial
+  // date or note must not be hidden behind a chevron on a screen the user
+  // opened in order to edit it. It deliberately does not track later typing —
+  // the section is already open by then.
+  const [hasDetails] = useState(
+    () => !!(cardLast4 || trialEnds || startedOn || notes),
+  );
 
   const merchantLink = existing?.merchant_normalized ?? prefill.merchant ?? null;
   const knownCards = [
@@ -189,88 +207,97 @@ function Form({
             </View>
           ) : null}
           <View style={{ marginTop: 12 }}>
-            <DateField
-              label="Next payment date (optional)"
-              value={nextDue}
-              onChange={setNextDue}
-              placeholder="No date set"
-              sheetTitle="Next payment date"
-            />
-            <Muted>
-              Set it once and the app rolls it forward by the cycle on its own — you will not have
-              to come back and update it.
-            </Muted>
-          </View>
-        </Card>
-
-        <Card>
-          <Title>Category</Title>
-          <View style={styles.chips}>
-            {(categories.data ?? []).map((c) => (
-              <Chip
-                key={c.id}
-                label={c.name}
-                active={categoryId === c.id}
-                onPress={() => setCategoryId(categoryId === c.id ? null : c.id)}
+            <CollapsibleSection
+              title="Next payment date (optional)"
+              tone="field"
+              defaultOpen={nextDue !== ''}
+            >
+              <DateField
+                value={nextDue}
+                onChange={setNextDue}
+                placeholder="No date set"
+                sheetTitle="Next payment date"
               />
-            ))}
+              <Muted>
+                Set it once and the app rolls it forward by the cycle on its own — you will not
+                have to come back and update it.
+              </Muted>
+            </CollapsibleSection>
           </View>
         </Card>
 
         <Card>
-          <Title>Details</Title>
-          <Field
-            label="Billed to card (optional)"
-            placeholder="0213"
-            value={cardLast4}
-            onChangeText={setCardLast4}
-            keyboardType="number-pad"
-            maxLength={4}
-          />
-          {knownCards.length > 0 ? (
+          <CollapsibleSection title="Category (optional)" defaultOpen={categoryId !== null}>
             <View style={styles.chips}>
-              {knownCards.map((c) => (
+              {(categories.data ?? []).map((c) => (
                 <Chip
-                  key={c}
-                  label={`•${c}`}
-                  active={cardLast4 === c}
-                  onPress={() => setCardLast4(cardLast4 === c ? '' : c)}
+                  key={c.id}
+                  label={c.name}
+                  active={categoryId === c.id}
+                  onPress={() => setCategoryId(categoryId === c.id ? null : c.id)}
                 />
               ))}
             </View>
-          ) : null}
-          <View style={{ marginTop: 12 }}>
-            <DateField
-              label="Free trial ends (optional)"
-              value={trialEnds}
-              onChange={setTrialEnds}
-              placeholder="No date set"
-              sheetTitle="Free trial ends"
-            />
-            <DateField
-              label="Started on (optional)"
-              value={startedOn}
-              onChange={setStartedOn}
-              placeholder="No date set"
-              sheetTitle="Started on"
-            />
+          </CollapsibleSection>
+        </Card>
+
+        <Card>
+          {/* Field labels drop their own "(optional)" — the section heading
+              already says it, and repeating it five times reads as noise. */}
+          <CollapsibleSection title="Details (optional)" defaultOpen={hasDetails}>
             <Field
-              label="Notes (optional)"
-              placeholder="e.g. shared with family, cancel before renewal"
-              value={notes}
-              onChangeText={setNotes}
-              multiline
-              maxLength={500}
+              label="Billed to card"
+              placeholder="0213"
+              value={cardLast4}
+              onChangeText={setCardLast4}
+              keyboardType="number-pad"
+              maxLength={4}
             />
-          </View>
-          {merchantLink ? (
-            <Muted>{`Matched to "${merchantLink}" in your transactions, so its real charges show up against this subscription.`}</Muted>
-          ) : (
-            <Muted>
-              Charges are matched by name, so keep the name close to how it appears on your bank
-              message.
-            </Muted>
-          )}
+            {knownCards.length > 0 ? (
+              <View style={styles.chips}>
+                {knownCards.map((c) => (
+                  <Chip
+                    key={c}
+                    label={`•${c}`}
+                    active={cardLast4 === c}
+                    onPress={() => setCardLast4(cardLast4 === c ? '' : c)}
+                  />
+                ))}
+              </View>
+            ) : null}
+            <View style={{ marginTop: 12 }}>
+              <DateField
+                label="Free trial ends"
+                value={trialEnds}
+                onChange={setTrialEnds}
+                placeholder="No date set"
+                sheetTitle="Free trial ends"
+              />
+              <DateField
+                label="Started on"
+                value={startedOn}
+                onChange={setStartedOn}
+                placeholder="No date set"
+                sheetTitle="Started on"
+              />
+              <Field
+                label="Notes"
+                placeholder="e.g. shared with family, cancel before renewal"
+                value={notes}
+                onChangeText={setNotes}
+                multiline
+                maxLength={500}
+              />
+            </View>
+            {merchantLink ? (
+              <Muted>{`Matched to "${merchantLink}" in your transactions, so its real charges show up against this subscription.`}</Muted>
+            ) : (
+              <Muted>
+                Charges are matched by name, so keep the name close to how it appears on your bank
+                message.
+              </Muted>
+            )}
+          </CollapsibleSection>
         </Card>
 
         <Card>

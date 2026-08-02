@@ -61,7 +61,6 @@ describe('keys the app actually builds', () => {
       onboardedKey(USER_ID),
       `bukit.setup_dismissed.${USER_ID}`,
       `bukit.setup_steps.${USER_ID}`,
-      `bukit.reminders.${USER_ID}`,
       `bukit.digest.${USER_ID}`,
       `bukit.alerted.${USER_ID}`,
       `bukit.ingest_token.${USER_ID}`,

@@ -1,8 +1,8 @@
 ﻿import { Link } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Text, View } from 'react-native';
-import { HexBackground } from '@/components/HexBackground';
-import { Button, Card, Field, Title } from '@/components/ui';
+import { Text, View } from 'react-native';
+import { Button, Card, DismissKeyboardView, Field, Title } from '@/components/ui';
+import { describeRequestError, withNetworkRetry } from '@/lib/netError';
 import { supabase } from '@/lib/supabase';
 import { themedStyles } from '@/lib/theme';
 
@@ -16,18 +16,23 @@ export default function SignIn() {
   async function submit() {
     setBusy(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-    if (error) setError(error.message);
+    const { error } = await withNetworkRetry(() =>
+      supabase.auth.signInWithPassword({ email: email.trim(), password }),
+    );
+    if (error) setError(describeRequestError(error.message));
     setBusy(false);
     // On success the AuthGate redirects to the tabs.
   }
 
+  // Not KeyboardAvoidingView, deliberately. `behavior="padding"` shrinks the
+  // screen when the keyboard opens, and because the card is vertically centred
+  // inside it, tapping a field slid the whole form upward. The other auth
+  // screens (forgot-password, reset-password) never did this, so the form
+  // appeared to move on some screens and not others. Now the card stays put
+  // everywhere, the keyboard simply covers what it covers, and a tap on the
+  // background puts it away again.
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <HexBackground />
+    <DismissKeyboardView style={styles.screen}>
       <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
         <Card>
@@ -59,13 +64,14 @@ export default function SignIn() {
           </Link>
         </Card>
       </View>
-    </KeyboardAvoidingView>
-
+    </DismissKeyboardView>
   );
 }
 
 const useStyles = themedStyles((colors) => ({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  // No background colour: the group's layout owns it, and painting it again
+  // here would hide the shared coin field behind the stack.
+  screen: { flex: 1 },
   inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
   brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginBottom: 8 },

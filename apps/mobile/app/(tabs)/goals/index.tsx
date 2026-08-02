@@ -60,7 +60,7 @@ export default function GoalsTab() {
 function GoalCard({ goal }: { goal: SavingsGoalWithProgress }) {
   const styles = useStyles();
   const { colors } = useTheme();
-  const { money } = usePrivacy();
+  const { pair } = usePrivacy();
   const addEntry = useAddSavingsGoalEntry();
   const [amount, setAmount] = useState('');
   const amountNum = Number(amount);
@@ -92,8 +92,13 @@ function GoalCard({ goal }: { goal: SavingsGoalWithProgress }) {
             </View>
             <Muted>{ratio >= 1 ? 'Goal reached 🎉' : `${Math.round(ratio * 100)}% there`}</Muted>
           </View>
-          <Text style={styles.goalAmounts}>
-            {money(goal.saved, goal.currency)} / {money(targetAmt, goal.currency)}
+          <Text
+            style={styles.goalAmounts}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.5}
+          >
+            {pair(goal.saved, targetAmt, goal.currency)}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />

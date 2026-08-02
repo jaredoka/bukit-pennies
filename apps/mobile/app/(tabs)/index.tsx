@@ -133,7 +133,7 @@ export default function Dashboard() {
   const recentTx = useRecentMonthsTransactions(6);
   const subscriptions = useSubscriptions();
   const { refreshing, onRefresh } = usePullToRefresh();
-  const { hidden, toggle, money } = usePrivacy();
+  const { hidden, toggle, money, pair } = usePrivacy();
 
   // ---- Period filter -------------------------------------------------------
   const thisMonthKey = bruneiMonthKey(Date.now());
@@ -506,7 +506,7 @@ export default function Dashboard() {
                     {b.name}
                   </Text>
                   <Text style={[styles.budgetAmounts, over && { color: colors.danger }]}>
-                    {money(b.spent, primaryCurrency)} / {money(b.limit, primaryCurrency)}
+                    {pair(b.spent, b.limit, primaryCurrency)}
                   </Text>
                 </View>
                 <View style={styles.budgetTrack}>

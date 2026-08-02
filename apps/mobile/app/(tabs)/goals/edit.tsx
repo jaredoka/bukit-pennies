@@ -45,7 +45,7 @@ function Detail({ goal }: { goal: SavingsGoalWithProgress }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const router = useRouter();
-  const { money } = usePrivacy();
+  const { money, pair } = usePrivacy();
   const entries = useSavingsGoalEntries(goal.id);
   const update = useUpdateSavingsGoal();
   const addEntry = useAddSavingsGoalEntry();
@@ -128,8 +128,8 @@ function Detail({ goal }: { goal: SavingsGoalWithProgress }) {
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <Card>
           <View style={styles.amountsRow}>
-            <Text style={styles.amounts}>
-              {money(goal.saved, goal.currency)} / {money(targetAmt, goal.currency)}
+            <Text style={styles.amounts} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+              {pair(goal.saved, targetAmt, goal.currency)}
             </Text>
             <Muted>{ratio >= 1 ? 'Goal reached 🎉' : `${Math.round(ratio * 100)}% there`}</Muted>
           </View>

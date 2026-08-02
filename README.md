@@ -15,9 +15,9 @@ arrived on your phone.
 
 *Screenshots use seeded demo data, not real spending.*
 
-> **Try the live web demo:** `<your Netlify URL>` — the same app compiled for
-> the browser against a hosted Supabase backend. Sign up and try it without an
-> iPhone.
+> **Try the live web demo:** [bukit-pennies.netlify.app](https://bukit-pennies.netlify.app) —
+> the same app compiled for the browser against a hosted Supabase backend. Sign up and try it
+> without an iPhone.
 
 ---
 
@@ -179,3 +179,7 @@ database, the edge function and the app, with the goal of being able to explain
 and modify any part of it unaided. The four sections above are the parts I've
 studied closely enough to defend under questioning; that is exactly why they
 are the ones written down, and the list grows as I work through the rest.
+
+## Maintained by
+
+[jaredoka](https://github.com/jaredoka) · [MIT licensed](LICENSE)

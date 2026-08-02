@@ -3019,10 +3019,13 @@ plumbing now. English-only UI. Single developer.
 
 **1. Transactions default = last 30 days → **reverted on the owner's say-so.** Built and then reversed in the same day: a default that is secretly a date filter hides older transactions and reads as one. The list now opens with **no default filter** — all time, newest-first — showing the newest page (`TX_PAGE_SIZE = 50`) with auto-load on scroll (`onEndReached`). A date window is just another filter opened from the Date chip. The `recentWindowStartKey`/`defaultListFilters`/`isRecentWindow` helpers were removed from `src/lib/txFilters.ts`.
 
-**2. Reset all transactions.** A user-facing destructive action on
-**Settings → Spending & data** (`app/(tabs)/settings/spending.tsx`), below the
-Export button, confirmed by typing **RESET TRANSACTIONS** (the owner specified
-that phrase — not "DELETE"). **Built**: `reset_transactions()` RPC (migrations
+**2. Reset all transactions.** A user-facing destructive action confirmed by
+typing **RESET TRANSACTIONS** (the owner specified that phrase — not "DELETE").
+Moved in the same day to its own Settings page
+(`app/(tabs)/settings/reset-transactions.tsx`, linked by a danger `NavRow` from
+Settings → Spending & data) so it stops cluttering the Spending & data screen,
+with the copy rewritten in layman terms (what is deleted vs. what is kept).
+**Built**: `reset_transactions()` RPC (migrations
 24 + 25) returns the count deleted, is **SECURITY INVOKER** (RLS
 `transactions_delete` is the gate — no definer exception for a data-destruction
 RPC, migration 25 explains), `revoke`d from `public, anon`, granted to

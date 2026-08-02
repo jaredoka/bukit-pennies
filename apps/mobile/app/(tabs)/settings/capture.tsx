@@ -19,7 +19,7 @@ export default function Capture() {
           href="/(tabs)/settings/shortcut-setup"
           icon="logo-apple"
           label="iOS Shortcut setup"
-          note="Near-automatic capture of bank SMS on iPhone"
+          note="Almost automatic capture of bank SMS on iPhone"
         />
         {/* Android only. The listener module is designed (HANDOFF §9) but
             deferred until after iOS testing, so on iPhone this row was a

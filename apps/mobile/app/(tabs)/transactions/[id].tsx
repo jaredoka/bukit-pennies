@@ -184,7 +184,7 @@ export default function TransactionDetail() {
         {canReparse(tx) ? (
           <>
             <Button
-              label="Re-parse from original text"
+              label="Reparse from original text"
               variant="secondary"
               onPress={() => void reparse()}
               busy={update.isPending}

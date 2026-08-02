@@ -45,7 +45,7 @@ export default function GoalsTab() {
           <Card>
             <Title>No goals yet</Title>
             <Muted>
-              Tap + to set your first one — a target to save toward, and a place to log money as
+              Tap + to set your first one, a target to save toward and a place to log money as
               you put it aside.
             </Muted>
           </Card>

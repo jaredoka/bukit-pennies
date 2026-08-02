@@ -162,7 +162,7 @@ function Form({
         <Card>
           <Title>{existing ? 'Edit subscription' : 'New subscription'}</Title>
           <Muted>
-            What you are paying for and when it renews. Recorded for your reference only — the
+            What you are paying for and when it renews. Recorded for your reference only. The
             charge itself is counted when your bank message arrives.
           </Muted>
           <View style={{ marginTop: 12 }}>
@@ -219,7 +219,7 @@ function Form({
                 sheetTitle="Next payment date"
               />
               <Muted>
-                Set it once and the app rolls it forward by the cycle on its own — you will not
+                Set it once and the app rolls it forward by the cycle on its own. You will not
                 have to come back and update it.
               </Muted>
             </CollapsibleSection>

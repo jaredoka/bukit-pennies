@@ -324,8 +324,8 @@ export default function Dashboard() {
             <View style={{ flex: 1 }}>
               <Text style={[styles.captureBannerText, { color: colors.primary }]}>
                 {setupResumeAt && setupSteps.length > 0
-                  ? `Finish automatic capture — step ${setupResumeAt} of ${SETUP_STEP_COUNT}`
-                  : 'Set up automatic capture — every bank SMS logs itself'}
+                  ? `Finish automatic capture, step ${setupResumeAt} of ${SETUP_STEP_COUNT}`
+                  : 'Set up automatic capture. Every bank SMS logs itself'}
               </Text>
               <Text style={[styles.captureBannerSub, { color: colors.primary }]}>
                 {setupSteps.length > 0 ? 'Your progress is saved' : 'About 5 minutes, one time'}

@@ -235,7 +235,7 @@ function SubscriptionCard({
             limit is a real transaction, which is why this screen adds nothing. */}
         <Muted>
           {charged
-            ? `Charged ${money(charged.amount, charged.currency)} on ${formatDayDate(charged.occurredAt)} — already in your spending.`
+            ? `Charged ${money(charged.amount, charged.currency)} on ${formatDayDate(charged.occurredAt)}. Already in your spending.`
             : previous
               ? `Not seen this month. Last captured charge was ${money(previous.amount, previous.currency)} on ${formatDayDate(previous.occurredAt)}.`
               : 'No captured charge matched to this yet.'}

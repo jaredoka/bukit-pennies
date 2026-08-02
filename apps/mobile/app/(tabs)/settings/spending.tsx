@@ -30,7 +30,7 @@ export default function Spending() {
           href="/(tabs)/settings/budgets"
           icon="pie-chart"
           label="Set category budgets"
-          note="Set per-category limits shown on the dashboard"
+          note="Set spending limits per category"
         />
         <NavRow
           href="/subscriptions"
@@ -44,17 +44,16 @@ export default function Spending() {
           label="Weekly summary"
           note="Weekly update on money spent, and percent of money used so far in the month"
         />
-        <View style={{ marginTop: 12 }}>
-          <Button label="Export transactions (CSV)" variant="secondary" onPress={exportCsv} busy={exporting} />
-          {exportNote ? <Muted>{exportNote}</Muted> : null}
-        </View>
         <NavRow
           href="/(tabs)/settings/reset-transactions"
           icon="trash"
           label="Reset all transactions"
           note="Delete your spending history and start fresh"
-          danger
         />
+        <View style={{ marginTop: 12 }}>
+          <Button label="Export transactions (CSV)" variant="secondary" onPress={exportCsv} busy={exporting} />
+          {exportNote ? <Muted>{exportNote}</Muted> : null}
+        </View>
       </Card>
     </ScrollView>
   );

@@ -240,7 +240,7 @@ export default function ShortcutSetup() {
       <Card>
         <Text style={styles.heroTitle}>Automatic capture</Text>
         {onboarding ? (
-          <Muted>One-time setup. Finish the steps below to start using the app.</Muted>
+          <Muted>Set it up once. Finish the steps below to start using the app.</Muted>
         ) : null}
         <Muted>
           Your bank texts you for every card payment. A free Apple Shortcut forwards those
@@ -277,7 +277,7 @@ export default function ShortcutSetup() {
           style={[styles.resumeBanner, { borderColor: colors.primary, backgroundColor: colors.primary + '14' }]}
         >
           <Text style={[styles.resumeText, { color: colors.primary }]}>
-            {`Picking up where you left off — step ${resumeAt} of ${SETUP_STEP_COUNT}. Tap a numbered circle to tick a step off.`}
+            {`Picking up where you left off at step ${resumeAt} of ${SETUP_STEP_COUNT}. Tap a numbered circle to tick a step off.`}
           </Text>
         </View>
       ) : null}
@@ -453,7 +453,7 @@ export default function ShortcutSetup() {
             />
           </View>
           <Muted>
-            Leaving loses nothing — your ticked steps are saved, and the dashboard card
+            Leaving loses nothing. Your ticked steps are saved, and the dashboard card
             brings you straight back to where you stopped.
           </Muted>
         </Card>

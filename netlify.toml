@@ -1,0 +1,16 @@
+# Netlify build config for the live web demo.
+# Publish a branch, and every push to it triggers a fresh web export
+# (see README: "Try the live web demo").
+
+[build]
+  command = "pnpm install --frozen-lockfile && pnpm --filter @bukit/mobile exec expo export --platform web"
+  publish = "apps/mobile/dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # Hosted Supabase. The anon key is public by design (it ships inside every
+  # build of the client); move these to Netlify's env-var UI if you prefer.
+  EXPO_PUBLIC_SUPABASE_URL = "https://pzjroqwllrzcbpiugpxl.supabase.co"
+  EXPO_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6anJvcXdsbHJ6Y2JwaXVncHhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyMjU3MjUsImV4cCI6MjA5OTgwMTcyNX0.3uorwfXWOfHlVcdtmRrStO7PU9cA3aIL8N5WKhXCAw0"
+  # The Sentry expo plugin's source-map upload must not run on Netlify.
+  SENTRY_DISABLE_AUTO_UPLOAD = "true"

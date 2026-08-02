@@ -3,6 +3,9 @@
 # (see README: "Try the live web demo").
 
 [build]
+  # Pin the base to the repo root: Netlify's monorepo detection otherwise
+  # picks apps/mobile as the base and the publish path doubles up.
+  base = "."
   command = "pnpm install --frozen-lockfile && pnpm --filter @bukit/mobile exec expo export --platform web"
   publish = "apps/mobile/dist"
 

@@ -2982,3 +2982,72 @@ download from Step 2 adds a shortcut named `Bukit Pennies`, and Step 3 lands on
 the "Connected. Capture is ready." notification rather than opening Shortcuts
 and stopping.
 
+## 38. Strategy + the two next features (2026-08-02)
+
+The owner answered the roadmap questions (§16.4) and the session's two
+Transactions questions. All of it is now decision-logged (playbook §6) so it is
+not re-litigated; this section is the working roadmap and the build spec for the
+next implementation session. **PR #87 merged this day**: the auth coin field
+now paints per-screen (each auth screen sets `colors.bg` and mounts
+`<HexBackground/>`; `(auth)/_layout.tsx` is a plain Stack again),
+`DismissKeyboardView` skips its dismiss on web, and money pairs render
+`BND 100.00 / 500.00` via `formatMoneyPair` + cloak-aware `pair()`.
+
+### North star and sequence
+
+Success = a mix of installs, daily users, and captured-transaction volume. The
+agreed order:
+
+1. **Store launch readiness** — Apple Developer enrolment (owner, $99),
+   `apps/mobile/eas.json` placeholders (anon key, Apple Team ID, ASC App ID),
+   and the `docs/testflight-deploy.md` runbook (EAS build → TestFlight →
+   on-device checklist). This is the first milestone.
+2. **DAU pillar** — iOS home-screen widget, a monthly shareable spending
+   report (doubles as a viral loop), and a net-worth screen.
+3. **Installs pillar** — referral/invite, the shareable report's web presence,
+   then Android (only after iOS ships).
+4. **Capture pillar** — promote the SCB skeleton when real SMS samples arrive
+   (the Review inbox is the collection loop; playbook §7 procedure), and grow
+   the Brunei merchant map.
+
+Deferred deliberately: e-wallet and recurring-bill parsers (unreliable texts;
+card auto-debits already arrive via bank SMS; low ROI per parser). Freemium is
+open — launch free/simple, keep the schema future-proof, no monetization
+plumbing now. English-only UI. Single developer.
+
+### Next features (agreed, not yet built)
+
+**1. Transactions default = last 30 days.** On first open the Transactions
+screen should show the newest transactions within the past 30 days (Brunei
+time), newest-first, with infinite scroll past it. Today `DEFAULT_FILTERS` in
+`src/lib/txFilters.ts` has `dateFrom: ''` (no window) and the list pages
+`TX_PAGE_SIZE = 50`. Implementation notes for the builder:
+
+- Compute the window at query time, not module load: `bruneiDayKey` (today −
+  29 days) so "30 days ago" stays current across sessions. `bruneiDayStartIso`
+  already feeds `buildTransactionOps` for the `gte` on `occurred_at`.
+- Decide how the default interacts with the active-filter badge / "clear
+  filters" affordance — the window is a true default, so opening the date
+  picker or choosing a range should replace it, not stack with it.
+- Keep paging at 50; the window caps the first render cost for any account
+  size, which was the point.
+
+**2. Reset all transactions.** A user-facing destructive action on
+**Settings → Spending & data** (`app/(tabs)/settings/spending.tsx`), below the
+Export button, confirmed by typing **RESET TRANSACTIONS** (the owner specified
+that phrase — not "DELETE"). Scope: the account's `transactions` rows only.
+`transactions.category_id` is a column on the row (migration 01), so deleting
+the row removes its category mapping — there is no assignment table. Budgets,
+goals, subscriptions, cards, and settings survive; the global default
+`categories` rows (user_id null) must not be touched.
+
+- Add a security-invoker RPC `reset_transactions()` mirroring
+  `supabase/migrations/05_delete_account.sql`: `delete from public.transactions
+  where user_id = auth.uid()` (RLS `transactions_delete` already exists), then
+  `revoke` from `public, anon` and `grant execute` to `authenticated`. Migration
+  24. Advisors after `db push` (playbook §7, `docs/db-advisors.md`).
+- Mirror the `delete-account.tsx` confirm-card pattern (`Field` +
+  `variant="danger"` button disabled until the phrase matches); invalidate
+  `['transactions']` queries afterwards. Decide with the owner whether a
+  non-interactive confirm dialog (Alert) is wanted before the typed phrase.
+

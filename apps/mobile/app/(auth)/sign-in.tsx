@@ -1,6 +1,7 @@
 ﻿import { Link } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
+import { HexBackground } from '@/components/HexBackground';
 import { Button, Card, DismissKeyboardView, Field, Title } from '@/components/ui';
 import { describeRequestError, withNetworkRetry } from '@/lib/netError';
 import { supabase } from '@/lib/supabase';
@@ -33,6 +34,7 @@ export default function SignIn() {
   // background puts it away again.
   return (
     <DismissKeyboardView style={styles.screen}>
+      <HexBackground />
       <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
         <Card>
@@ -69,9 +71,7 @@ export default function SignIn() {
 }
 
 const useStyles = themedStyles((colors) => ({
-  // No background colour: the group's layout owns it, and painting it again
-  // here would hide the shared coin field behind the stack.
-  screen: { flex: 1 },
+  screen: { flex: 1, backgroundColor: colors.bg },
   inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
   brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginBottom: 8 },

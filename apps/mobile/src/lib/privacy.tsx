@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { kvGet, kvSet } from './kvStore';
-import { formatMoney } from './format';
+import { formatMoney, formatMoneyPair } from './format';
 
 // Wise-style amount cloaking: one global eye toggle hides every amount in
 // the UI behind dots. Display-only — exports and the server are untouched.
@@ -13,12 +13,15 @@ interface PrivacyValue {
   toggle: () => void;
   /** formatMoney that respects the cloak. */
   money: (amount: number | null, currency?: string) => string;
+  /** formatMoneyPair that respects the cloak. */
+  pair: (first: number | null, second: number | null, currency?: string) => string;
 }
 
 const PrivacyContext = createContext<PrivacyValue>({
   hidden: false,
   toggle: () => {},
   money: formatMoney,
+  pair: formatMoneyPair,
 });
 
 export function PrivacyProvider({ children }: { children: ReactNode }) {
@@ -37,6 +40,8 @@ export function PrivacyProvider({ children }: { children: ReactNode }) {
       });
     },
     money: (amount, currency) => (hidden ? MASK : formatMoney(amount, currency)),
+    pair: (first, second, currency) =>
+      hidden ? `${MASK} / ${MASK}` : formatMoneyPair(first, second, currency),
   };
 
   return <PrivacyContext.Provider value={value}>{children}</PrivacyContext.Provider>;

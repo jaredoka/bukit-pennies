@@ -444,8 +444,12 @@ function EntryRow({ entry, currency }: { entry: SavingsGoalEntryRow; currency: s
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center', paddingBottom: 32 },
-  amountsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 },
-  amounts: { color: colors.text, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] as const },
+  // Same collision as the goals list, without a title to move the percentage
+  // onto — the goal name is the nav bar title here. So the amounts take the
+  // flexible slot instead: bounded width means they wrap when they get long
+  // rather than running into the label beside them.
+  amountsRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 4 },
+  amounts: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] as const },
   track: { height: 8, borderRadius: 4, backgroundColor: colors.border, overflow: 'hidden', marginVertical: 8 },
   fill: { height: '100%', borderRadius: 4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },

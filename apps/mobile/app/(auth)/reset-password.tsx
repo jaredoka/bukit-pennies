@@ -2,8 +2,8 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, Text, View } from 'react-native';
-import { HexBackground } from '@/components/HexBackground';
-import { Button, Card, Field, Muted, Title } from '@/components/ui';
+import { Button, Card, DismissKeyboardView, Field, Muted, Title } from '@/components/ui';
+import { describeRequestError, withNetworkRetry } from '@/lib/netError';
 import {
   breachWarning,
   checkPasswordBreached,
@@ -34,8 +34,14 @@ export default function ResetPassword() {
     if (Platform.OS === 'web' || !url) return;
     const code = Linking.parse(url).queryParams?.code;
     if (typeof code !== 'string') return;
-    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-      if (error) setLinkError(error.message);
+    // Worth retrying even though a PKCE code is single-use. If the first
+    // attempt did reach the server, the code is spent whether or not this
+    // retries, and the user is told to request a new link either way — but
+    // unlike every other call here, this one fires from a deep link rather
+    // than a button, so a transport blip they cannot tap through is the
+    // difference between resetting their password and not.
+    withNetworkRetry(() => supabase.auth.exchangeCodeForSession(code)).then(({ error }) => {
+      if (error) setLinkError(describeRequestError(error.message));
       else setReady(true);
     });
   }, [url]);
@@ -52,9 +58,9 @@ export default function ResetPassword() {
       return;
     }
 
-    const { error } = await supabase.auth.updateUser({ password });
+    const { error } = await withNetworkRetry(() => supabase.auth.updateUser({ password }));
     if (error) {
-      setFormError(error.message);
+      setFormError(describeRequestError(error.message));
       setBusy(false);
       return;
     }
@@ -72,15 +78,18 @@ export default function ResetPassword() {
     // Failure is not surfaced. The password is already changed by this point,
     // and sending the user back to a form for a step that has succeeded would
     // be worse than the residual risk of a stale sibling session.
-    const { error: revokeError } = await supabase.auth.signOut({ scope: 'others' });
+    // Retried too: this is the step that evicts an attacker's session, and
+    // losing it to a stale socket would fail silently below.
+    const { error: revokeError } = await withNetworkRetry(() =>
+      supabase.auth.signOut({ scope: 'others' }),
+    );
     if (revokeError) console.warn('could not revoke other sessions:', revokeError.message);
 
     router.replace('/(tabs)');
   }
 
   return (
-    <View style={styles.screen}>
-      <HexBackground />
+    <DismissKeyboardView style={styles.screen}>
       <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
         <Card>
@@ -112,12 +121,13 @@ export default function ResetPassword() {
           ) : null}
         </Card>
       </View>
-    </View>
+    </DismissKeyboardView>
   );
 }
 
 const useStyles = themedStyles((colors) => ({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  // See sign-in: the group's layout owns the background.
+  screen: { flex: 1 },
   inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
   brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginTop: 8 },

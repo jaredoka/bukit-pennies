@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { bruneiDayKey } from '../src/lib/format';
 import {
   buildTransactionOps,
   DEFAULT_FILTERS,
-  defaultListFilters,
   hasAnyFilter,
-  isRecentWindow,
-  recentWindowStartKey,
   type TxFilters,
 } from '../src/lib/txFilters';
 
@@ -126,22 +122,5 @@ describe('combining', () => {
       'ho',
     );
     expect(ops.map((o) => o.op)).toEqual(['in', 'in', 'in', 'gte', 'or']);
-  });
-});
-
-describe('recent window (list default)', () => {
-  it('starts 29 days before today, Brunei time', () => {
-    expect(recentWindowStartKey()).toBe(bruneiDayKey(Date.now() - 29 * 86_400_000));
-  });
-
-  it('defaultListFilters sets only the window', () => {
-    expect(defaultListFilters()).toEqual({ ...DEFAULT_FILTERS, dateFrom: recentWindowStartKey() });
-  });
-
-  it('isRecentWindow is true only for the untouched default', () => {
-    expect(isRecentWindow(defaultListFilters())).toBe(true);
-    expect(isRecentWindow(DEFAULT_FILTERS)).toBe(false);
-    expect(isRecentWindow({ ...defaultListFilters(), dateTo: recentWindowStartKey() })).toBe(false);
-    expect(isRecentWindow({ ...defaultListFilters(), dateFrom: '2000-01-01' })).toBe(false);
   });
 });

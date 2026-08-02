@@ -3017,14 +3017,7 @@ plumbing now. English-only UI. Single developer.
 
 ### Next features (agreed, built 2026-08-02 in PR #89)
 
-**1. Transactions default = last 30 days.** On first open the Transactions
-screen shows the newest transactions within the past 30 days (Brunei time),
-newest-first, with infinite scroll past it. **Built**: `recentWindowStartKey()`,
-`defaultListFilters()` and `isRecentWindow()` in `src/lib/txFilters.ts`
-(`RECENT_WINDOW_DAYS = 30`); the list initialises from `defaultListFilters`
-and the date chip reads "Last 30 days". The window is a true default, so it
-does not light up "Reset all" or the empty state; "Reset all" returns to the
-window, and clearing the date sheet returns to all time. Paging stays at 50.
+**1. Transactions default = last 30 days → **reverted on the owner's say-so.** Built and then reversed in the same day: a default that is secretly a date filter hides older transactions and reads as one. The list now opens with **no default filter** — all time, newest-first — showing the newest page (`TX_PAGE_SIZE = 50`) with auto-load on scroll (`onEndReached`). A date window is just another filter opened from the Date chip. The `recentWindowStartKey`/`defaultListFilters`/`isRecentWindow` helpers were removed from `src/lib/txFilters.ts`.
 
 **2. Reset all transactions.** A user-facing destructive action on
 **Settings → Spending & data** (`app/(tabs)/settings/spending.tsx`), below the

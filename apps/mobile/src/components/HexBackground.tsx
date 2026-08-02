@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Animated, Easing, useWindowDimensions, View } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import { useEffect } from 'react';
+import { Animated, Easing, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useTheme } from '@/lib/theme';
 
 interface CoinDef {
@@ -33,74 +32,142 @@ function randomCoin(): CoinDef {
 
 const COIN_DEFS: CoinDef[] = Array.from({ length: 14 }, randomCoin);
 
-const CLOCK_PERIOD = 360_000;
-const clock = new Animated.Value(0);
-let currentT = 0;
+const PEAK_OPACITY = 0.22;
 
-let clockStarted = false;
+/**
+ * One driver per coin, holding its progress through its own cycle in 0..1.
+ *
+ * Module-level, like the single clock that preceded them, so a coin's progress
+ * survives the component unmounting: whichever screen mounts the field next
+ * picks the coins up exactly where they had drifted to, rather than restarting
+ * them at their origins.
+ */
+const COIN_PROGRESS = COIN_DEFS.map((c) => new Animated.Value(c.phase));
+
+let started = false;
+
+/**
+ * Starts every coin's loop, once per app run.
+ *
+ * The first leg is short — it carries a coin from wherever its random phase
+ * dropped it to the end of that cycle — and only then does the full-period
+ * loop take over. Without that the loops would all start at 0 together and the
+ * whole field would pulse in unison.
+ */
 function ensureAnimating() {
-  if (clockStarted) return;
-  clockStarted = true;
-  Animated.loop(
-    Animated.timing(clock, {
-      toValue: CLOCK_PERIOD,
-      duration: CLOCK_PERIOD,
+  if (started) return;
+  started = true;
+  COIN_DEFS.forEach((c, i) => {
+    const progress = COIN_PROGRESS[i];
+    const cycle = () =>
+      Animated.loop(
+        Animated.timing(progress, {
+          toValue: 1,
+          duration: c.period,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+      ).start();
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: c.period * (1 - c.phase),
       easing: Easing.linear,
-      useNativeDriver: false,
-    }),
-  ).start();
-}
-
-/** Progress of each coin at time `t`, still in 0..1 space — the caller scales
- *  to the current viewport so a resize costs no recomputation of the defs. */
-function computeState(t: number): { xFrac: number; yFrac: number; drift: [number, number]; r: number; alpha: string }[] {
-  return COIN_DEFS.map((c) => {
-    const progress = ((t + c.phase * c.period) % c.period) / c.period;
-    const opacity = 0.22 * Math.sin(Math.PI * progress);
-    const alpha = Math.round(opacity * 255).toString(16).padStart(2, '0');
-    return {
-      xFrac: c.startXFrac,
-      yFrac: c.startYFrac,
-      drift: [c.driftX * progress, c.driftY * progress],
-      r: c.r,
-      alpha,
-    };
+      useNativeDriver: true,
+    }).start(() => {
+      // `finished` is deliberately ignored. The first leg can be interrupted —
+      // this field lives in the auth layout, and a quick sign-in unmounts the
+      // whole group while some coins are still on their opening drift, which
+      // fires this callback with `finished: false`. Bailing there would leave
+      // `started` true and the coin frozen for the rest of the app run. The
+      // jump to 0 is invisible either way: it happens after the view is gone
+      // (or, completed, while the coin's opacity is already at 0), and the
+      // module-level loop keeps driving the same value while unmounted.
+      progress.setValue(0);
+      cycle();
+    });
   });
 }
 
+/**
+ * The drifting coin field behind the auth screens.
+ *
+ * Mounted once by `app/(auth)/_layout.tsx` and shared by every screen in the
+ * group, not mounted per screen. Per screen it was inside the thing the
+ * navigator slides, so pushing sign-in over the landing page dragged the coins
+ * across with it — the field visibly lurched on every navigation even though
+ * the coins' own progress was already continuous.
+ *
+ * Every coin animates on the **native driver**: a static `left`/`top` for where
+ * it starts and an animated `transform` for its drift, because the native
+ * driver can move a transform but not a layout property. The version before
+ * this one ran a JS clock that called `setState` on every frame and re-rendered
+ * fourteen SVG circles each time — which is exactly the work that stutters
+ * while the JS thread is busy building the next screen, so the coins hitched
+ * during the very transitions this is meant to glide through. Nothing here
+ * touches JS per frame now.
+ *
+ * A coin is a plain rounded `View` rather than an `<Svg><Circle/></Svg>`: the
+ * original drew a filled circle stroked in its own colour, which is a disc of
+ * radius `r + strokeWidth / 2` and nothing a border radius cannot do.
+ */
 export function HexBackground() {
   const { colors } = useTheme();
-  const fill = colors.primary;
   // Tracks the window rather than snapshotting it, so the field re-lays-out on
   // resize and rotation.
   const { width: W, height: H } = useWindowDimensions();
 
-  const [coins, setCoins] = useState(() => computeState(currentT));
-
   useEffect(() => {
     ensureAnimating();
-    const id = clock.addListener(({ value }) => {
-      currentT = value;
-      setCoins(computeState(value));
-    });
-    return () => clock.removeListener(id);
   }, []);
 
   return (
-    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' }} pointerEvents="none">
-      <Svg width={W} height={H}>
-        {coins.map((c, i) => (
-          <Circle
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {COIN_DEFS.map((c, i) => {
+        const progress = COIN_PROGRESS[i];
+        const size = (c.r + 1) * 2;
+        return (
+          <Animated.View
             key={i}
-            cx={c.xFrac * W + c.drift[0]}
-            cy={c.yFrac * H + c.drift[1]}
-            r={c.r}
-            fill={`${fill}${c.alpha}`}
-            stroke={`${fill}${c.alpha}`}
-            strokeWidth={2}
+            style={{
+              position: 'absolute',
+              left: c.startXFrac * W - size / 2,
+              top: c.startYFrac * H - size / 2,
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+              backgroundColor: colors.primary,
+              // Fades in and back out across the cycle, so the jump from the
+              // end of one cycle to the start of the next happens while the
+              // coin is invisible. Four segments approximating the sine the JS
+              // version computed per frame.
+              opacity: progress.interpolate({
+                inputRange: [0, 0.25, 0.5, 0.75, 1],
+                outputRange: [
+                  0,
+                  PEAK_OPACITY * Math.SQRT1_2,
+                  PEAK_OPACITY,
+                  PEAK_OPACITY * Math.SQRT1_2,
+                  0,
+                ],
+              }),
+              transform: [
+                {
+                  translateX: progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, c.driftX],
+                  }),
+                },
+                {
+                  translateY: progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, c.driftY],
+                  }),
+                },
+              ],
+            }}
           />
-        ))}
-      </Svg>
+        );
+      })}
     </View>
   );
 }

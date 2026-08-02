@@ -2,8 +2,8 @@
 import { Link } from 'expo-router';
 import { useState } from 'react';
 import { Platform, Text, View } from 'react-native';
-import { HexBackground } from '@/components/HexBackground';
-import { Button, Card, Field, Muted, Title } from '@/components/ui';
+import { Button, Card, DismissKeyboardView, Field, Muted, Title } from '@/components/ui';
+import { describeRequestError, withNetworkRetry } from '@/lib/netError';
 import { supabase } from '@/lib/supabase';
 import { themedStyles } from '@/lib/theme';
 
@@ -21,15 +21,16 @@ export default function ForgotPassword() {
       Platform.OS === 'web'
         ? `${globalThis.location.origin}/reset-password`
         : Linking.createURL('reset-password');
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
-    if (error) setError(error.message);
+    const { error } = await withNetworkRetry(() =>
+      supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo }),
+    );
+    if (error) setError(describeRequestError(error.message));
     else setSent(true);
     setBusy(false);
   }
 
   return (
-    <View style={styles.screen}>
-      <HexBackground />
+    <DismissKeyboardView style={styles.screen}>
       <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
         <Card>
@@ -62,12 +63,13 @@ export default function ForgotPassword() {
           </Link>
         </Card>
       </View>
-    </View>
+    </DismissKeyboardView>
   );
 }
 
 const useStyles = themedStyles((colors) => ({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  // See sign-in: the group's layout owns the background.
+  screen: { flex: 1 },
   inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
   brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginBottom: 8 },

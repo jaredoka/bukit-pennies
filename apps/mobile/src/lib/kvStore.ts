@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 
 // Small device-local key/value store (SecureStore on native, localStorage on
 // web dev) for preferences that don't belong in the cloud: theme, privacy
-// cloak, reminder options, digest opt-in, fired-alert markers.
+// cloak, digest opt-in, fired-alert markers.
 
 /**
  * SecureStore accepts `/^[\w.-]+$/` and *throws* on anything else. The

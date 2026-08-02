@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 import { kvGetJson, kvSetJson } from './kvStore';
-import { bruneiMonthKey, bruneiParts, formatMoney } from './format';
-import type { RecurringSpend } from './recurring';
+import { bruneiMonthKey, formatMoney } from './format';
 
 // Local (on-device) notifications only — no push infrastructure. All
 // schedules are recomputed on every dashboard mount, so content stays fresh
@@ -9,14 +8,11 @@ import type { RecurringSpend } from './recurring';
 
 const BRUNEI_OFFSET_MS = 8 * 60 * 60 * 1000;
 
-// Scoped per user. These are derived from account data, not device taste:
-// reminder prefs are keyed by *merchant name* and the alert markers by budget
-// id, so a device-global key handed the next account to sign in a list of the
-// previous account's merchants — visible in Settings > Notifications, and
-// scheduling bill reminders for spending that was never theirs. Theme,
+// Scoped per user. These are derived from account data, not device taste: the
+// alert markers are keyed by budget id, so a device-global key would hand the
+// next account to sign in the previous account's fired-alert state. Theme,
 // currency and the privacy cloak stay device-global on purpose; those are
 // preferences about this handset, not facts about an account.
-const remindersKey = (userId: string) => `bukit.reminders.${userId}`;
 const digestKey = (userId: string) => `bukit.digest.${userId}`;
 const alertedKey = (userId: string) => `bukit.alerted.${userId}`;
 
@@ -26,11 +22,6 @@ export interface DigestPrefs {
   dayOfWeek: number;
   /** 0–23 Brunei time. Default: 9. */
   hour: number;
-}
-
-export type ReminderDays = 0 | 1 | 3;
-export interface ReminderPrefs {
-  [merchant: string]: { daysBefore: ReminderDays };
 }
 
 function notifications() {
@@ -45,22 +36,6 @@ export async function ensureNotificationPermission(): Promise<boolean> {
   if (current.granted) return true;
   const asked = await N.requestPermissionsAsync();
   return asked.granted;
-}
-
-export async function getReminderPrefs(userId: string): Promise<ReminderPrefs> {
-  return kvGetJson<ReminderPrefs>(remindersKey(userId), {});
-}
-
-export async function setReminderPref(
-  userId: string,
-  merchant: string,
-  daysBefore: ReminderDays | null,
-): Promise<ReminderPrefs> {
-  const prefs = await getReminderPrefs(userId);
-  if (daysBefore === null) delete prefs[merchant];
-  else prefs[merchant] = { daysBefore };
-  await kvSetJson(remindersKey(userId), prefs);
-  return prefs;
 }
 
 const DIGEST_DEFAULTS: DigestPrefs = { on: false, dayOfWeek: 1, hour: 9 };
@@ -80,19 +55,6 @@ export async function setDigestPrefs(
   return next;
 }
 
-/** Next occurrence of `day` (Brunei day-of-month) at 09:00 Brunei, minus
- *  `daysBefore` days; skips into the following month if already past. */
-function nextBillTrigger(day: number, daysBefore: number): Date {
-  const now = bruneiParts(Date.now());
-  for (let addMonth = 0; addMonth <= 2; addMonth++) {
-    const m = now.month - 1 + addMonth;
-    const dueUtcMs = Date.UTC(now.year, m, Math.min(day, 28), 9, 0, 0) - BRUNEI_OFFSET_MS;
-    const fireMs = dueUtcMs - daysBefore * 24 * 60 * 60 * 1000;
-    if (fireMs > Date.now() + 60_000) return new Date(fireMs);
-  }
-  return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-}
-
 /** Next occurrence of `dayOfWeek` (0=Sun) at `hour`:00 Brunei time, always
  *  at least one day from now so we don't fire immediately on every app open. */
 function nextWeeklyTrigger(dayOfWeek: number, hour: number): Date {
@@ -108,15 +70,16 @@ function nextWeeklyTrigger(dayOfWeek: number, hour: number): Date {
  *  dashboard mount. Cancels and re-schedules under stable identifiers. */
 export async function syncScheduledNotifications(opts: {
   userId: string;
-  recurring: RecurringSpend[];
   spentThisMonth: number;
   income: number | null;
 }): Promise<void> {
   const N = notifications();
   if (!N) return;
-  const prefs = await getReminderPrefs(opts.userId);
   const digest = await getDigestPrefs(opts.userId);
-  if (Object.keys(prefs).length === 0 && !digest.on) {
+  if (!digest.on) {
+    // Also how per-merchant bill reminders get cleaned up: they were scheduled
+    // by an earlier version and nothing reschedules them now, so the first
+    // dashboard mount after this update cancels them for good.
     await N.cancelAllScheduledNotificationsAsync();
     return;
   }
@@ -124,39 +87,21 @@ export async function syncScheduledNotifications(opts: {
 
   await N.cancelAllScheduledNotificationsAsync();
 
-  // Bill reminders: one-shot at the next expected date; refreshed on every
-  // app open, so the chain continues month after month.
-  for (const r of opts.recurring) {
-    const pref = prefs[r.merchant];
-    if (!pref) continue;
-    const expectedDay = bruneiParts(r.lastSeen).day;
-    const fireAt = nextBillTrigger(expectedDay, pref.daysBefore);
-    await N.scheduleNotificationAsync({
-      content: {
-        title: 'Upcoming bill',
-        body: `${r.merchant}: about ${formatMoney(r.amount, r.currency)} expected around day ${expectedDay}.`,
-      },
-      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: fireAt },
-    });
-  }
-
   // Weekly digest: next chosen day/time in Brunei time, body computed from
   // current data (refreshed on every app open, so it stays roughly current).
-  if (digest.on) {
-    const fire = nextWeeklyTrigger(digest.dayOfWeek, digest.hour);
-    const pct =
-      opts.income && opts.income > 0 ? Math.round((opts.spentThisMonth / opts.income) * 100) : null;
-    await N.scheduleNotificationAsync({
-      content: {
-        title: 'Bukit Pennies weekly update',
-        body:
-          pct !== null
-            ? `You've spent ${formatMoney(opts.spentThisMonth)} this month, ${pct}% of your income used so far.`
-            : `You've spent ${formatMoney(opts.spentThisMonth)} this month. Set your income in Settings to track the percentage used.`,
-      },
-      trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: fire },
-    });
-  }
+  const fire = nextWeeklyTrigger(digest.dayOfWeek, digest.hour);
+  const pct =
+    opts.income && opts.income > 0 ? Math.round((opts.spentThisMonth / opts.income) * 100) : null;
+  await N.scheduleNotificationAsync({
+    content: {
+      title: 'Bukit Pennies weekly update',
+      body:
+        pct !== null
+          ? `You've spent ${formatMoney(opts.spentThisMonth)} this month, ${pct}% of your income used so far.`
+          : `You've spent ${formatMoney(opts.spentThisMonth)} this month. Set your income in Settings to track the percentage used.`,
+    },
+    trigger: { type: N.SchedulableTriggerInputTypes.DATE, date: fire },
+  });
 }
 
 /** Fire an immediate overspend alert once per budget per threshold per month. */

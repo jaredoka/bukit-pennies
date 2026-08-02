@@ -1,15 +1,9 @@
 ﻿import { Link } from 'expo-router';
 import { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Linking as RNLinking,
-  Platform,
-  Text,
-  View,
-} from 'react-native';
-import { HexBackground } from '@/components/HexBackground';
-import { Button, Card, Field, Title } from '@/components/ui';
+import { Linking as RNLinking, Text, View } from 'react-native';
+import { Button, Card, DismissKeyboardView, Field, Title } from '@/components/ui';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/env';
+import { describeRequestError, withNetworkRetry } from '@/lib/netError';
 import {
   breachWarning,
   checkPasswordBreached,
@@ -41,22 +35,26 @@ export default function SignUp() {
       return;
     }
 
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: { data: { display_name: displayName.trim() || email.trim() } },
-    });
-    if (error) setError(error.message);
+    const { data, error } = await withNetworkRetry(() =>
+      supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { data: { display_name: displayName.trim() || email.trim() } },
+      }),
+    );
+    if (error) setError(describeRequestError(error.message));
     else if (!data.session) setInfo('Check your email to confirm your account, then sign in.');
     setBusy(false);
   }
 
+  // Not KeyboardAvoidingView — see the note on sign-in: `padding` behaviour
+  // shrank the screen under a vertically-centred card, so focusing a field slid
+  // the whole form up. The keyboard overlays instead. This is the tallest auth
+  // card, so it is also the one whose button the keyboard can reach on a short
+  // screen: tap the background to dismiss, or just press return in the password
+  // field, which submits.
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <HexBackground />
+    <DismissKeyboardView style={styles.screen}>
       <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
         <Card>
@@ -101,12 +99,13 @@ export default function SignUp() {
           </Link>
         </Card>
       </View>
-    </KeyboardAvoidingView>
+    </DismissKeyboardView>
   );
 }
 
 const useStyles = themedStyles((colors) => ({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  // See sign-in: the group's layout owns the background.
+  screen: { flex: 1 },
   inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
   brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginBottom: 8 },

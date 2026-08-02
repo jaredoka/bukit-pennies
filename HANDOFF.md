@@ -3015,39 +3015,30 @@ card auto-debits already arrive via bank SMS; low ROI per parser). Freemium is
 open — launch free/simple, keep the schema future-proof, no monetization
 plumbing now. English-only UI. Single developer.
 
-### Next features (agreed, not yet built)
+### Next features (agreed, built 2026-08-02 in PR #89)
 
 **1. Transactions default = last 30 days.** On first open the Transactions
-screen should show the newest transactions within the past 30 days (Brunei
-time), newest-first, with infinite scroll past it. Today `DEFAULT_FILTERS` in
-`src/lib/txFilters.ts` has `dateFrom: ''` (no window) and the list pages
-`TX_PAGE_SIZE = 50`. Implementation notes for the builder:
-
-- Compute the window at query time, not module load: `bruneiDayKey` (today −
-  29 days) so "30 days ago" stays current across sessions. `bruneiDayStartIso`
-  already feeds `buildTransactionOps` for the `gte` on `occurred_at`.
-- Decide how the default interacts with the active-filter badge / "clear
-  filters" affordance — the window is a true default, so opening the date
-  picker or choosing a range should replace it, not stack with it.
-- Keep paging at 50; the window caps the first render cost for any account
-  size, which was the point.
+screen shows the newest transactions within the past 30 days (Brunei time),
+newest-first, with infinite scroll past it. **Built**: `recentWindowStartKey()`,
+`defaultListFilters()` and `isRecentWindow()` in `src/lib/txFilters.ts`
+(`RECENT_WINDOW_DAYS = 30`); the list initialises from `defaultListFilters`
+and the date chip reads "Last 30 days". The window is a true default, so it
+does not light up "Reset all" or the empty state; "Reset all" returns to the
+window, and clearing the date sheet returns to all time. Paging stays at 50.
 
 **2. Reset all transactions.** A user-facing destructive action on
 **Settings → Spending & data** (`app/(tabs)/settings/spending.tsx`), below the
 Export button, confirmed by typing **RESET TRANSACTIONS** (the owner specified
-that phrase — not "DELETE"). Scope: the account's `transactions` rows only.
-`transactions.category_id` is a column on the row (migration 01), so deleting
-the row removes its category mapping — there is no assignment table. Budgets,
-goals, subscriptions, cards, and settings survive; the global default
-`categories` rows (user_id null) must not be touched.
-
-- Add a security-invoker RPC `reset_transactions()` mirroring
-  `supabase/migrations/05_delete_account.sql`: `delete from public.transactions
-  where user_id = auth.uid()` (RLS `transactions_delete` already exists), then
-  `revoke` from `public, anon` and `grant execute` to `authenticated`. Migration
-  24. Advisors after `db push` (playbook §7, `docs/db-advisors.md`).
-- Mirror the `delete-account.tsx` confirm-card pattern (`Field` +
-  `variant="danger"` button disabled until the phrase matches); invalidate
-  `['transactions']` queries afterwards. Decide with the owner whether a
-  non-interactive confirm dialog (Alert) is wanted before the typed phrase.
+that phrase — not "DELETE"). **Built**: `reset_transactions()` RPC (migrations
+24 + 25) returns the count deleted, is **SECURITY INVOKER** (RLS
+`transactions_delete` is the gate — no definer exception for a data-destruction
+RPC, migration 25 explains), `revoke`d from `public, anon`, granted to
+`authenticated`. Deletes the account's `transactions` rows only;
+`transactions.category_id` is a column on the row (migration 01), so the
+category mapping goes with it — there is no assignment table. Budgets, goals,
+subscriptions, cards, capture tokens and settings survive; the global default
+`categories` rows (user_id null) are untouched. After success the screen
+invalidates every transaction-derived cache via `invalidateTransactionQueries`.
+Verified locally (guard + two-user delete scope) and migrations 24–25 pushed to
+hosted; advisors clean.
 

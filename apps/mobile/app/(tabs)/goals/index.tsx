@@ -79,13 +79,22 @@ function GoalCard({ goal }: { goal: SavingsGoalWithProgress }) {
           whole card would swallow taps meant for them. */}
       <Pressable onPress={open} style={styles.cardHead}>
         <View style={{ flex: 1, marginRight: 8 }}>
-          <Title>{goal.name}</Title>
-          <View style={styles.amountsRow}>
-            <Text style={styles.goalAmounts}>
-              {money(goal.saved, goal.currency)} / {money(targetAmt, goal.currency)}
-            </Text>
+          {/* The progress label rides with the title, not with the amounts.
+              Both used to share one `space-between` row, and React Native
+              defaults flex items to `flexShrink: 0` — so once the pair of
+              amounts grew past the row, nothing gave and the two ran into each
+              other. Up here the title is the only flexible thing: a long goal
+              name truncates, and the money and the percentage are both always
+              readable in full. */}
+          <View style={styles.titleRow}>
+            <View style={{ flex: 1 }}>
+              <Title numberOfLines={1}>{goal.name}</Title>
+            </View>
             <Muted>{ratio >= 1 ? 'Goal reached 🎉' : `${Math.round(ratio * 100)}% there`}</Muted>
           </View>
+          <Text style={styles.goalAmounts}>
+            {money(goal.saved, goal.currency)} / {money(targetAmt, goal.currency)}
+          </Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </Pressable>
@@ -127,8 +136,8 @@ const useStyles = themedStyles((colors) => ({
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
   cardHead: { flexDirection: 'row', alignItems: 'center' },
   error: { color: colors.danger, marginTop: 8 },
-  amountsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 },
-  goalAmounts: { color: colors.muted, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] as const },
+  titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  goalAmounts: { color: colors.muted, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] as const, marginBottom: 4 },
   track: { height: 8, borderRadius: 4, backgroundColor: colors.border, overflow: 'hidden', marginVertical: 8 },
   fill: { height: '100%', borderRadius: 4 },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 10, height: 53 },

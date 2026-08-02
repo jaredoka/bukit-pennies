@@ -4,6 +4,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  Keyboard,
   Modal,
   Pressable,
   ScrollView,
@@ -13,6 +14,7 @@ import {
   View,
   type LayoutChangeEvent,
   type TextInputProps,
+  type ViewStyle,
 } from 'react-native';
 // Deep import, like every other call site: the '@expo/vector-icons' barrel
 // drags in the glyph map of every family (FontAwesome, MaterialCommunity, …),
@@ -39,9 +41,21 @@ export function Card({ children, style }: { children: ReactNode; style?: object 
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
-export function Title({ children }: { children: ReactNode }) {
+export function Title({
+  children,
+  numberOfLines,
+}: {
+  children: ReactNode;
+  /** Set to 1 where the title shares a row with something that must stay
+   *  whole — a long name then truncates instead of shoving its neighbour. */
+  numberOfLines?: number;
+}) {
   const styles = useStyles();
-  return <Text style={styles.title}>{children}</Text>;
+  return (
+    <Text style={styles.title} numberOfLines={numberOfLines}>
+      {children}
+    </Text>
+  );
 }
 
 export function Muted({ children }: { children: ReactNode }) {
@@ -103,6 +117,89 @@ export function Field(props: TextInputProps & { label?: string }) {
         {...rest}
       />
     </View>
+  );
+}
+
+/**
+ * Screen root that dismisses the keyboard when you tap anything that is not an
+ * input or a control.
+ *
+ * The auth screens deliberately do not use KeyboardAvoidingView: their card is
+ * vertically centred, so padding the screen for the keyboard re-centred the
+ * card and the whole form visibly slid upward the moment a field was focused.
+ * The keyboard overlays the card instead — which on a short screen can cover
+ * the submit button, so there has to be a way to put the keyboard away that
+ * does not involve reaching for the button hiding behind it.
+ *
+ * Taps on children are unaffected: Pressable only fires for touches its
+ * children did not handle. `accessible={false}` stops VoiceOver collapsing the
+ * entire screen into one button.
+ */
+export function DismissKeyboardView({
+  children,
+  style,
+}: {
+  children: ReactNode;
+  style?: ViewStyle;
+}) {
+  return (
+    <Pressable style={style} onPress={Keyboard.dismiss} accessible={false}>
+      {children}
+    </Pressable>
+  );
+}
+
+/**
+ * A section whose body folds away behind its own heading.
+ *
+ * `tone` sets the weight of that heading: 'section' for a card's own title,
+ * 'field' for something nested among form labels inside a card.
+ *
+ * `defaultOpen` is read once, on mount. Call sites pass "does this already
+ * hold a value", because a collapsed section is a reasonable default only
+ * while it is empty — folding away a trial date or notes that someone has
+ * actually saved hides their own data behind a chevron they have no reason to
+ * suspect.
+ */
+export function CollapsibleSection({
+  title,
+  tone = 'section',
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  tone?: 'section' | 'field';
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <>
+      <Pressable
+        onPress={() => setOpen((o) => !o)}
+        style={styles.collapsibleHead}
+        hitSlop={6}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={`${title}. ${open ? 'Collapse' : 'Expand'}.`}
+      >
+        <View style={{ flex: 1 }}>
+          {tone === 'section' ? (
+            <Title>{title}</Title>
+          ) : (
+            <Text style={styles.fieldLabel}>{title}</Text>
+          )}
+        </View>
+        <Ionicons
+          name={open ? 'chevron-up' : 'chevron-down'}
+          size={tone === 'section' ? 18 : 14}
+          color={colors.muted}
+        />
+      </Pressable>
+      {open ? children : null}
+    </>
   );
 }
 
@@ -820,6 +917,7 @@ const useStyles = themedStyles((colors) => ({
   buttonDanger: { backgroundColor: colors.danger },
   buttonLabel: { color: colors.onPrimary, fontWeight: '600' as const },
   fieldLabel: { color: colors.muted, fontSize: 13, marginBottom: 4 },
+  collapsibleHead: { flexDirection: 'row' as const, alignItems: 'center' as const },
   input: {
     backgroundColor: colors.inputBg,
     borderWidth: 1,

@@ -1,5 +1,3 @@
-import { bruneiDayKey } from './format';
-
 /**
  * Transaction list filters, and their translation into PostgREST operations.
  *
@@ -36,39 +34,6 @@ export const DEFAULT_FILTERS: TxFilters = {
   categoryIds: [],
   cards: [],
 };
-
-/**
- * The list opens on the last `RECENT_WINDOW_DAYS` calendar days (Brunei time,
- * today inclusive) rather than all time. A count-based "first page" means
- * different things for different users — a heavy spender burns through it in a
- * week, a light one never sees the bottom — where a time window is predictable
- * and matches the monthly mental model. Computed fresh each call so a session
- * spanning a month boundary still opens on "the last 30 days".
- */
-export const RECENT_WINDOW_DAYS = 30;
-
-/** The 'YYYY-MM-DD' (Brunei) start of the recent window. */
-export function recentWindowStartKey(): string {
-  return bruneiDayKey(Date.now() - (RECENT_WINDOW_DAYS - 1) * 86_400_000);
-}
-
-/**
- * The filters the list opens with — the recent window, nothing else. Kept
- * separate from `DEFAULT_FILTERS` so "all time" stays expressible (clearing
- * the date sheet) and so other consumers of `DEFAULT_FILTERS` are unaffected.
- */
-export function defaultListFilters(): TxFilters {
-  return { ...DEFAULT_FILTERS, dateFrom: recentWindowStartKey() };
-}
-
-/**
- * True when the date window is exactly the untouched default. The window is a
- * true default, not a filter: `hasAnyFilter` must not light up "Reset all" or
- * change the empty state just because the screen opened on it.
- */
-export function isRecentWindow(f: TxFilters): boolean {
-  return f.dateFrom === recentWindowStartKey() && !f.dateTo;
-}
 
 /** One PostgREST operation. `or` carries a raw, already-escaped expression. */
 export type TxQueryOp =

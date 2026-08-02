@@ -29,7 +29,7 @@ import { DAY_KEY_RE, dayKeyOf, monthGrid, stepMonth } from '@/lib/calendar';
 import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
 import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
 import { invalidateTransactionQueries, useCategories, useFilteredTransactions, usePullToRefresh, useReviewCount, useTransactionFacets } from '@/lib/queries';
-import { defaultListFilters, hasAnyFilter, isRecentWindow, type TxFilters } from '@/lib/txFilters';
+import { DEFAULT_FILTERS, hasAnyFilter, type TxFilters } from '@/lib/txFilters';
 import type { CategoryRow, TransactionRow } from '@/lib/types';
 import { themedStyles, useTheme } from '@/lib/theme';
 import { usePrivacy } from '@/lib/privacy';
@@ -462,8 +462,7 @@ export default function TransactionsList() {
   const facets = useTransactionFacets();
   const reviewCount = useReviewCount();
   const [search, setSearch] = useState('');
-  // Open on the recent window (last 30 days, Brunei time), not all time.
-  const [filters, setFilters] = useState<TxFilters>(defaultListFilters);
+  const [filters, setFilters] = useState<TxFilters>(DEFAULT_FILTERS);
   const debouncedSearch = useDebounced(search, 300);
   const {
     data,
@@ -525,20 +524,14 @@ export default function TransactionsList() {
       ? `${filters.categoryIds.length} ${filters.categoryIds.length === 1 ? 'category' : 'categories'}`
       : 'Category';
   const currLabel = filters.currencies.length > 0 ? filters.currencies.join(', ') : 'Currency';
-  const dateLabel = isRecentWindow(filters)
-    ? 'Last 30 days'
-    : filters.dateFrom && filters.dateTo ? `${filters.dateFrom} to ${filters.dateTo}`
+  const dateLabel =
+    filters.dateFrom && filters.dateTo ? `${filters.dateFrom} to ${filters.dateTo}`
     : filters.dateFrom ? `From ${filters.dateFrom}`
     : filters.dateTo ? `To ${filters.dateTo}`
     : 'Date';
   const recipLabel = filters.recipient.trim() || 'Recipient';
 
-  // The recent-window default is a true default, not a user filter: it must
-  // not light up "Reset all" or change the empty state just because the list
-  // opened on the last 30 days.
-  const anyFilter = hasAnyFilter(
-    isRecentWindow(filters) ? { ...filters, dateFrom: '', dateTo: '' } : filters,
-  );
+  const anyFilter = hasAnyFilter(filters);
 
   // Day sections are built over the pages loaded so far. A day can therefore
   // span a page boundary; grouping by key rather than by run means the two
@@ -646,7 +639,7 @@ export default function TransactionsList() {
           {anyFilter ? (
             <>
               <View style={styles.fbarDivider} />
-              <FBarChip label="Reset all" active={false} onPress={() => setFilters(defaultListFilters())} />
+              <FBarChip label="Reset all" active={false} onPress={() => setFilters(DEFAULT_FILTERS)} />
             </>
           ) : null}
         </ScrollView>

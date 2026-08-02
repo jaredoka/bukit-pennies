@@ -15,6 +15,10 @@ arrived on your phone.
 
 *Screenshots use seeded demo data, not real spending.*
 
+> **Try the live web demo:** `<your Netlify URL>` — the same app compiled for
+> the browser against a hosted Supabase backend. Sign up and try it without an
+> iPhone.
+
 ---
 
 ## Why it works this way
@@ -42,6 +46,45 @@ Bank SMS  →  iOS Shortcut  →  /ingest edge function  →  Postgres  →  app
 
 The raw message is kept forever, so a parser improvement can re-derive a
 transaction that was originally read wrong.
+
+## Architecture
+
+TypeScript end to end — one zero-dependency parser package is shared between
+the app and the server, so a message previews identically on the phone and on
+the backend.
+
+```
+┌────────────────────────────── app ──────────────────────────────┐
+│  Expo / React Native (iOS-first, also runs on web + Android)     │
+│  expo-router  ·  TanStack Query  ·  @bukit/parsers              │
+└───────────────────────────────┬─────────────────────────────────┘
+                                │ RLS-scoped queries + security-checked RPCs
+┌───────────────────────────────▼────────────────── Supabase ─────┐
+│  Postgres — 25 migrations, RLS on every table                    │
+│  Edge Functions (Deno) — ingest, parse, dedupe, rate-limit       │
+│  Auth — email/password, SecureStore session                      │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+The parts full-stack hiring managers tend to care about live in the database
+layer, not the UI:
+
+- **Row Level Security on every table.** `transactions`, `budgets`, `goals`,
+  and `subscriptions` are scoped to `auth.uid()`, so isolation holds even
+  against a hand-written API call. See the RLS section of
+  [`Things I learned`](#things-i-learned-building-it).
+- **RPC-only write surface.** Transactions are written through
+  security-checked functions — the client never builds its own `UPDATE` or
+  `DELETE` against the table.
+- **Views use `security_invoker`.** Without it a view runs as its owner and
+  silently bypasses the RLS underneath. A subtle bug, fixed in migration 11.
+- **Rate limits live in Postgres.** A serverless function has no memory
+  between invocations, so the counter that survives is the one in the
+  database (migration 12).
+- **Token hygiene.** Ingest tokens are stored only as SHA-256 fingerprints;
+  the plaintext is shown once and a database dump yields nothing usable.
+- **CI.** Tests and typechecks run on every pull request, and a GitHub Actions
+  macOS runner builds the unsigned iOS IPA.
 
 ## Stack
 

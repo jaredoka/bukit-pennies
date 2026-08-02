@@ -183,6 +183,7 @@ structure in §8, Sideloadly constraints in §10).
 | 2026-08-02 | Strategy: north star is a mix of installs, DAU, and capture volume; first milestone is store launch readiness. E-wallet and recurring-bill parsers are deferred (unreliable texts; card auto-debits already arrive via bank SMS; low ROI per parser). Freemium stays open — launch free/simple, no monetization plumbing. English-only UI. Single developer. |
 | 2026-08-02 | The transactions list defaults to the **last 30 days** on first open (newest-first, infinite scroll beyond). A count-based "first page" means different things for different users; a time window is predictable and matches the monthly mental model. |
 | 2026-08-02 | "Reset all transactions" is a user-facing destructive action on Settings → Spending & data, confirmed by typing the phrase **RESET TRANSACTIONS**. It deletes the account's transactions only — and with them each row's category mapping (`transactions.category_id` is a column; there is no assignment table). Budgets, goals, subscriptions, cards, and settings survive. |
+| 2026-08-02 | The owner's hand-drawn **coin_v2** replaces coin_v1 as the app icon. `coin_platform_icons.py` now derives the complete icon set (icon, favicon, splash, Android adaptive foreground/monochrome/background) from `art/raw/coin_v2.png`, and the Android adaptive background becomes solid white — it was the last hornbill-era colour left over from §32. The coin is white-backed in every surface now. |
 
 ## 7. Standard procedures
 

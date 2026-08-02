@@ -623,13 +623,40 @@ function useInvalidateTx() {
   };
 }
 
+/** The columns a transaction edit may touch — mirrors the server-side
+ *  allowlist in `update_transaction` (migration 23), which is the real gate.
+ *  Everything the parser owns (raw_text, raw_hash, source, id, user_id, …) is
+ *  deliberately absent. */
+const TRANSACTION_EDIT_COLUMNS = [
+  'merchant',
+  'merchant_normalized',
+  'category_id',
+  'amount',
+  'currency',
+  'occurred_at',
+  'card_last4',
+  'notes',
+  'bank',
+  'parse_status',
+  'confidence',
+  'possible_duplicate_of',
+] as const;
+export type TransactionPatch = Partial<Pick<TransactionRow, (typeof TRANSACTION_EDIT_COLUMNS)[number]>>;
+
 export function useUpdateTransaction() {
   const qc = useQueryClient();
   const invalidate = useInvalidateTx();
   return useMutation({
-    mutationFn: async ({ id, patch }: { id: string; patch: Partial<TransactionRow> }) =>
+    mutationFn: async ({ id, patch }: { id: string; patch: TransactionPatch }) =>
       unwrap<TransactionRow>(
-        supabase.from('transactions').update(patch).eq('id', id).select().single(),
+        supabase.rpc('update_transaction', {
+          p_id: id,
+          p_patch: Object.fromEntries(
+            Object.entries(patch).filter(([k]) =>
+              (TRANSACTION_EDIT_COLUMNS as readonly string[]).includes(k),
+            ),
+          ),
+        }),
       ),
     // Optimistic notes/category edits per HANDOFF §8.
     onMutate: async ({ id, patch }) => {

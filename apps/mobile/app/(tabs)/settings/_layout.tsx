@@ -27,6 +27,7 @@ export default function SettingsLayout() {
       <Stack.Screen name="report-bug" options={{ title: 'Report a bug' }} />
       <Stack.Screen name="feature-request" options={{ title: 'Request a feature' }} />
       <Stack.Screen name="delete-account" options={{ title: 'Delete account' }} />
+      <Stack.Screen name="reset-transactions" options={{ title: 'Reset transactions' }} />
     </Stack>
   );
 }

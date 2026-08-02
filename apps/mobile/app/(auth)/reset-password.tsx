@@ -2,6 +2,7 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, Text, View } from 'react-native';
+import { HexBackground } from '@/components/HexBackground';
 import { Button, Card, DismissKeyboardView, Field, Muted, Title } from '@/components/ui';
 import { describeRequestError, withNetworkRetry } from '@/lib/netError';
 import {
@@ -90,6 +91,7 @@ export default function ResetPassword() {
 
   return (
     <DismissKeyboardView style={styles.screen}>
+      <HexBackground />
       <Text style={styles.brand}>Bukit Pennies</Text>
       <View style={styles.inner}>
         <Card>
@@ -126,8 +128,7 @@ export default function ResetPassword() {
 }
 
 const useStyles = themedStyles((colors) => ({
-  // See sign-in: the group's layout owns the background.
-  screen: { flex: 1 },
+  screen: { flex: 1, backgroundColor: colors.bg },
   inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
   brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginTop: 8 },

@@ -37,13 +37,32 @@ export function bruneiMonthStartIso(monthsAgo = 0): string {
   return new Date(Date.UTC(year, month, 1) - BRUNEI_OFFSET_MS).toISOString();
 }
 
-export function formatMoney(amount: number | null, currency = 'BND'): string {
-  if (amount === null || Number.isNaN(amount)) return '—';
+function numberBody(amount: number | null): string | null {
+  if (amount === null || Number.isNaN(amount)) return null;
   const abs = Math.abs(amount);
   const [intPart, decPart] = abs.toFixed(2).split('.');
   const intWithCommas = intPart!.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  const sign = amount < 0 ? '-' : '';
-  return `${sign}${currency} ${intWithCommas}.${decPart}`;
+  return `${amount < 0 ? '-' : ''}${intWithCommas}.${decPart}`;
+}
+
+export function formatMoney(amount: number | null, currency = 'BND'): string {
+  const body = numberBody(amount);
+  if (body === null) return '—';
+  // The sign precedes the currency ("-BND 500.00"), as it always has.
+  return `${body.startsWith('-') ? '-' : ''}${currency} ${body.replace(/^-/, '')}`;
+}
+
+/**
+ * "BND 100.00 / 500.00" — the currency is stated once, on the left, so a
+ * two-value ratio (saved/target, spent/limit) doesn't repeat it.
+ */
+export function formatMoneyPair(
+  first: number | null,
+  second: number | null,
+  currency = 'BND',
+): string {
+  if (first === null || Number.isNaN(first)) return '—';
+  return `${formatMoney(first, currency)} / ${numberBody(second) ?? '—'}`;
 }
 
 export function formatDayHeading(dayKey: string): string {

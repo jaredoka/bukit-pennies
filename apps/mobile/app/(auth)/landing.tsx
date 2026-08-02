@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
+import { HexBackground } from '@/components/HexBackground';
 import { Button } from '@/components/ui';
 import { themedStyles } from '@/lib/theme';
 
@@ -11,6 +12,7 @@ export default function Landing() {
 
   return (
     <View style={styles.screen}>
+      <HexBackground />
       <Text style={styles.brand} numberOfLines={1}>
         Bukit Pennies
       </Text>
@@ -28,8 +30,7 @@ export default function Landing() {
 }
 
 const useStyles = themedStyles((colors) => ({
-  // See sign-in: the group's layout owns the background.
-  screen: { flex: 1 },
+  screen: { flex: 1, backgroundColor: colors.bg },
   inner: { flex: 1, justifyContent: 'center', padding: 24, maxWidth: 480, width: '100%', alignSelf: 'center' },
   brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   pitch: { fontSize: 17, lineHeight: 25, color: colors.text, marginBottom: 4 },

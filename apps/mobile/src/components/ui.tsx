@@ -6,6 +6,7 @@ import {
   Easing,
   Keyboard,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -142,8 +143,18 @@ export function DismissKeyboardView({
   children: ReactNode;
   style?: ViewStyle;
 }) {
+  // No dismiss handler on web. The web `Pressable` uses DOM click events, which
+  // bubble up from a tapped input, so `Keyboard.dismiss` would blur the very
+  // field the user just tapped (web's dismiss is `blurTextInput`); on native
+  // the input claims the touch and the pressable never fires. Web has no
+  // keyboard overlay to dismiss anyway — the browser blurs a field when you
+  // tap elsewhere.
   return (
-    <Pressable style={style} onPress={Keyboard.dismiss} accessible={false}>
+    <Pressable
+      style={style}
+      onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}
+      accessible={false}
+    >
       {children}
     </Pressable>
   );

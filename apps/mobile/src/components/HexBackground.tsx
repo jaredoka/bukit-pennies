@@ -91,11 +91,14 @@ function ensureAnimating() {
 /**
  * The drifting coin field behind the auth screens.
  *
- * Mounted once by `app/(auth)/_layout.tsx` and shared by every screen in the
- * group, not mounted per screen. Per screen it was inside the thing the
- * navigator slides, so pushing sign-in over the landing page dragged the coins
- * across with it — the field visibly lurched on every navigation even though
- * the coins' own progress was already continuous.
+ * Mounted once per auth screen, behind that screen's own card. (It lived behind
+ * the whole stack for a while — mounted once by `app/(auth)/_layout.tsx` — but
+ * native-stack paints an opaque screen container over anything behind it, so
+ * the coins vanished on device and the transparent screens cost compositing
+ * every frame. Each screen painting its own `colors.bg` and mounting the field
+ * above it keeps both cheap and visible.) The drivers are module-level, so the
+ * progress survives each screen unmounting and every mount picks the coins up
+ * exactly where they had drifted to.
  *
  * Every coin animates on the **native driver**: a static `left`/`top` for where
  * it starts and an animated `transform` for its drift, because the native
@@ -121,7 +124,7 @@ export function HexBackground() {
   }, []);
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
       {COIN_DEFS.map((c, i) => {
         const progress = COIN_PROGRESS[i];
         const size = (c.r + 1) * 2;

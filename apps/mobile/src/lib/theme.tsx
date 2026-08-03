@@ -142,14 +142,14 @@ interface ThemeValue {
 
 const ThemeContext = createContext<ThemeValue>({
   colors: palettes.light,
-  preference: 'system',
+  preference: 'light',
   resolved: 'light',
   setPreference: () => {},
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const system = useColorScheme();
-  const [preference, setPreferenceState] = useState<SchemePreference>('system');
+  const [preference, setPreferenceState] = useState<SchemePreference>('light');
 
   useEffect(() => {
     (async () => {

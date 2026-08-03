@@ -149,12 +149,15 @@ export function DismissKeyboardView({
   // the input claims the touch and the pressable never fires. Web has no
   // keyboard overlay to dismiss anyway — the browser blurs a field when you
   // tap elsewhere.
+  //
+  // A plain `View` on web rather than a `Pressable` without a handler: the
+  // pressable would render as `cursor: pointer` across the entire screen, which
+  // is wrong for a background that does nothing when clicked.
+  if (Platform.OS === 'web') {
+    return <View style={style}>{children}</View>;
+  }
   return (
-    <Pressable
-      style={style}
-      onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}
-      accessible={false}
-    >
+    <Pressable style={style} onPress={Keyboard.dismiss} accessible={false}>
       {children}
     </Pressable>
   );

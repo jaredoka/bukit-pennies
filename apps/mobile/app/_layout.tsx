@@ -1,5 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
 import { ActivityIndicator } from 'react-native';
@@ -18,6 +20,15 @@ initSentry();
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 15_000 } },
 });
+
+// The Ionicons glyph font is loaded from a copy vendored into the app's own
+// assets (not from `@expo/vector-icons`' bundled copy) because Netlify's
+// deploy skips the `assets/__node_modules/...` tree that Metro writes
+// node_modules assets to, so the font it references never reaches the live
+// site and every icon renders as a tofu square there. Registering the vendored
+// copy under the same `ionicons` family before any Icon mounts keeps the
+// browser's @font-face pointing at a file that is actually deployed.
+const IONICONS_FONT = require('../assets/fonts/Ionicons.ttf');
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { session, loading } = useSession();
@@ -148,6 +159,19 @@ function ThemedApp() {
 }
 
 function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    [Ionicons.getFontFamily()]: IONICONS_FONT,
+  });
+  // Gate on the font so every Ionicons glyph is backed by the vendored, deployable
+  // copy before any Icon mounts (see IONICONS_FONT above). On an error, render
+  // anyway rather than brick the app.
+  if (!fontsLoaded && !fontError) {
+    return (
+      <Centered>
+        <ActivityIndicator size="large" />
+      </Centered>
+    );
+  }
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>

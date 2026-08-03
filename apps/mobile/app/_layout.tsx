@@ -4,7 +4,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Centered } from '@/components/ui';
 import { initSentry, Sentry } from '@/lib/sentry';
 import { SessionProvider, useSession } from '@/lib/session';
@@ -29,6 +29,31 @@ const queryClient = new QueryClient({
 // copy under the same `ionicons` family before any Icon mounts keeps the
 // browser's @font-face pointing at a file that is actually deployed.
 const IONICONS_FONT = require('../assets/fonts/Ionicons.ttf');
+
+// The web demo is a mobile app shared as a bare URL (Netlify), and most people
+// open links in a desktop browser without reaching for device mode. On wide web
+// windows the app is framed as a phone screen so it reads as a mobile app to
+// anyone; on phones (and always on native) it stays full-bleed.
+const WEB_FRAME_BREAKPOINT = 520;
+const WEB_FRAME_WIDTH = 420;
+const WEB_FRAME_RADIUS = 24;
+
+const styles = StyleSheet.create({
+  plain: { flex: 1 },
+  frameBackdrop: { flex: 1, alignItems: 'center' },
+  phoneFrame: {
+    width: WEB_FRAME_WIDTH,
+    height: '100%',
+    borderRadius: WEB_FRAME_RADIUS,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 32,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 24,
+  },
+});
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { session, loading } = useSession();
@@ -115,6 +140,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 function ThemedApp() {
   const { colors, resolved } = useTheme();
   const stackTheme = useStackTheme();
+  const { width } = useWindowDimensions();
+  // Desktop browsers get the phone frame; everything else is full-bleed.
+  const framed = Platform.OS === 'web' && width > WEB_FRAME_BREAKPOINT;
+  const backdrop = resolved === 'dark' ? '#05090E' : '#E8EAED';
   // Screens that sit *above* the tab bar rather than inside it.
   //
   // Both used to live under `(tabs)` and be hidden with `href: null`, which
@@ -142,19 +171,29 @@ function ThemedApp() {
     headerBackTitle: 'Back',
   });
   return (
-    <AuthGate>
-      <StatusBar style={resolved === 'dark' ? 'light' : 'dark'} />
-      <Stack
-        screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
+    <View style={framed ? [styles.frameBackdrop, { backgroundColor: backdrop }] : styles.plain}>
+      <View
+        style={
+          framed
+            ? [styles.phoneFrame, { backgroundColor: colors.bg, borderColor: colors.border }]
+            : styles.plain
+        }
       >
-        {/* Never rendered as a header (headerShown is false for the group), but
-            it is what the back button above reads. */}
-        <Stack.Screen name="(tabs)" options={{ title: 'Back' }} />
-        <Stack.Screen name="review" options={pushedScreen('Review')} />
-        <Stack.Screen name="subscriptions/index" options={pushedScreen('Subscriptions')} />
-        <Stack.Screen name="subscriptions/edit" options={pushedScreen('Subscription')} />
-      </Stack>
-    </AuthGate>
+        <AuthGate>
+          <StatusBar style={resolved === 'dark' ? 'light' : 'dark'} />
+          <Stack
+            screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
+          >
+            {/* Never rendered as a header (headerShown is false for the group), but
+                it is what the back button above reads. */}
+            <Stack.Screen name="(tabs)" options={{ title: 'Back' }} />
+            <Stack.Screen name="review" options={pushedScreen('Review')} />
+            <Stack.Screen name="subscriptions/index" options={pushedScreen('Subscriptions')} />
+            <Stack.Screen name="subscriptions/edit" options={pushedScreen('Subscription')} />
+          </Stack>
+        </AuthGate>
+      </View>
+    </View>
   );
 }
 

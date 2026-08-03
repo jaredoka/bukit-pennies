@@ -41,7 +41,11 @@ export default function Insights() {
   const styles = useStyles();
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
-  const chartWidth = Math.min(width, 720) - 88;
+  // The chart used to be sized off the window width (capped at 720), which
+  // overflows the desktop web phone frame. Measure the card it sits in instead
+  // so it always fits; the window value only stands in until the first layout.
+  const [cardInnerWidth, setCardInnerWidth] = useState<number | null>(null);
+  const chartWidth = (cardInnerWidth ?? Math.min(width, 720) - 64) - 24;
   const barWidth = Math.max(8, Math.floor((chartWidth - BAR_SPACING * 13) / 12));
   const { money } = usePrivacy();
   const { currency: primaryCurrency } = usePrimaryCurrency();
@@ -129,22 +133,27 @@ export default function Insights() {
             </Muted>
           ) : (
             <>
-              <BarChart
-                stackData={stackedBars}
-                width={chartWidth}
-                height={170}
-                barWidth={barWidth}
-                spacing={BAR_SPACING}
-                initialSpacing={BAR_SPACING}
-                barBorderTopLeftRadius={0}
-                barBorderTopRightRadius={0}
-                yAxisTextStyle={{ color: colors.muted, fontSize: 10 }}
-                xAxisLabelTextStyle={{ color: colors.muted, fontSize: 9 }}
-                rulesColor={colors.border}
-                yAxisColor={colors.border}
-                xAxisColor={colors.border}
-                noOfSections={4}
-              />
+              <View
+                onLayout={(e) => setCardInnerWidth(Math.round(e.nativeEvent.layout.width))}
+                collapsable={false}
+              >
+                <BarChart
+                  stackData={stackedBars}
+                  width={chartWidth}
+                  height={170}
+                  barWidth={barWidth}
+                  spacing={BAR_SPACING}
+                  initialSpacing={BAR_SPACING}
+                  barBorderTopLeftRadius={0}
+                  barBorderTopRightRadius={0}
+                  yAxisTextStyle={{ color: colors.muted, fontSize: 10 }}
+                  xAxisLabelTextStyle={{ color: colors.muted, fontSize: 9 }}
+                  rulesColor={colors.border}
+                  yAxisColor={colors.border}
+                  xAxisColor={colors.border}
+                  noOfSections={4}
+                />
+              </View>
               <View style={styles.legendWrap}>
                 {insights.topCategoryIds.slice(0, STACK_CATEGORIES).map((id) => (
                   <View key={id ?? 'null'} style={styles.legendItem}>

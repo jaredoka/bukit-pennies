@@ -14,6 +14,7 @@ import { PrimaryCurrencyProvider } from '@/lib/primaryCurrency';
 import { kvGet, kvSet } from '@/lib/kvStore';
 import { onboardedKey } from '@/lib/onboarding';
 import { supabase } from '@/lib/supabase';
+import { WEB_FRAME_BREAKPOINT, WEB_FRAME_RADIUS, WEB_FRAME_WIDTH } from '@/lib/webFrame';
 
 initSentry();
 
@@ -29,14 +30,6 @@ const queryClient = new QueryClient({
 // copy under the same `ionicons` family before any Icon mounts keeps the
 // browser's @font-face pointing at a file that is actually deployed.
 const IONICONS_FONT = require('../assets/fonts/Ionicons.ttf');
-
-// The web demo is a mobile app shared as a bare URL (Netlify), and most people
-// open links in a desktop browser without reaching for device mode. On wide web
-// windows the app is framed as a phone screen so it reads as a mobile app to
-// anyone; on phones (and always on native) it stays full-bleed.
-const WEB_FRAME_BREAKPOINT = 520;
-const WEB_FRAME_WIDTH = 420;
-const WEB_FRAME_RADIUS = 24;
 
 const styles = StyleSheet.create({
   plain: { flex: 1 },

@@ -13,6 +13,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
   type LayoutChangeEvent,
   type TextInputProps,
   type ViewStyle,
@@ -26,6 +27,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { DAY_KEY_RE, TIME_RE, dayKeyOf, monthGrid, stepMonth } from '@/lib/calendar';
 import { bruneiDayKey, bruneiParts, formatDayDate } from '@/lib/format';
 import { themedStyles, useTheme } from '@/lib/theme';
+import { WEB_FRAME_BREAKPOINT, WEB_FRAME_RADIUS, WEB_FRAME_WIDTH } from '@/lib/webFrame';
 
 function hexToRgba(hex: string, alpha: number): string {
   const n = parseInt(hex.replace('#', ''), 16);
@@ -496,6 +498,11 @@ export function SheetShell({
 }) {
   const styles = useStyles();
   const screenH = Dimensions.get('window').height;
+  const { width } = useWindowDimensions();
+  // In the framed web demo, keep the sheet inside the phone-width column
+  // instead of letting the RN Modal's full-viewport layer spill across the
+  // whole browser (HANDOFF §39 demo).
+  const webFramed = Platform.OS === 'web' && width > WEB_FRAME_BREAKPOINT;
   // Held open across the exit animation, then released.
   const [mounted, setMounted] = useState(visible);
   // Starts a full screen down: wherever the panel turns out to sit, it is
@@ -558,15 +565,19 @@ export function SheetShell({
 
   return (
     <Modal visible transparent animationType="none" onRequestClose={onClose}>
-      <View style={styles.sheetSlide}>
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.sheetOverlay, StyleSheet.absoluteFill, { opacity: dim }]}
-        />
-        <Pressable style={styles.sheetDismissArea} onPress={onClose} accessibilityLabel="Close" />
-        <Animated.View onLayout={onPanelLayout} style={{ transform: [{ translateY: y }] }}>
-          {children}
-        </Animated.View>
+      <View style={webFramed ? styles.sheetViewport : styles.sheetFill}>
+        <View style={webFramed ? styles.sheetFrame : styles.sheetFill}>
+          <View style={styles.sheetSlide}>
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.sheetOverlay, StyleSheet.absoluteFill, { opacity: dim }]}
+            />
+            <Pressable style={styles.sheetDismissArea} onPress={onClose} accessibilityLabel="Close" />
+            <Animated.View onLayout={onPanelLayout} style={{ transform: [{ translateY: y }] }}>
+              {children}
+            </Animated.View>
+          </View>
+        </View>
       </View>
     </Modal>
   );
@@ -1032,6 +1043,18 @@ const useStyles = themedStyles((colors) => ({
   // Absolutely filled by SheetShell; it must not take part in the column
   // layout, or it would push the panel off the bottom.
   sheetOverlay: { backgroundColor: 'rgba(0,0,0,0.45)' },
+  sheetFill: { flex: 1 },
+  // When the web demo is framed as a phone, cap the modal to the same width so
+  // its dim and panel sit inside the app screen; the rounded frame clips the
+  // dim to match the phone's corners.
+  sheetViewport: { flex: 1, alignItems: 'center' },
+  sheetFrame: {
+    width: WEB_FRAME_WIDTH,
+    height: '100%',
+    alignSelf: 'center',
+    borderRadius: WEB_FRAME_RADIUS,
+    overflow: 'hidden',
+  },
   sheetSlide: {
     flex: 1,
     justifyContent: 'flex-end' as const,

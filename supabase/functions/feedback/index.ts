@@ -12,6 +12,7 @@ import {
   type FeedbackSubmission,
   type Mailer,
 } from '../_shared/feedback.ts';
+import { handlePreflight, corsJson } from '../_shared/cors.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -65,12 +66,15 @@ const mailer: Mailer | null = RESEND_API_KEY && EMAIL_TO
   : null;
 
 Deno.serve(async (req) => {
+  const preflight = handlePreflight(req);
+  if (preflight) return preflight;
+
   if (req.method !== 'POST') {
-    return Response.json({ status: 'error', error: 'method_not_allowed' }, { status: 405 });
+    return corsJson({ status: 'error', error: 'method_not_allowed' }, 405);
   }
   const authorization = req.headers.get('authorization');
   if (!authorization) {
-    return Response.json({ status: 'error', error: 'unauthorized' }, { status: 401 });
+    return corsJson({ status: 'error', error: 'unauthorized' }, 401);
   }
 
   let body: unknown = null;
@@ -82,7 +86,7 @@ Deno.serve(async (req) => {
 
   try {
     const result = await handleFeedback(body, storeFor(authorization), mailer);
-    return Response.json(result.body, { status: result.status });
+    return corsJson(result.body, result.status);
   } catch (err) {
     console.error(JSON.stringify({
       level: 'error',
@@ -90,6 +94,6 @@ Deno.serve(async (req) => {
       error: err instanceof Error ? err.message : String(err),
       stack: err instanceof Error ? err.stack : undefined,
     }));
-    return Response.json({ status: 'error', error: 'internal_error' }, { status: 500 });
+    return corsJson({ status: 'error', error: 'internal_error' }, 500);
   }
 });

@@ -8,6 +8,7 @@ import {
   type TransactionInsert,
   type TransactionRow,
 } from '../_shared/handler.ts';
+import { handlePreflight, corsJson } from '../_shared/cors.ts';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -144,8 +145,11 @@ function normalizeRow(data: Record<string, unknown>): TransactionRow {
 const MAX_BODY_BYTES = MAX_TEXT_BYTES * 2 + 1024;
 
 Deno.serve(async (req) => {
+  const preflight = handlePreflight(req);
+  if (preflight) return preflight;
+
   if (req.method !== 'POST') {
-    return Response.json({ status: 'error', error: 'method_not_allowed' }, { status: 405 });
+    return corsJson({ status: 'error', error: 'method_not_allowed' }, 405);
   }
 
   // Ingress bound, BEFORE the body is read. `verify_jwt = false` on this
@@ -171,7 +175,7 @@ Deno.serve(async (req) => {
     } catch {
       // Peer already gone; the response below is best-effort either way.
     }
-    return Response.json({ status: 'error', error: 'payload_too_large' }, { status: 413 });
+    return corsJson({ status: 'error', error: 'payload_too_large' }, 413);
   }
 
   let body: unknown = null;
@@ -194,7 +198,7 @@ Deno.serve(async (req) => {
         bank: result.body.transaction.bank,
       }));
     }
-    return Response.json(result.body, { status: result.status });
+    return corsJson(result.body, result.status);
   } catch (err) {
     console.error(JSON.stringify({
       level: 'error',
@@ -202,6 +206,6 @@ Deno.serve(async (req) => {
       error: err instanceof Error ? err.message : String(err),
       stack: err instanceof Error ? err.stack : undefined,
     }));
-    return Response.json({ status: 'error', error: 'internal_error' }, { status: 500 });
+    return corsJson({ status: 'error', error: 'internal_error' }, 500);
   }
 });

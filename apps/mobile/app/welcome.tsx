@@ -59,10 +59,11 @@ function Steps({ current }: { current: 1 | 2 }) {
 
 // ─── Page 1: paste-your-SMS ───────────────────────────────────────────────────
 
-// A real Baiduri SMS (the parser's anchor golden fixture) so first-time and
-// demo users can watch a transaction parse without a real bank message handy.
+// A real Baiduri SMS (the owner's message, also a golden fixture) so first-time
+// and demo users can watch a transaction parse without a real bank message
+// handy.
 const SAMPLE_BAIDURI_SMS =
-  'Card No.: 4x0213 Amount: BND 21.00 Merchant: GALORIES SMOOTHIES BSB BN Date: 10-07-2026 17:37:59 If suspicious, please call 2449666.';
+  'Card No.: 4x0213\nAmount: BND 10.00\nMerchant: HUA HO DEPARTMENT STORE BSB BN\nDate: 30-07-2026 12:40:11\nIf suspicious, please call 2449666';
 
 function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
   const styles = useStyles();

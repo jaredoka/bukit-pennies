@@ -1,0 +1,18 @@
+{
+  "note": "Baiduri SMS in its multiline layout; also the demo sample shown on the first-run paste screen (amount rounded to BND 10.00 for the demo). Proves the label-anchored regexes tolerate line breaks.",
+  "input": "Card No.: 4x0213\nAmount: BND 10.00\nMerchant: HUA HO DEPARTMENT STORE BSB BN\nDate: 30-07-2026 12:40:11\nIf suspicious, please call 2449666",
+  "sender": "Baiduri",
+  "expected": {
+    "isTransactional": true,
+    "tx": {
+      "bank": "baiduri",
+      "amount": 10.0,
+      "currency": "BND",
+      "merchant": "HUA HO DEPARTMENT STORE BSB BN",
+      "merchantNormalized": "HUA HO DEPARTMENT STORE BSB BN",
+      "occurredAt": "2026-07-30T12:40:11+08:00",
+      "cardLast4": "0213",
+      "confidenceAtLeast": 0.95
+    }
+  }
+}

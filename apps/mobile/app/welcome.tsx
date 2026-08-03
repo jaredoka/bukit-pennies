@@ -2,7 +2,7 @@ import { MAX_TEXT_BYTES, parseBankMessage, splitBankMessages } from '@bukit/pars
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Badge, Button, Card, Field, Muted, Title } from '@/components/ui';
 import { formatMoney } from '@/lib/format';
 import { invalidateTransactionQueries } from '@/lib/queries';
@@ -59,6 +59,11 @@ function Steps({ current }: { current: 1 | 2 }) {
 
 // ─── Page 1: paste-your-SMS ───────────────────────────────────────────────────
 
+// A real Baiduri SMS (the parser's anchor golden fixture) so first-time and
+// demo users can watch a transaction parse without a real bank message handy.
+const SAMPLE_BAIDURI_SMS =
+  'Card No.: 4x0213 Amount: BND 21.00 Merchant: GALORIES SMOOTHIES BSB BN Date: 10-07-2026 17:37:59 If suspicious, please call 2449666.';
+
 function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
   const styles = useStyles();
   const qc = useQueryClient();
@@ -101,6 +106,10 @@ function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void 
         Your bank texts you every time you spend. Paste your last bank SMS below and watch it
         become your first logged transaction in seconds. No bank logins, ever.
       </Muted>
+
+      <Pressable onPress={() => setText(SAMPLE_BAIDURI_SMS)} hitSlop={8}>
+        <Text style={styles.sampleLink}>No message handy? Use a sample SMS</Text>
+      </Pressable>
 
       <Card>
         <Title>Try it with your last bank SMS</Title>
@@ -177,15 +186,16 @@ export default function Welcome() {
     };
   }, [userId, router]);
 
-  // After the paste hero, first-timers go straight into the setup guide —
-  // the moment right after seeing their own SMS parse is when they are most
-  // willing to spend five minutes on it. They are free to leave from there;
-  // nothing holds them, and the dashboard card brings them back (§22).
-  function toSetup() {
-    router.replace('/(tabs)/settings/shortcut-setup');
+  // After the paste hero, first-timers go to the dashboard. The dashboard's
+  // "Set up automatic capture" banner (HANDOFF §22) is what carries the setup
+  // nudge — it is optional, resumable and dismissible, so the first-run screen
+  // no longer forces anyone into the iOS Shortcut guide (which is unreachable
+  // on the web demo anyway, §39).
+  function toDashboard() {
+    router.replace('/(tabs)');
   }
 
-  return <PastePage onDone={toSetup} onSkip={toSetup} />;
+  return <PastePage onDone={toDashboard} onSkip={toDashboard} />;
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -204,6 +214,7 @@ const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 24, paddingTop: 60, gap: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
   hello: { fontSize: 26, fontWeight: '800', color: colors.text },
+  sampleLink: { color: colors.primary, fontWeight: '600', fontSize: 14, alignSelf: 'flex-start' },
   error: { color: colors.danger, marginTop: 8 },
   previewRow: {
     flexDirection: 'row',

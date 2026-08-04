@@ -45,6 +45,14 @@ and the app's user-facing copy is free of em-dashes/hyphens. The Netlify *Drop*
 site from this day should be deleted so the Git-connected site owns the
 `bukit-pennies` name.
 
+**§40 (2026-08-03):** the web demo is presentation-finished (PRs #98–#102).
+The app **defaults to light theme**, the welcome hero exits straight to the
+**dashboard** with a one-tap **sample SMS** link (a real Baiduri message, BND
+10.00) so anyone can watch a parse without a bank message, icons render
+correctly via a **vendored `Ionicons.ttf`**, and on wide desktop browsers the
+app presents as a **phone-width frame** with every sheet/modal sized to stay
+inside it (frame constants in `apps/mobile/src/lib/webFrame.ts`).
+
 ---
 
 ## 1. What we're building
@@ -3109,5 +3117,71 @@ auto-deploying web demo. PRs #92–#96 merged this day.
   public sign-ups consume the free tier. If it grows or approaches limits, spin
   up a separate demo Supabase project (migrations 1–25) and repoint the Netlify
   env vars — nothing in the client needs to change.
+
+## 40. Web-demo polish: phone frame, in-frame sheets, light default (2026-08-03)
+
+Continuation of the same portfolio session as §39. PRs #98–#102. The demo link
+is shared as a bare URL and most people open it in a desktop browser without
+device mode, so this session made the demo *read* as a mobile app even so — and
+fixed the two things that made it look broken on a real host.
+
+### Light theme default (PR #98)
+
+- The app now **defaults to light** instead of `system`. Settings can still pin
+  Light/Dark/System, but a wide desktop window that inherits dark from the OS no
+  longer gives a recruiter a dark first impression.
+- Dropped the full-screen pressable cursor on web — a pointer that behaves like
+  a touch target reads wrong on desktop.
+
+### Welcome hero exits to the dashboard + sample SMS (PR #99)
+
+- First-timers now land on the **dashboard** after the paste hero instead of
+  being pushed into the iOS Shortcut setup guide. The guide is unreachable on
+  the web demo, and the dashboard's "Set up automatic capture" banner
+  (HANDOFF §22) already carries the optional, resumable nudge on device.
+- The paste page offers **"No message handy? Use a sample SMS"** — a real
+  Baiduri message (the owner's HUA HO fixture, BND 10.00) fills the field, so a
+  demo visitor can watch a transaction parse end to end with no bank message.
+
+### Deploy-safe demo fixes (PR #100)
+
+- **Ionicons tofu squares.** Netlify skips the `assets/__node_modules/...`
+  tree that Metro writes for `node_modules` assets, so the icon font was
+  referenced by the deployed HTML but never shipped — every icon rendered as a
+  tofu square on the live site while `expo start` looked fine. Fix: vendor
+  `Ionicons.ttf` into `apps/mobile/assets/fonts/` and preload it via
+  `expo-font` before any Icon mounts, so the browser's `@font-face` points at a
+  file that is actually deployed.
+- **Edge-function CORS.** Shared handling added in
+  `supabase/functions/_shared/cors.ts` and applied to `ingest` and `feedback`
+  (already live) so cross-origin demo traffic behaves.
+
+### Phone-frame web demo (PR #101)
+
+- On web windows **wider than 520px** the app renders inside a centered
+  **420px phone-width column** — rounded corners, hairline border, shadow and
+  elevation on a muted light/dark-aware backdrop — so a bare desktop visit reads
+  as a mobile app. Below the breakpoint, and always on native, it stays
+  full-bleed.
+- The Insights bar chart now measures its **container** instead of the window,
+  so it cannot overflow the frame.
+- The three frame constants live in `apps/mobile/src/lib/webFrame.ts`
+  (`WEB_FRAME_BREAKPOINT`, `WEB_FRAME_WIDTH`, `WEB_FRAME_RADIUS`).
+
+### Sheets inside the frame (PR #102)
+
+- The shared `SheetShell` Modal (`ui.tsx`) was viewport-wide. On web it escaped
+  the phone frame, and the dim plus panel spilled across the whole browser.
+  When the window is framed, the modal now caps to the frame's width and clips
+  to its rounded corners, so every sheet sits inside the app screen. Native and
+  narrow web are unchanged.
+- `SheetShell` imports the constants from `webFrame.ts`, so the frame and the
+  sheets it contains share one source of truth and cannot drift apart.
+
+### Note for the next session
+
+- The demo is presentation-finished; the remaining demo risk is capacity, not
+  polish — it still shares the hosted Supabase project with the owner's testing
+  (see §39's note).
 
 

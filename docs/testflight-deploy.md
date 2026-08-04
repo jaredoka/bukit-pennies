@@ -60,7 +60,7 @@ user-facing `version` in `app.json` for feature releases.
 
 ## On-device test checklist (first TestFlight build)
 
-- [ ] Sign-up → two-page welcome flow (paste SMS → Shortcut nudge)
+- [ ] Sign-up → welcome paste page (one-tap sample SMS) → dashboard, setup banner
 - [ ] Shortcut setup guide: inline token creation, iCloud download link
 - [ ] Real BIBD + Baiduri SMS through the Shortcut → parsed + pre-categorized
 - [ ] Insights tab renders with real data

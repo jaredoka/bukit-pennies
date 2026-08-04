@@ -2,6 +2,14 @@
 
 A spending tracker for Brunei that records card transactions by reading the notification text your bank already sends you.
 
+I built this to track my own card spending in Brunei, and to learn Supabase's security model properly along the way.
+
+<p align="center">
+  <a href="https://github.com/jaredoka/bukit-pennies/actions"><img src="https://img.shields.io/github/actions/workflow/status/jaredoka/bukit-pennies/ci.yml?label=CI" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow" alt="MIT License"></a>
+  <a href="https://bukit-pennies.netlify.app"><img src="https://img.shields.io/badge/Live%20demo-online-brightgreen" alt="Live demo"></a>
+</p>
+
 **It never connects to a bank account.** No credentials, no open banking, no scraping. The only thing it ever processes is a message that has already arrived on your phone.
 
 <p align="center">
@@ -65,21 +73,13 @@ The most interesting work is in the database layer, not the UI:
 
 ## Things I learned building it
 
-**The no bank account rule shaped everything.** "Never touch a bank account" was a trust decision, not a technical one, and it determined the schema, the ingest flow and the App Store story. Keeping `raw_text` forever came from the same place: if a parser reads a message wrong today, the message is still there to try again tomorrow. If I had only stored the extracted fields, a parser bug would have been permanent data loss.
+**My first rate limiter did nothing.** I wrote it as an in memory sliding window, and it passed every unit test, because a single test process does share memory. Supabase Edge Functions can give each request a fresh isolate, so in production the counter was always empty and the limit never fired. The limits now live in Postgres, where the state actually survives (migration [`12_ingest_rate_limits.sql`](supabase/migrations/12_ingest_rate_limits.sql)).
 
-**Serverless functions have no memory.** My first rate limiter was an in memory sliding window. Supabase Edge Functions can give every request a fresh isolate, so the counter was always empty: the limiter looked like it worked and even passed its unit tests (a single test process does share memory), but it was inert in production. The limits now live in Postgres, the one piece of state that survives between invocations.
-&nbsp;→ [`12_ingest_rate_limits.sql`](supabase/migrations/12_ingest_rate_limits.sql)
+**The quiet bug took the longest.** PostgREST caps a response at 1,000 rows and says nothing about it. Months in, a monthly total was a little low and nothing was throwing. The cause was that my queries read a whole period without paging, so once a window passed a thousand transactions the total just stopped counting. Noticing the number was wrong was the hard part; fixing it was a small paging helper, `fetchAllPages` in [`queries.ts`](apps/mobile/src/lib/queries.ts). Paging also needs a total order, because rows that tie on a sort column can swap between requests, dropping one and repeating another.
 
-**A missing error can look like success.** PostgREST caps a response at 1,000 rows and says nothing about having done so. My queries that read a whole month or year had no paging, so every total quietly understated once a window passed a thousand transactions. Nothing failed; the numbers were just wrong. Paging also needs a total order: rows that tie on the sort column can swap between requests, so you lose one and repeat another.
-&nbsp;→ `fetchAllPages` in [`queries.ts`](apps/mobile/src/lib/queries.ts)
+**Authorisation belongs in the database, not in the client.** Every table has a Row Level Security policy scoped to `auth.uid()`, so even a hand written API call cannot cross accounts. The one that keeps biting people is views: without `security_invoker`, a view runs as its owner and serves everyone everyone else's rows. I hit it once and fixed it in migration 11; it is now the rule every new view follows ([`02_rls.sql`](supabase/migrations/02_rls.sql), [`11_security_hardening.sql`](supabase/migrations/11_security_hardening.sql)).
 
-**Authorisation belongs in the database, not the client.** Every table has a Row Level Security policy tying rows to the signed-in user, so isolation holds even against a hand written API call; it is not a filter the client has to remember. Capture tokens are shown once and stored only as a SHA-256 hash, so a database dump yields nothing usable. The subtle part was views: without `security_invoker`, a view runs as its owner and hands every user everyone else's rows, bypassing the RLS underneath.
-&nbsp;→ [`02_rls.sql`](supabase/migrations/02_rls.sql) ·
-[`11_security_hardening.sql`](supabase/migrations/11_security_hardening.sql)
-
-**What you never deploy is a bug you cannot see.** The web demo broke in two ways that `expo start` never shows. Netlify skips the `node_modules` asset tree Metro writes, so the icon font was referenced but never deployed, and every icon was a tofu square on the live site. The shared bottom sheet had the same shape of problem: a full viewport React Native Modal that, on web, escaped the phone frame the demo renders inside. The fix for both was to stop trusting the toolchain's invisible defaults: vendor the font into the app and preload it, and let the modal import the frame's constants so it cannot outgrow its frame.
-&nbsp;→ [`_layout.tsx`](apps/mobile/app/_layout.tsx) ·
-[`webFrame.ts`](apps/mobile/src/lib/webFrame.ts)
+**A font that is not deployed is just a square.** The live demo shipped with every icon as a tofu box, while `expo start` looked fine. Netlify skips the `node_modules` asset tree, so the icon font was referenced but never uploaded. Vendoring it into the app and preloading it fixed it. Obvious in hindsight; it took a live site to catch ([`_layout.tsx`](apps/mobile/app/_layout.tsx), [`webFrame.ts`](apps/mobile/src/lib/webFrame.ts)).
 
 ## Status and scope
 
@@ -87,7 +87,7 @@ Working: Baiduri and BIBD messages parse and log automatically on iOS; manual en
 
 Deliberately not built:
 
-- **Standard Chartered messages are not parsed.** No real sample has been collected, so that parser is capped below the confidence threshold; SCB messages land in review rather than being guessed at.
+- **Standard Chartered messages are not parsed.** No real sample has been collected, so that parser is capped below the confidence threshold; SCB messages land in review rather than being guessed at. If you bank with Standard Chartered, a redacted SMS screenshot would fix that parser.
 - **Android capture is not implemented.** iOS first by choice. The app runs on Android but without automatic capture.
 - **It is not on the App Store.** It runs on my own phone, sideloaded.
 
@@ -107,6 +107,9 @@ Deeper docs: [architecture and decisions](docs/execution-playbook.md) ·
 [user guide](docs/user-guide.md) ·
 [hosted deploy](docs/hosted-supabase-deploy.md) ·
 [privacy policy](docs/privacy-policy.md)
+
+Contributions are welcome; [CONTRIBUTING.md](CONTRIBUTING.md) explains the
+conventions (parser golden fixtures, GitHub Flow, RLS rules).
 
 ## How it was built
 

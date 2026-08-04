@@ -6,11 +6,11 @@
 -- Guard: this file is dev-only, so refuse to run anywhere but the CLI's local
 -- database. The local stack always names its database "postgres"; a hosted
 -- Supabase project's primary database is named after the project ref, never
--- "postgres" — so the check cannot false-positive on production. It runs
--- first and `\set ON_ERROR_STOP on` makes the raise abort the whole script
--- instead of letting psql carry on past it (plain psql without that flag
--- would report the error and keep going).
-\set ON_ERROR_STOP on
+-- "postgres" — so the check cannot false-positive on production.
+--
+-- The guard is plain SQL (no `\set`, which the Supabase CLI's seed runner does
+-- not accept). `supabase start`/`db reset` seed through the CLI, which stops on
+-- the raised error, so the guard is still enforced on that path.
 do $$
 begin
   if current_database() <> 'postgres' then

@@ -3236,3 +3236,4 @@ dashboard/transactions/insights at 1078x848 in the desktop phone frame. The
 scripts live in `/tmp/opencode/{capture.cjs,dump-session.cjs}` (session +
 screenshots are ephemeral and do not belong in the repo).
 
+

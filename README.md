@@ -2,7 +2,7 @@
 
 A spending tracker for Brunei that records card transactions by reading the notification text your bank already sends you.
 
-I built this to track my own card spending in Brunei, and to learn Supabase's security model properly along the way.
+I built this from scratch to track my own card spending in Brunei, and it grew into a working app. If it helps other people too, even better.
 
 <p align="center">
   <a href="https://github.com/jaredoka/bukit-pennies/actions"><img src="https://img.shields.io/github/actions/workflow/status/jaredoka/bukit-pennies/ci.yml?label=CI" alt="CI"></a>

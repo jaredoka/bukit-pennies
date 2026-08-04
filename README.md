@@ -8,16 +8,18 @@ scraping. The only thing it ever processes is a message that has already
 arrived on your phone.
 
 <p align="center">
-  <img src="docs/screenshots/dashboard.jpg" alt="Dashboard: category donut and monthly totals" width="32%">
-  <img src="docs/screenshots/transactions.jpg" alt="Transactions list with filters and the review queue badge" width="32%">
-  <img src="docs/screenshots/insights.jpg" alt="Insights: spending by month, by category and by merchant" width="32%">
+  <img src="docs/screenshots/web-demo-frame.jpg" alt="Live web demo: the app framed as a phone screen on a desktop browser" width="24%">
+  <img src="docs/screenshots/dashboard.jpg" alt="Dashboard: category donut and monthly totals" width="24%">
+  <img src="docs/screenshots/transactions.jpg" alt="Transactions list with filters and the review queue badge" width="24%">
+  <img src="docs/screenshots/insights.jpg" alt="Insights: spending by month, by category and by merchant" width="24%">
 </p>
 
 *Screenshots use seeded demo data, not real spending.*
 
 > **Try the live web demo:** [bukit-pennies.netlify.app](https://bukit-pennies.netlify.app) —
-> the same app compiled for the browser against a hosted Supabase backend. Sign up and try it
-> without an iPhone.
+> the same app compiled for the browser against a hosted Supabase backend. On a desktop browser it
+> presents as a phone screen, and the welcome screen has a one-tap sample SMS — sign up and watch a
+> transaction parse in seconds, no iPhone or real bank message needed.
 
 ---
 
@@ -130,6 +132,17 @@ everyone else's rows, bypassing the RLS underneath.
 &nbsp;→ [`02_rls.sql`](supabase/migrations/02_rls.sql) ·
 [`11_security_hardening.sql`](supabase/migrations/11_security_hardening.sql)
 
+**The bug you can't see is the asset you didn't ship.** The web demo broke in
+two ways that `expo start` never shows. Netlify skips the `node_modules` asset
+tree Metro writes, so the icon font was referenced but never deployed — every
+icon was a tofu square on the live site. And the shared bottom sheet used a
+full-viewport React Native Modal that, on web, escaped the phone frame the demo
+renders inside. The same fix for both: stop trusting the toolchain's invisible
+defaults and own it explicitly — vendor the font into the app and preload it,
+and let the modal import the frame's constants so it can't outgrow its frame.
+&nbsp;→ [`_layout.tsx`](apps/mobile/app/_layout.tsx) ·
+[`webFrame.ts`](apps/mobile/src/lib/webFrame.ts)
+
 ## Status and scope
 
 Working: Baiduri and BIBD messages parse and log automatically on iOS; manual
@@ -176,7 +189,7 @@ the button.
 Alongside it I'm working through the codebase deliberately — a study plan that
 goes layer by layer, from the zero-dependency parser package up through the
 database, the edge function and the app, with the goal of being able to explain
-and modify any part of it unaided. The four sections above are the parts I've
+and modify any part of it unaided. The sections above are the parts I've
 studied closely enough to defend under questioning; that is exactly why they
 are the ones written down, and the list grows as I work through the rest.
 

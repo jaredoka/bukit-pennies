@@ -15,7 +15,7 @@
 > Each section records what was found and decided on one day, and is left
 > exactly as written — that is what makes it trustworthy *as history*. Some of
 > it has since been reversed. **Do not treat a §14+ statement as current
-> truth**; check the code, or `docs/execution-playbook.md` §5–§6, which carries
+> truth**; check the code, or `docs/architecture-and-decisions.md` §5–§6, which carries
 > the invariants and the decision log.
 >
 > New work appends a new dated section at the bottom, and updates §1–§13 if the
@@ -222,7 +222,7 @@ const FINGERPRINT = /Card\s*No\.?\s*:.*Amount\s*:.*Merchant\s*:.*Date\s*:/is;   
 ```
 Amount: strip commas → number. `merchant_normalized`: uppercase + collapse whitespace (consider stripping trailing 2-letter country token as a heuristic).
 
-**BIBD — verified** (real SMS collected 2026-07-17; golden fixtures in `test/golden/bibd/`). Label-anchored like Baiduri, no confidence cap, scores ~0.90 on a real message (its date is heuristic because BIBD messages carry no timestamp — `occurredAt` comes from `received_at`). **SCB — still an UNVERIFIED skeleton:** guessed patterns, delegates to the generic parser, clamped to `UNVERIFIED_CONFIDENCE_CAP` so every SCB message lands in review until a real sample arrives (§7 promotion procedure in `docs/execution-playbook.md`). **Generic fallback:** amount `/(BND|B\$|SGD|USD|MYR)\s*([\d,]+\.\d{2})/i`; multi-format date table (`dd-mm-yyyy`, `dd/mm/yy`, `d MMM yyyy`, ISO); merchant = text after ` at |Merchant:?|@ `, else longest ALL-CAPS run ≥3 chars.
+**BIBD — verified** (real SMS collected 2026-07-17; golden fixtures in `test/golden/bibd/`). Label-anchored like Baiduri, no confidence cap, scores ~0.90 on a real message (its date is heuristic because BIBD messages carry no timestamp — `occurredAt` comes from `received_at`). **SCB — still an UNVERIFIED skeleton:** guessed patterns, delegates to the generic parser, clamped to `UNVERIFIED_CONFIDENCE_CAP` so every SCB message lands in review until a real sample arrives (§7 promotion procedure in `docs/architecture-and-decisions.md`). **Generic fallback:** amount `/(BND|B\$|SGD|USD|MYR)\s*([\d,]+\.\d{2})/i`; multi-format date table (`dd-mm-yyyy`, `dd/mm/yy`, `d MMM yyyy`, ISO); merchant = text after ` at |Merchant:?|@ `, else longest ALL-CAPS run ≥3 chars.
 
 ## 8. Mobile app structure (`apps/mobile`, expo-router)
 
@@ -3235,5 +3235,51 @@ injects `localStorage` before the app boots (session under
 dashboard/transactions/insights at 1078x848 in the desktop phone frame. The
 scripts live in `/tmp/opencode/{capture.cjs,dump-session.cjs}` (session +
 screenshots are ephemeral and do not belong in the repo).
+
+## 42. Contribution hardening: branch protection, CI migration gate, OSS docs (2026-08-05)
+
+**PR #108 merged.** This session made the public repo's contribution path
+behave like a maintained project:
+
+- **Branch protection on `main`** (via `gh api`): requires a PR, requires the
+  `CI / test` and `CI / migration-check` status checks (strict/up-to-date), no
+  force-pushes, no deletions, enforced even for admins. Reviews not required
+  (solo maintainer cannot self-approve).
+- **New CI job `migration-check`**: boots a throwaway local Supabase stack and
+  runs `supabase db reset` on every PR, proving the full
+  `supabase/migrations/*.sql` history applies from scratch. It caught a real
+  latent bug: `seed.sql` used `\set ON_ERROR_STOP on` (a psql meta-command the
+  CLI seed runner cannot parse), which would have broken any fresh local
+  `supabase start`. Fixed by making the dev-only guard plain SQL; the CLI stops
+  on the raised error itself.
+- **`.github/CODEOWNERS`**: `@jaredoka` owns `supabase/migrations/` and
+  `supabase/functions/`.
+- **Bootstrap quirk handled**: GitHub will not let a PR merge when a required
+  status check has never run on the default branch (shows as "expected" and
+  blocks even `--admin`). Fixed by relaxing the rule, merging PR #108, letting
+  CI run on `main` (giving `migration-check` a history record), then
+  re-enabling the required checks.
+- **OSS docs**: rewrote `CONTRIBUTING.md` (removed internal
+  `HANDOFF.md`/`architecture-and-decisions.md` references, added CoC link, Discussions
+  link, good-first-issue pointer, commit-message conventions, MIT contribution
+  note, private security reporting). Added `CODE_OF_CONDUCT.md`
+  (Contributor Covenant 2.1) and `SECURITY.md`. Enabled GitHub Discussions.
+  All uncommitted on `main` alongside the README/.gitignore edits — batch into
+  the next PR.
+- **Docs reframe**: `docs/execution-playbook.md` renamed to
+  `docs/architecture-and-decisions.md` (via `git mv`, history preserved) and
+  reframed for a public audience: Claude-specific language removed, agent
+  workflow and the blocked-on-owner registry moved to `CLAUDE.md`, all em dashes
+  stripped. Referenced from CLAUDE.md, README.md, HANDOFF.md §0, and
+  `packages/parsers/test/golden/scb/README.md`. **Follow-up (not done):** split
+  the §6 decision log into standalone ADRs under `docs/adr/` and link them from
+  the README; the single-file format stays until that lands.
+
+**Timing note (why `isSecurityPolicyEnabled` is still `false`):** GitHub only
+detects `SECURITY.md` and `CODE_OF_CONDUCT.md` on the **default branch**.
+They are uncommitted/feature-branch right now, so the "Report a vulnerability"
+button and the CoC badge do not appear until that docs PR merges into `main`.
+This is expected, not a defect. The `good first issue` links and Discussions
+work regardless of branch.
 
 

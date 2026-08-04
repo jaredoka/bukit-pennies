@@ -34,3 +34,27 @@ jobs:
           else
             echo "sync script not present yet (pre-Phase 1) - skipping"
           fi
+
+  # Boot a throwaway local Supabase stack and apply the full migration history
+  # from scratch. CI never touches the hosted project; it only proves every
+  # supabase/migrations/*.sql applies cleanly on an empty database. This is the
+  # gate that stops a broken or malicious migration from ever merging.
+  migration-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+
+      - name: Start local Supabase stack
+        run: supabase start
+
+      # Reset rebuilds the database from the migration files in numeric order
+      # and then runs seed.sql. seed.sql refuses to run on any database other
+      # than the local stack's "postgres", so it is dev-safe here.
+      - name: Apply migrations from scratch
+        run: supabase db reset

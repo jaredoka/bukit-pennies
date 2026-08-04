@@ -45,6 +45,21 @@ and the app's user-facing copy is free of em-dashes/hyphens. The Netlify *Drop*
 site from this day should be deleted so the Git-connected site owns the
 `bukit-pennies` name.
 
+**§40 (2026-08-03):** the web demo is presentation-finished (PRs #98–#102).
+The app **defaults to light theme**, the welcome hero exits straight to the
+**dashboard** with a one-tap **sample SMS** link (a real Baiduri message, BND
+10.00) so anyone can watch a parse without a bank message, icons render
+correctly via a **vendored `Ionicons.ttf`**, and on wide desktop browsers the
+app presents as a **phone-width frame** with every sheet/modal sized to stay
+inside it (frame constants in `apps/mobile/src/lib/webFrame.ts`).
+
+**§41 (2026-08-03/04):** the README screenshots were regenerated in **light
+mode** with **seeded demo data** (replayed through a hosted-project demo
+account `demo@bukitpennies.test`, since `seed.sql` is dev-only), including
+declared `subscriptions` rows and a near-duplicate pair so the dashboard
+card reads realistically. Capture method and re-seed script are recorded in
+§41 itself.
+
 ---
 
 ## 1. What we're building
@@ -3109,5 +3124,116 @@ auto-deploying web demo. PRs #92–#96 merged this day.
   public sign-ups consume the free tier. If it grows or approaches limits, spin
   up a separate demo Supabase project (migrations 1–25) and repoint the Netlify
   env vars — nothing in the client needs to change.
+
+## 40. Web-demo polish: phone frame, in-frame sheets, light default (2026-08-03)
+
+Continuation of the same portfolio session as §39. PRs #98–#102. The demo link
+is shared as a bare URL and most people open it in a desktop browser without
+device mode, so this session made the demo *read* as a mobile app even so — and
+fixed the two things that made it look broken on a real host.
+
+### Light theme default (PR #98)
+
+- The app now **defaults to light** instead of `system`. Settings can still pin
+  Light/Dark/System, but a wide desktop window that inherits dark from the OS no
+  longer gives a recruiter a dark first impression.
+- Dropped the full-screen pressable cursor on web — a pointer that behaves like
+  a touch target reads wrong on desktop.
+
+### Welcome hero exits to the dashboard + sample SMS (PR #99)
+
+- First-timers now land on the **dashboard** after the paste hero instead of
+  being pushed into the iOS Shortcut setup guide. The guide is unreachable on
+  the web demo, and the dashboard's "Set up automatic capture" banner
+  (HANDOFF §22) already carries the optional, resumable nudge on device.
+- The paste page offers **"No message handy? Use a sample SMS"** — a real
+  Baiduri message (the owner's HUA HO fixture, BND 10.00) fills the field, so a
+  demo visitor can watch a transaction parse end to end with no bank message.
+
+### Deploy-safe demo fixes (PR #100)
+
+- **Ionicons tofu squares.** Netlify skips the `assets/__node_modules/...`
+  tree that Metro writes for `node_modules` assets, so the icon font was
+  referenced by the deployed HTML but never shipped — every icon rendered as a
+  tofu square on the live site while `expo start` looked fine. Fix: vendor
+  `Ionicons.ttf` into `apps/mobile/assets/fonts/` and preload it via
+  `expo-font` before any Icon mounts, so the browser's `@font-face` points at a
+  file that is actually deployed.
+- **Edge-function CORS.** Shared handling added in
+  `supabase/functions/_shared/cors.ts` and applied to `ingest` and `feedback`
+  (already live) so cross-origin demo traffic behaves.
+
+### Phone-frame web demo (PR #101)
+
+- On web windows **wider than 520px** the app renders inside a centered
+  **420px phone-width column** — rounded corners, hairline border, shadow and
+  elevation on a muted light/dark-aware backdrop — so a bare desktop visit reads
+  as a mobile app. Below the breakpoint, and always on native, it stays
+  full-bleed.
+- The Insights bar chart now measures its **container** instead of the window,
+  so it cannot overflow the frame.
+- The three frame constants live in `apps/mobile/src/lib/webFrame.ts`
+  (`WEB_FRAME_BREAKPOINT`, `WEB_FRAME_WIDTH`, `WEB_FRAME_RADIUS`).
+
+### Sheets inside the frame (PR #102)
+
+- The shared `SheetShell` Modal (`ui.tsx`) was viewport-wide. On web it escaped
+  the phone frame, and the dim plus panel spilled across the whole browser.
+  When the window is framed, the modal now caps to the frame's width and clips
+  to its rounded corners, so every sheet sits inside the app screen. Native and
+  narrow web are unchanged.
+- `SheetShell` imports the constants from `webFrame.ts`, so the frame and the
+  sheets it contains share one source of truth and cannot drift apart.
+
+### Note for the next session
+
+- The demo is presentation-finished; the remaining demo risk is capacity, not
+  polish — it still shares the hosted Supabase project with the owner's testing
+  (see §39's note).
+## 41. README screenshots regenerated: light mode, seeded demo data (2026-08-03)
+
+The three README screenshots (`docs/screenshots/{dashboard,transactions,insights}.jpg`)
+were dark-mode captures from Aug 1 (§39's session). Regenerated in **light
+mode** with **seeded demo data** on request.
+
+**Demo account now lives on the hosted project** (`demo@bukitpennies.test` /
+`demo12345`, id `78dc4718-47d0-4924-8593-5a0d23ace6d2`). `supabase/seed.sql` is
+dev-only and refuses non-`postgres` databases, and this session had no Docker,
+so the seed shape was replayed through the demo account's own RLS-scoped
+session instead: 60 parsed Baiduri rows across 3 months (same merchants/amounts
+logic as the seed), 2 `needs_review` rows, and the near-duplicate pair — 64
+rows total. Re-run `/tmp/opencode/seed-demo-hosted.cjs` to reset it.
+
+**Aug 4 follow-up (1):** the first seed left the dashboard's current month (Aug,
+captured mid-day-3) with only BND 17.37 of spend, so the donut read poorly. The
+seed generator was reworked to concentrate spend in the **current** month — the
+demo account then showed Aug at BND 374.61 across Groceries (150.08), Food &
+Drink (110.28), Transport (65.00), Health (22.34), Entertainment (14.91) and
+Other (12.00, the near-duplicate echo), with July (682.89) and June (400.08)
+driving the Insights month bars. All three screenshots re-captured against this
+data.
+
+**Aug 4 follow-up (2):** the dashboard subscriptions card should show *real*
+subscriptions, and the transactions page was spending a whole month's worth in
+one day. The seed now has two declared `subscriptions` rows (Netflix BND 15.98,
+DST MOBI 18 BND 18.00) whose `merchant_normalized` values claim matching
+monthly transaction clusters (`NETFLIX.COM`, `DST MOBI 18`) — the card shows
+"Netflix · Monthly · due in 16 days" and "DST MOBI 18 · Monthly · due in 2
+days" under "Subscriptions BND 33.98/mo". PIZZA HUT / KFC / COFFEE BEAN /
+BOOST JUICE recur every month too, so the "Detected · 3 months" suggestions
+stay populated. Transactions are now spread evenly across the days of each
+month (current month ~2-3/day plus a same-day near-duplicate pair; past months
+evenly across the full month), and Aug totals ~BND 507 across seven donut
+slices (incl. Bills via DST). Re-seed with `/tmp/opencode/seed-demo-hosted.cjs`
+— it also wipes/re-creates the two subscription rows.
+
+**Capture method (for whoever regenerates them):** `apps/mobile/.env` points at
+hosted (gitignored); `expo start --web` on port 8082; headless Chrome via CDP
+injects `localStorage` before the app boots (session under
+`sb-pzjroqwllrzcbpiugpxl-auth-token`, `bukit.theme=light`,
+`bukit.onboarded.<uid>=1`, `bukit.setup_dismissed.<uid>=1`) and captures
+dashboard/transactions/insights at 1078x848 in the desktop phone frame. The
+scripts live in `/tmp/opencode/{capture.cjs,dump-session.cjs}` (session +
+screenshots are ephemeral and do not belong in the repo).
 
 

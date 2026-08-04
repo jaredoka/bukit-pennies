@@ -4,9 +4,10 @@ Multi-user mobile app (iOS-first) that logs card spending in Brunei by parsing
 bank **notification text** (Baiduri SMS today; BIBD/SCB later). Expo (React
 Native/TS) + Supabase (Postgres, Auth, RLS, Edge Functions).
 
-**Read `docs/execution-playbook.md` before building anything** — it holds the
-phase order, verification gates, design invariants, and the decision log. Do
-not re-open decisions recorded there. `HANDOFF.md` is the full original design.
+**Read `docs/architecture-and-decisions.md` before building anything** — it
+holds the phase order, verification gates, design invariants, and the decision
+log. Do not re-open decisions recorded there. `HANDOFF.md` is the full original
+design.
 
 ## Non-negotiable safety invariant
 
@@ -41,3 +42,18 @@ supabase start          # local Postgres+Auth+Functions (Docker)
   `needs_review`. Only verified bank formats (currently Baiduri) may exceed it.
 - Edge functions import parsers from the **synced copy** under
   `supabase/functions/_shared/parsers` — never edit the copy by hand.
+
+## Blocked on owner input
+
+- Real BIBD / Standard Chartered notification samples (→ promote the skeleton
+  parsers).
+- Exact Android package names for the three bank apps (Phase 3+, real device).
+- ~~Hosted Supabase project credentials~~ — received 2026-07-17; project
+  `pzjroqwllrzcbpiugpxl` linked, migrations 01–06 pushed, ingest deployed,
+  hosted curl matrix 5/5 (`scripts/verify-ingest-hosted.sh`).
+- Apple ($99, deferred) / Google ($25) developer accounts (Phase 4).
+- Product naming/branding decision ("Bukit Pennies" is the working name) —
+  blocks Phase 3.5 branding + store listings.
+- Public hosting choice for privacy policy/terms (GitHub Pages suggested) and a
+  support contact email (Phase 3.5).
+- Paid Supabase tier + Sentry account for launch ops (Phase 4.5).

@@ -2,7 +2,7 @@
 
 A spending tracker for Brunei that records card transactions by reading the notification text your bank already sends you.
 
-I built this from scratch to track my own card spending in Brunei, and it grew into a working app. If it helps other people too, even better.
+I built this to track my own card spending, and learning the whole stack to do it meant wrong turns, rewritten code, and a working app on my phone at the end. If it helps other people too, it's an app I'd be proud to have built.
 
 <p align="center">
   <a href="https://github.com/jaredoka/bukit-pennies/actions"><img src="https://img.shields.io/github/actions/workflow/status/jaredoka/bukit-pennies/ci.yml?label=CI" alt="CI"></a>
@@ -29,7 +29,7 @@ I built this from scratch to track my own card spending in Brunei, and it grew i
 
 Brunei's banks have no open banking API. The realistic options were to ask for bank credentials or to use something people already receive: the SMS a bank sends when a card is used.
 
-That choice drives the whole architecture, and its limits too. There are no balances, no historical import, and no record of a purchase the bank never messaged about. In exchange, using the app means trusting it with nothing.
+That choice drives the whole architecture, and its limits too. There are no balances, no historical import, and no record of a purchase the bank never messaged about. You trust it with a text message, never with a bank account.
 
 ## How it works
 
@@ -73,23 +73,32 @@ The most interesting work is in the database layer, not the UI:
 
 ## Things I learned building it
 
-**My first rate limiter did nothing.** I wrote it as an in memory sliding window, and it passed every unit test, because a single test process does share memory. Supabase Edge Functions can give each request a fresh isolate, so in production the counter was always empty and the limit never fired. The limits now live in Postgres, where the state actually survives (migration [`12_ingest_rate_limits.sql`](supabase/migrations/12_ingest_rate_limits.sql)).
+**Authorisation lives in the database, not in the client.** Every table has a Row Level Security policy scoped to `auth.uid()`, so even a hand-written API call cannot cross accounts, and writes go through a few security-checked RPCs rather than the client building its own `UPDATE` or `DELETE`. The subtle one is views: without `security_invoker`, a view runs as its owner and silently serves everyone everyone else's rows. Three security passes later, each one found the same shape of bug — a rule the app stated but the database did not enforce: text columns with no length bound, an endpoint with no quota, a session that survived a password reset. Code can be worked around; a constraint in Postgres cannot ([`02_rls.sql`](supabase/migrations/02_rls.sql), [`11_security_hardening.sql`](supabase/migrations/11_security_hardening.sql), [`20_input_bounds_and_quotas.sql`](supabase/migrations/20_input_bounds_and_quotas.sql)).
 
-**The quiet bug took the longest.** PostgREST caps a response at 1,000 rows and says nothing about it. Months in, a monthly total was a little low and nothing was throwing. The cause was that my queries read a whole period without paging, so once a window passed a thousand transactions the total just stopped counting. Noticing the number was wrong was the hard part; fixing it was a small paging helper, `fetchAllPages` in [`queries.ts`](apps/mobile/src/lib/queries.ts). Paging also needs a total order, because rows that tie on a sort column can swap between requests, dropping one and repeating another.
+**One parser, three runtimes.** The highest-risk logic in the app — turning a bank SMS into a transaction — is a single zero-dependency TypeScript package, imported by the mobile app (offline preview), the edge function (the authoritative parse) and the test suite, so a message previews identically everywhere. Adding a new bank format is one module plus one golden fixture of a real message. The raw text is kept forever, so a parser improvement can redo a transaction that was originally read wrong ([`packages/parsers/src/index.ts`](packages/parsers/src/index.ts)).
 
-**Authorisation belongs in the database, not in the client.** Every table has a Row Level Security policy scoped to `auth.uid()`, so even a hand written API call cannot cross accounts. The one that keeps biting people is views: without `security_invoker`, a view runs as its owner and serves everyone everyone else's rows. I hit it once and fixed it in migration 11; it is now the rule every new view follows ([`02_rls.sql`](supabase/migrations/02_rls.sql), [`11_security_hardening.sql`](supabase/migrations/11_security_hardening.sql)).
+**Serverless functions have no memory between calls.** My first rate limiter was an in-memory sliding window, and it passed every unit test because a single test process does share memory. Supabase Edge Functions give each request a fresh isolate, so in production the counter was always empty and the limit never fired. The limits now live in Postgres, where the state actually survives — and the database has the side benefit that a hand-written API call cannot get around them ([`12_ingest_rate_limits.sql`](supabase/migrations/12_ingest_rate_limits.sql)).
 
-**A font that is not deployed is just a square.** The live demo shipped with every icon as a tofu box, while `expo start` looked fine. Netlify skips the `node_modules` asset tree, so the icon font was referenced but never uploaded. Vendoring it into the app and preloading it fixed it. Obvious in hindsight; it took a live site to catch ([`_layout.tsx`](apps/mobile/app/_layout.tsx), [`webFrame.ts`](apps/mobile/src/lib/webFrame.ts)).
+**Design for testability from the start.** UI and device code cannot run in a Node test, so the pure logic is split into its own modules — filters, CSV quoting, subscriptions, calendar arithmetic — each with real tests. One test guards the whole app: a list of every storage key the app builds, asserted against the characters the platform's key store actually accepts. It caught the bug no amount of web development could reproduce, because the browser accepts keys the phone silently rejects ([`txFilters.ts`](apps/mobile/src/lib/txFilters.ts), [`kvStore.test.ts`](apps/mobile/test/kvStore.test.ts)).
+
+**The review queue is the data engine, not a fallback.** Anything the parser is not sure of lands in a review inbox instead of being guessed at — and that inbox doubles as the collection loop for bank formats I do not have yet. BIBD's parser went from a skeleton to verified the day a real message arrived; Standard Chartered's stays capped below the confidence threshold until a real sample exists. You collect the data before you trust the model ([`packages/parsers/test/golden/`](packages/parsers/test/golden/)).
+
+**Friction, not features, is what loses users.** The hard part of the product was never parsing a message; it was getting the message into the app. Setup meant building an iOS automation, and the step people abandoned is the one that has to happen inside another app. I could see the drop-off from the database alone — accounts created, versus capture tokens created, versus tokens that ever logged a transaction. The setup flow went from an enforced gate to an optional, resumable prompt, and the numbers are what will tell me whether it worked.
 
 ## Status and scope
 
-Working: Baiduri and BIBD messages parse and log automatically on iOS; manual entry; budgets; savings goals; subscriptions; CSV export; a review queue for anything the parser is unsure of.
+**Working**
+- [x] Baiduri and BIBD capture on iOS — messages parse and log automatically
+- [x] Manual entry, budgets, savings goals, subscriptions, CSV export
+- [x] A review queue for anything the parser isn't sure of
 
-Deliberately not built:
+**Next up**
+- [ ] Standard Chartered parsing — capped below the confidence threshold until a real message arrives; a redacted screenshot would fix it
+- [ ] Android capture — planned after the iOS release
+- [ ] App Store release — in progress; currently sideloaded on my own phone
 
-- **Standard Chartered messages are not parsed.** No real sample has been collected, so that parser is capped below the confidence threshold; SCB messages land in review rather than being guessed at. If you bank with Standard Chartered, a redacted SMS screenshot would fix that parser.
-- **Android capture is not implemented.** iOS first by choice. The app runs on Android but without automatic capture.
-- **It is not on the App Store.** It runs on my own phone, sideloaded.
+**Deliberately not built**
+- Bank aggregation. No balances, no imports, no connection to a bank account — by design, and why the app only ever sees a text message.
 
 ## Running it locally
 
@@ -103,7 +112,7 @@ pnpm --filter @bukit/mobile web
 
 `pnpm -r test` runs the suite; `pnpm -r typecheck` checks types across every package.
 
-Deeper docs: [architecture and decisions](docs/execution-playbook.md) ·
+Deeper docs: [architecture and decisions](docs/architecture-and-decisions.md) ·
 [user guide](docs/user-guide.md) ·
 [hosted deploy](docs/hosted-supabase-deploy.md) ·
 [privacy policy](docs/privacy-policy.md)

@@ -23,12 +23,12 @@ const queryClient = new QueryClient({
 });
 
 // The Ionicons glyph font is loaded from a copy vendored into the app's own
-// assets (not from `@expo/vector-icons`' bundled copy) because Netlify's
-// deploy skips the `assets/__node_modules/...` tree that Metro writes
-// node_modules assets to, so the font it references never reaches the live
-// site and every icon renders as a tofu square there. Registering the vendored
-// copy under the same `ionicons` family before any Icon mounts keeps the
-// browser's @font-face pointing at a file that is actually deployed.
+// assets (not from `@expo/vector-icons`' bundled copy). Vendoring the font
+// guarantees the browser's @font-face points at a file that actually reaches
+// the static host, instead of the `assets/__node_modules/...` tree that Metro
+// writes node_modules assets to and that some deploy pipelines skip (Netlify
+// used to, which is why this exists). Registering the vendored copy under the
+// same `ionicons` family before any Icon mounts keeps every icon rendering.
 const IONICONS_FONT = require('../assets/fonts/Ionicons.ttf');
 
 const styles = StyleSheet.create({

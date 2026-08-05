@@ -188,10 +188,10 @@ export default function Welcome() {
   }, [userId, router]);
 
   // After the paste hero, first-timers go to the dashboard. The dashboard's
-  // "Set up automatic capture" banner (HANDOFF §22) is what carries the setup
-  // nudge — it is optional, resumable and dismissible, so the first-run screen
-  // no longer forces anyone into the iOS Shortcut guide (which is unreachable
-  // on the web demo anyway, §39).
+  // "Set up automatic capture" banner is what carries the setup nudge — it is
+  // optional, resumable and dismissible, so the first-run screen no longer
+  // forces anyone into the iOS Shortcut guide (which is unreachable on the web
+  // demo anyway).
   function toDashboard() {
     router.replace('/(tabs)');
   }

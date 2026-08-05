@@ -25,7 +25,7 @@ const AMOUNT_TOLERANCE = 0.1;
 /** A merchant+amount cluster is "recurring" once it hits this many distinct months. */
 const MIN_MONTHS = 3;
 
-/** Same-merchant, similar-amount, multi-month heuristic (HANDOFF §14 item 11).
+/** Same-merchant, similar-amount, multi-month heuristic.
  *  Pass parsed transactions covering the last ~6 Brunei months. */
 export function detectRecurring(txs: RecurringCandidateTx[]): RecurringSpend[] {
   const byMerchant = new Map<string, RecurringCandidateTx[]>();

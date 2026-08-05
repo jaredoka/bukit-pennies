@@ -13,7 +13,7 @@ import { kvGet, kvGetJson, kvSet, kvSetJson } from './kvStore';
 // seven substeps inside the Shortcuts app was being nagged forever with no way
 // out, which loses the user rather than winning the setup. It is now a
 // dismissible card on the dashboard plus a permanent Settings entry, and the
-// dismissal persists (HANDOFF §22).
+// dismissal persists.
 
 // Dots, not colons, and the `bukit.` prefix every other stored key uses
 // (tokenStore, notifications, privacy, primaryCurrency). SecureStore rejects

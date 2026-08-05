@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end ingest verification matrix (HANDOFF.md §11 items 2–4).
+# End-to-end ingest verification matrix.
 # Prereqs: Docker running, `supabase start` done (which applies migrations +
 # seed), and in another terminal: `supabase functions serve ingest`.
 # Run from repo root (Git Bash on Windows): bash scripts/verify-ingest.sh

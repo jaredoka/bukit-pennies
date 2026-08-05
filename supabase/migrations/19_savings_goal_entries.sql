@@ -85,14 +85,14 @@ left join public.savings_goal_entries e on e.goal_id = g.id
 group by g.user_id, g.id;
 
 -- The column is gone rather than left as a stale duplicate. Keeping it would
--- recreate exactly the two-sources-of-truth problem §19 of HANDOFF.md
--- complains about with the duplicated privacy policy: whichever one a future
--- reader trusts, the other silently rots.
+-- recreate exactly the two-sources-of-truth problem of the duplicated
+-- privacy policy: whichever one a future reader trusts, the other silently
+-- rots.
 --
 -- COMPATIBILITY: an app build predating this migration reads `saved_amount`
 -- via `select *` and writes it on Add, so on such a build a goal's progress
 -- reads as blank and Add fails. Closed, not open — and acceptable because the
--- app is in neither store yet (§16.4). Replace the installed build.
+-- app is in neither store yet. Replace the installed build.
 alter table public.savings_goals drop column saved_amount;
 
 -- Grants come from 04_grants.sql's default privileges (authenticated,

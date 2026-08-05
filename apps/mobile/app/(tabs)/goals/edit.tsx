@@ -153,7 +153,7 @@ function Detail({ goal }: { goal: SavingsGoalWithProgress }) {
               keyboardType="decimal-pad"
             />
           </View>
-          {/* Fixed at creation (HANDOFF §17), so it is stated rather than offered. */}
+          {/* Fixed at creation, so it is stated rather than offered. */}
           <Muted>{`Tracked in ${goal.currency}. A goal's currency cannot be changed after it is created.`}</Muted>
           {detailsDirty ? (
             <Button label="Save changes" onPress={saveDetails} busy={update.isPending} />
@@ -235,7 +235,7 @@ function Detail({ goal }: { goal: SavingsGoalWithProgress }) {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         {/* Two taps in place rather than a dialog: a second Modal over a screen
-            that may already have one is the freeze in HANDOFF §28. */}
+            that may already have one is an iOS freeze. */}
         {confirmingDelete ? (
           <Card>
             <Title>Delete this goal?</Title>

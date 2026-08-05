@@ -1,4 +1,4 @@
--- Bukit Pennies schema (HANDOFF.md §5)
+-- Bukit Pennies schema
 create extension if not exists pgcrypto;
 
 create type bank_id as enum ('baiduri', 'bibd', 'scb', 'unknown');

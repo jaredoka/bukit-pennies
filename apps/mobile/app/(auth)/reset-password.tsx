@@ -51,7 +51,7 @@ export default function ResetPassword() {
     setBusy(true);
     setFormError(null);
 
-    // Same breach screening as sign-up; fails open (HANDOFF §18).
+    // Same breach screening as sign-up; fails open.
     const breach = await checkPasswordBreached(password);
     if (breach.breached) {
       setFormError(breachWarning(breach.count));
@@ -70,7 +70,7 @@ export default function ResetPassword() {
     // sibling refresh tokens on a password change, so without this a token
     // captured from another device survives the reset.
     //
-    // SEC-4 (HANDOFF §18) fixed only the signed-in path — Settings > Account
+    // SEC-4 fixed only the signed-in path — Settings > Account
     // signs out globally before mailing the link. It left the path that
     // matters: someone whose account is compromised cannot sign in, so they
     // arrive here through "Forgot password" on the sign-in screen, where

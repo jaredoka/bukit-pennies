@@ -30,7 +30,7 @@ export const SHORTCUT_NAME = 'Bukit Pennies';
 // They used to live in a separate public `bukit-pennies-legal` repo only
 // because Pages on a private repo needs a paid plan; this repo is public now,
 // so the pages are served from the same `docs/*.md` files the repo already
-// carried, and the duplicate repo is gone (HANDOFF §19).
+// carried, and the duplicate repo is gone.
 export const PRIVACY_POLICY_URL = 'https://jaredoka.github.io/bukit-pennies/privacy-policy';
 export const TERMS_URL = 'https://jaredoka.github.io/bukit-pennies/terms';
 export const SUPPORT_EMAIL = 'bukitpennies@gmail.com';

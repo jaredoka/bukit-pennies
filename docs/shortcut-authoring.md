@@ -1,7 +1,7 @@
 # Authoring the self-configuring "Bukit Pennies" shortcut
 
 Owner-only runbook. CI cannot sign shortcut files (`shortcuts sign` needs an
-iCloud login — HANDOFF §15), so the shortcut is built by hand on the owner's
+iCloud login), so the shortcut is built by hand on the owner's
 iPhone and distributed via a shared iCloud link wired into
 `SHORTCUT_DOWNLOAD_URL` (`apps/mobile/src/lib/env.ts`).
 
@@ -129,7 +129,7 @@ saved). Check, in order:
 
 Shortcuts app → long-press the shortcut → **Share** → **Copy iCloud Link**,
 then update `SHORTCUT_DOWNLOAD_URL` in `apps/mobile/src/lib/env.ts` and the
-link references in `docs/ios-shortcut-setup.md` / HANDOFF §16. If the name
+link references in `docs/ios-shortcut-setup.md`. If the name
 changed, update `SHORTCUT_NAME` in the same file — every on-screen mention of
 the name reads from that constant, so the app's instructions and its deep link
 move together. The old link keeps working for existing users; the new shortcut

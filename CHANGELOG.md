@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Live web demo moved from Netlify to Cloudflare Pages (free tier: 500
   builds/month, unlimited bandwidth). The demo is now at
   https://bukit-pennies.pages.dev.
+- Repo landing page polished: homepage now points at the live demo, the
+  AI-assistance disclosure moved out of the README into
+  `docs/building-bukit-pennies.md`, and a social preview image was added.
 
 ### Planned
 - Standard Chartered parsing — capped below the confidence threshold until a

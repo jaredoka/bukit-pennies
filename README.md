@@ -42,7 +42,6 @@ I built this to track my own card spending, and learning the whole stack to do i
 - [Design notes](#design-notes)
 - [Status and scope](#status-and-scope)
 - [Running it locally](#running-it-locally)
-- [How it was built](#how-it-was-built)
 - [Maintained by](#maintained-by)
 
 ---
@@ -86,7 +85,7 @@ TypeScript end to end. One zero dependency parser package is shared between the 
 
 The most interesting work is in the database layer, not the UI:
 
-- **Row Level Security on every table.** `transactions`, `budgets`, `goals`, and `subscriptions` are scoped to `auth.uid()`, so isolation holds even against a hand written API call. See the RLS section of [Things I learned](#things-i-learned-building-it).
+- **Row Level Security on every table.** `transactions`, `budgets`, `goals`, and `subscriptions` are scoped to `auth.uid()`, so isolation holds even against a hand written API call. See the RLS section of [Building Bukit Pennies](docs/building-bukit-pennies.md).
 - **Writes go through RPCs.** Transactions are written through security checked functions; the client never builds its own `UPDATE` or `DELETE` against a table.
 - **Views use `security_invoker`.** Without it a view runs as its owner and silently bypasses the RLS underneath. A subtle bug, fixed in migration 11.
 - **Rate limits live in Postgres.** A serverless function has no memory between invocations, so the counter that survives is the one in the database (migration 12).
@@ -140,10 +139,6 @@ Release history: [CHANGELOG.md](CHANGELOG.md) · tag [`v0.1.0`](https://github.c
 
 Contributions are welcome; [CONTRIBUTING.md](CONTRIBUTING.md) explains the
 conventions (parser golden fixtures, GitHub Flow, RLS rules).
-
-## How it was built
-
-I want to be honest about this: the code was written with Claude Code, an AI pair programmer. I set the product direction, made the engineering decisions, reviewed every change, and tested it on real hardware. The judgement calls are mine and I can explain any of them: dropping an unused table rather than leaving it dormant, cutting a dashboard banner because a badge already carried the same signal, and treating a back button that returned to the wrong screen as evidence the navigation structure was wrong rather than the button. A fuller account of the lessons behind the architecture is in [Building Bukit Pennies](docs/building-bukit-pennies.md).
 
 ## Maintained by
 

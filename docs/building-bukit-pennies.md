@@ -1,6 +1,6 @@
 # Building Bukit Pennies
 
-The README's ["Things I learned"](../README.md) section is a condensed version
+The README's ["Design notes"](../README.md#design-notes) section is a condensed version
 of these field notes. They are kept here so the README can stay short, and
 because the reasoning matters more than the claims: each note names the exact
 place a lesson is enforced, and a lesson without a test is only a story.
@@ -72,10 +72,6 @@ what will tell me whether it worked.
 
 ## How it was built
 
-I want to be honest about this: the code was written with Claude Code, an AI
-pair programmer. I set the product direction, made the engineering decisions,
-reviewed every change, and tested it on real hardware. The judgement calls are
-mine and I can explain any of them: dropping an unused table rather than
-leaving it dormant, cutting a dashboard banner because a badge already carried
-the same signal, and treating a back button that returned to the wrong screen
-as evidence the navigation structure was wrong rather than the button.
+The code was written with Claude Code, an AI pair programmer. The product
+direction, the engineering decisions, and every merged change were mine,
+reviewed and tested on real hardware before shipping.

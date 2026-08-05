@@ -6,9 +6,9 @@ import * as Crypto from 'expo-crypto';
 // Length only, deliberately no composition rules (no "must contain a symbol").
 // NIST SP 800-63B recommends against composition rules and forced rotation:
 // they push users toward predictable mutations like Password1! while adding
-// signup friction, which this app can least afford (see HANDOFF §17, the
-// onboarding drop-off watch). Screening against known-breached passwords is
-// the control that actually stops credential stuffing — see HANDOFF §18.
+// signup friction, which this app can least afford. Screening against
+// known-breached passwords is the control that actually stops credential
+// stuffing.
 export const MIN_PASSWORD_LENGTH = 10;
 
 export const PASSWORD_HINT = `min ${MIN_PASSWORD_LENGTH} characters`;
@@ -19,7 +19,7 @@ export function isPasswordLongEnough(password: string): boolean {
 
 // ─────────────────────────────── breach screening ───────────────────────────
 // Supabase's built-in leaked-password check is a Pro-plan feature and this
-// project stays on the free tier until it has real users (HANDOFF §16.5), so
+// project stays on the free tier until it has real users, so
 // the same protection is obtained directly from the Pwned Passwords range API.
 //
 // k-anonymity: only the FIRST FIVE hex characters of the password's SHA-1 are

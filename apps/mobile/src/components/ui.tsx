@@ -501,7 +501,7 @@ export function SheetShell({
   const { width } = useWindowDimensions();
   // In the framed web demo, keep the sheet inside the phone-width column
   // instead of letting the RN Modal's full-viewport layer spill across the
-  // whole browser (HANDOFF §39 demo).
+  // whole browser.
   const webFramed = Platform.OS === 'web' && width > WEB_FRAME_BREAKPOINT;
   // Held open across the exit animation, then released.
   const [mounted, setMounted] = useState(visible);
@@ -835,7 +835,7 @@ function PickerTrigger({
  * 'YYYY-MM-DD' string and never sees the calendar.
  *
  * Safe on any pushed screen. Do not place one inside another Modal: two
- * simultaneous Modals is the iOS freeze in HANDOFF §28.
+ * simultaneous Modals is an iOS freeze.
  */
 export function DateField({
   label,

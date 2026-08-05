@@ -45,8 +45,8 @@ export default function NewGoal() {
             keyboardType="decimal-pad"
           />
         </View>
-        {/* A goal's currency is fixed when it is created and never changes
-            (HANDOFF §17), so the choice has to be made before saving. */}
+        {/* A goal's currency is fixed when it is created and never changes,
+            so the choice has to be made before saving. */}
         <Muted>{`Tracked in your primary currency (${primaryCurrency}), which is fixed once the goal is created. To use a different one, change it in Settings > Appearance first.`}</Muted>
       </Card>
 

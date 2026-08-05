@@ -1,4 +1,4 @@
--- Row Level Security: per-user isolation on every table (HANDOFF.md §5).
+-- Row Level Security: per-user isolation on every table.
 alter table public.profiles enable row level security;
 alter table public.categories enable row level security;
 alter table public.user_cards enable row level security;

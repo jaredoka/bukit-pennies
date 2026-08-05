@@ -12,9 +12,8 @@
 --
 -- So one free account could mint N tokens and sustain N x 60 valid requests per
 -- minute, none of which the limiter would see. The exposure is invocation count
--- and egress against the free tier (HANDOFF §16.5 names egress as the first
--- ceiling to be hit), not data — every request still writes only to its own
--- user's rows.
+-- and egress against the free tier, not data — every request still writes only
+-- to its own user's rows.
 --
 -- Two changes, belt and braces: a per-user budget that no amount of token
 -- minting can widen, and a cap on active devices so the device table itself

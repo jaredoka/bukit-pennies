@@ -21,8 +21,8 @@ export default function Capture() {
           label="iOS Shortcut setup"
           note="Almost automatic capture of bank SMS on iPhone"
         />
-        {/* Android only. The listener module is designed (HANDOFF §9) but
-            deferred until after iOS testing, so on iPhone this row was a
+        {/* Android only. The listener module is designed but deferred until
+            after iOS testing, so on iPhone this row was a
             settings entry promising a feature the device will never run — and
             placeholder "coming in a later phase" content is exactly what App
             Review objects to. The screen stays routable (its Stack.Screen is

@@ -67,7 +67,7 @@ underlying fact.
 | `authenticated_security_definer_function_executable` | `create_ingest_token(text, tx_source)` | The app's token-minting RPC. `authenticated` is exactly who should call it; anon is revoked (migration 03). |
 | `authenticated_security_definer_function_executable` | `delete_account()` | Apple guideline 5.1.1(v) in-app deletion (migration 05). Deliberately `authenticated`-only. |
 | `authenticated_security_definer_function_executable` | `revoke_ingest_device(uuid)` | Capture-device revocation (migration 11). Deliberately `authenticated`-only. |
-| `auth_leaked_password_protection` | Auth | Pro-plan feature; not bought. Replaced by a client-side Pwned Passwords k-anonymity check in `apps/mobile/src/lib/password.ts` — see HANDOFF §18, "Password policy". |
+| `auth_leaked_password_protection` | Auth | Pro-plan feature; not bought. Replaced by a client-side Pwned Passwords k-anonymity check in `apps/mobile/src/lib/password.ts`. |
 
 Everything else the advisor reported on 2026-07-31 was fixed in migration 21.
 After it, every function in `public` has a pinned `search_path`, and the only
@@ -92,4 +92,3 @@ connection string — it is not mentioned in either deploy guide.
 
 - `pnpm exec supabase db lint` runs against the **local** database and needs no
   hosted project, so it can catch some of this before a deploy.
-- HANDOFF §35 records the pass that introduced this file.

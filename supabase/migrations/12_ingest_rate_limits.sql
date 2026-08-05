@@ -1,11 +1,11 @@
--- 12_ingest_rate_limits.sql — durable rate limiting for /ingest (HANDOFF §18 SEC-2).
+-- 12_ingest_rate_limits.sql — durable rate limiting for /ingest.
 --
 -- The previous limiter lived in edge-instance memory. Supabase Edge Functions
 -- run every request in a fresh isolate (verified in production 2026-07-25: a
 -- module-level counter returned a new boot id and `1` on twelve consecutive
 -- requests), so that state was always empty and the limit never applied — not
 -- the peer budget added during the audit, and not the original per-token
--- limit from §6 step 7 either.
+-- limit either.
 --
 -- Shared state on this stack means Postgres. The design constraint is that the
 -- happy path must not get slower: `resolve_ingest_device` therefore resolves

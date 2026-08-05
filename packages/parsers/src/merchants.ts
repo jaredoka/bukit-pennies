@@ -1,4 +1,4 @@
-// Brunei merchant → category mapping (HANDOFF §16 differentiator).
+// Brunei merchant → category mapping.
 // Applied at parse time so transactions arrive pre-categorized. Zero deps,
 // pure TS — runs in the app, the edge function, and vitest unchanged.
 //

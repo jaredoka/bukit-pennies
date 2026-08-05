@@ -15,6 +15,6 @@ open banking, no scraping.
 
 ---
 
-The other files in this folder are engineering documentation for the app
-itself; the two pages above are the ones linked from inside the app and
-submitted to the App Store and Google Play.
+These two pages are linked from inside the app and submitted to the App Store
+and Google Play. Engineering documentation lives in the repository instead:
+start at [the README](https://github.com/jaredoka/bukit-pennies).

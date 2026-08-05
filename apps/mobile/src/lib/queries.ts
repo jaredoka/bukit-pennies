@@ -428,7 +428,7 @@ export function useCreateSavingsGoal() {
 }
 
 /** Renames a goal or changes its target. Currency is deliberately absent —
- *  it is fixed at creation (HANDOFF §17). */
+ *  it is fixed at creation. */
 export function useUpdateSavingsGoal() {
   const qc = useQueryClient();
   return useMutation({
@@ -658,7 +658,7 @@ export function useUpdateTransaction() {
           ),
         }),
       ),
-    // Optimistic notes/category edits per HANDOFF §8.
+    // Optimistic notes/category edits.
     onMutate: async ({ id, patch }) => {
       await qc.cancelQueries({ queryKey: ['transactions', id] });
       const previous = qc.getQueryData<TransactionRow>(['transactions', id]);
@@ -824,7 +824,7 @@ export function useRevokeDevice() {
   const qc = useQueryClient();
   return useMutation({
     // Via RPC: direct writes to ingest_devices are no longer granted to
-    // clients (migration 11, HANDOFF §18 SEC-3).
+    // clients (migration 11).
     mutationFn: async (id: string) =>
       unwrap(supabase.rpc('revoke_ingest_device', { p_device_id: id })),
     onSettled: () => qc.invalidateQueries({ queryKey: ['ingest_devices'] }),
@@ -833,9 +833,9 @@ export function useRevokeDevice() {
 
 /**
  * Removes a revoked device row for good. Only ever offered on already-revoked
- * devices (HANDOFF §19): revoking is the safety-critical step and stays
- * one-way, while deleting is just clearing the list afterwards. Delete is
- * still granted to clients — migration 11 narrowed only insert and update.
+ * devices: revoking is the safety-critical step and stays one-way, while
+ * deleting is just clearing the list afterwards. Delete is still granted
+ * to clients — migration 11 narrowed only insert and update.
  */
 export function useDeleteDevice() {
   const qc = useQueryClient();

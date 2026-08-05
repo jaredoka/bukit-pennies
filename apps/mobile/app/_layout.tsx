@@ -59,7 +59,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   // The QueryClient is module-scoped and outlives sign-out, so without this
   // the next account to sign in on this device renders the previous account's
   // cached transactions, profile and goals until every query refetches. Same
-  // family of leak as the device-global ingest token (HANDOFF §18, SEC-1).
+  // family of leak as the device-global ingest token.
   useEffect(() => {
     if (loading) return;
     const uid = session?.user.id ?? null;
@@ -113,7 +113,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       // Deliberately no redirect into the setup guide. Capture setup is the
       // point of the app, but it is promoted by a dismissible dashboard card
       // and a permanent Settings entry, not enforced by a gate that a user who
-      // cannot finish it has no way past (HANDOFF §22).
+      // cannot finish it has no way past.
     })();
     return () => {
       live = false;

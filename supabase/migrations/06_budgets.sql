@@ -1,4 +1,4 @@
--- 06_budgets.sql — per-category monthly spending limits (HANDOFF §14, Phase 5).
+-- 06_budgets.sql — per-category monthly spending limits (Phase 5).
 --
 -- One row per (user, category): "spend at most `amount` per Brunei month on
 -- this category". Global default categories (categories.user_id is null) can

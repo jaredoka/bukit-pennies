@@ -46,7 +46,7 @@ const store: IngestStore = {
   },
 
   touchLastSeen(deviceId) {
-    // Fire-and-forget by design (HANDOFF §6 step 1).
+    // Fire-and-forget by design.
     void supabase
       .from('ingest_devices')
       .update({ last_seen_at: new Date().toISOString() })

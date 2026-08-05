@@ -1,10 +1,10 @@
--- 20_input_bounds_and_quotas.sql — third security pass (HANDOFF §35).
+-- 20_input_bounds_and_quotas.sql — third security pass.
 --
--- §18 audited RLS and the ingest function; §23 audited the anonymous surface
--- and the limiter arithmetic; §24 fixed the anon grants. All three asked
--- "who may write this row". None asked "how big may the row be", and none
--- revisited the surfaces added after them (`feature_requests`, migration 16;
--- the `feedback` function, §27; `savings_goal_entries`, migration 19).
+-- Earlier security passes audited RLS and the ingest function, the anonymous
+-- surface and the limiter arithmetic, and fixed the anon grants. All three
+-- asked "who may write this row". None asked "how big may the row be", and
+-- none revisited the surfaces added after them (`feature_requests`, migration
+-- 16; the `feedback` function; `savings_goal_entries`, migration 19).
 --
 -- Four things here, all of them cases where the application layer states a
 -- rule that the database does not enforce.
@@ -15,7 +15,7 @@
 -- function's 4 KB `MAX_TEXT_BYTES` and the feedback function's 4,000-character
 -- `MAX_DESCRIPTION` are both bypassed by a plain PostgREST insert made with
 -- the app's own anon key and any signed-in session. One account could fill the
--- 500 MB free-tier database (§16.5) a single `notes` field at a time.
+-- 500 MB free-tier database a single `notes` field at a time.
 --
 -- 18_subscriptions.sql already does this correctly — `check (length(btrim(name))
 -- between 1 and 80)`, `notes` capped at 500. The pattern was known; it just was
@@ -91,9 +91,9 @@ alter table public.feature_requests
 
 -- ── 2. Feedback had no quota of any kind ───────────────────────────────────
 -- `/ingest` got a durable Postgres limiter across migrations 12 and 13 after
--- two rounds of analysis. `/feedback` (§27) shipped with none, and signup is
--- free and unrestricted — §23 already established that "needs an account" is
--- not a control here. A loop over `functions.invoke('feedback', …)` writes
+-- two rounds of analysis. `/feedback` shipped with none, and signup is
+-- free and unrestricted — an earlier pass established that "needs an account"
+-- is not a control here. A loop over `functions.invoke('feedback', …)` writes
 -- unbounded rows and sends one Resend email per call, against a free tier of
 -- 100/day.
 --
@@ -223,7 +223,7 @@ create policy savings_goal_entries_update on public.savings_goal_entries
   );
 
 -- ── 4. "Remove is only for revoked devices" was a UI claim ──────────────────
--- §19 decided that removal is offered only on already-revoked devices, because
+-- Removal is offered only on already-revoked devices, because
 -- `last_seen_at` on a revoked token is the evidence of when it was last used —
 -- which matters most in exactly the situation you revoked for. The devices
 -- screen honours that; the database never did. 02_rls.sql's delete policy

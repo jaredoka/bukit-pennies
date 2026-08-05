@@ -1,5 +1,5 @@
 {
-  "note": "The real Baiduri SMS sample from HANDOFF.md - the anchor fixture for this parser.",
+  "note": "The real Baiduri SMS sample - the anchor fixture for this parser.",
   "input": "Card No.: 4x0213 Amount: BND 21.00 Merchant: GALORIES SMOOTHIES BSB BN Date: 10-07-2026 17:37:59 If suspicious, please call 2449666.",
   "sender": "Baiduri",
   "expected": {

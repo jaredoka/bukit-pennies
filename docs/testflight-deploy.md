@@ -80,7 +80,7 @@ user-facing `version` in `app.json` for feature releases.
 
 ## Share extension (post-launch enhancement)
 
-The paid account also unlocks `expo-share-extension` (HANDOFF §10) —
+The paid account also unlocks `expo-share-extension` —
 "share" a bank SMS from Messages straight into the app. Add it once the
 base app is approved; it changes provisioning (an app extension target),
 so land it as its own release.

@@ -1,4 +1,4 @@
--- 08 — SGD-at-par + savings goals (field-testing follow-ups, HANDOFF §15).
+-- 08 — SGD-at-par + savings goals (field-testing follow-ups).
 --
 -- SGD at par: under the BND–SGD Currency Interchangeability Agreement the
 -- two currencies circulate 1:1 in Brunei, so SGD spends belong in the BND

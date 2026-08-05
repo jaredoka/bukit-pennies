@@ -3,7 +3,7 @@
 # USB — see docs/ios-sideloadly.md for the user-executed checklist.
 #
 # EAS cannot produce iOS device builds without a paid account, hence this
-# workflow (HANDOFF.md §10).
+# workflow.
 name: iOS unsigned IPA
 
 on:

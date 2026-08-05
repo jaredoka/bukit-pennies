@@ -115,7 +115,7 @@ export default function Dashboard() {
   );
 
   // Capture setup is the reason to use this app, so the prompt stays — but as
-  // a card the user can dismiss for good, not a gate (HANDOFF §22).
+  // a card the user can dismiss for good, not a gate.
   const showSetupCard = !onboarded && !cardDismissed;
   const setupResumeAt = nextIncompleteStep(setupSteps);
 

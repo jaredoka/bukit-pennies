@@ -28,7 +28,7 @@ export default function SignUp() {
     setError(null);
 
     // Breach screening before the account is created. Fails open by design:
-    // an inconclusive lookup lets the signup through (HANDOFF §18).
+    // an inconclusive lookup lets the signup through.
     const breach = await checkPasswordBreached(password);
     if (breach.breached) {
       setError(breachWarning(breach.count));

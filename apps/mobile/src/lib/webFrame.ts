@@ -1,4 +1,4 @@
-// Web demo presentation constants (HANDOFF §39 demo).
+// Web demo presentation constants.
 //
 // On wide web windows the app renders inside a phone-width frame so it reads
 // as a mobile app to anyone who clicks the bare demo URL (portfolio/resume/

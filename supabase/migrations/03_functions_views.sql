@@ -1,4 +1,4 @@
--- Token RPC + dashboard views (HANDOFF.md §5, migration 03).
+-- Token RPC + dashboard views (migration 03).
 
 -- Base62 encoding for opaque ingest tokens. 32 random bytes ≈ 43 base62 chars.
 create function public.base62_encode(data bytea)

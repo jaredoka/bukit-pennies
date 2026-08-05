@@ -48,7 +48,7 @@ as-is — Expo copies `public/` into `dist/` and Cloudflare Pages honors it.
 | Name | Value |
 |---|---|
 | `EXPO_PUBLIC_SUPABASE_URL` | `https://pzjroqwllrzcbpiugpxl.supabase.co` |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | (the anon key from the Netlify site or `netlify.toml`) |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | (the anon key from the hosted Supabase dashboard: Project Settings → API → `anon`/`public` key) |
 | `SENTRY_DISABLE_AUTO_UPLOAD` | `true` |
 
    The anon key is public by design (it ships in every client build). The

@@ -47,7 +47,7 @@ export default function Devices() {
   // mistaken for "stop this token working" — that is what Revoke is for. The
   // warning is about the audit trail: last_seen_at on a revoked token is the
   // evidence of when it was last used, which matters most in exactly the case
-  // you revoked for (HANDOFF §19).
+  // you revoked for.
   function confirmRemove(id: string, name: string) {
     Alert.alert(
       'Remove this device?',

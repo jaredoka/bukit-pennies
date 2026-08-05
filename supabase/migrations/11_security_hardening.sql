@@ -1,4 +1,4 @@
--- 11_security_hardening.sql — follow-ups from the security audit (HANDOFF §18).
+-- 11_security_hardening.sql — follow-ups from the security audit.
 
 -- ── SEC-3: ingest_devices must not be client-writable ──────────────────────
 -- 02_rls.sql gave `authenticated` the full insert/update quartet on

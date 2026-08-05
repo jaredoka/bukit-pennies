@@ -32,8 +32,8 @@ export default function Account() {
     setResetBusy(true);
     try {
       // Global scope: a password reset should invalidate every existing
-      // session, including any refresh token captured from another device
-      // (HANDOFF §18, SEC-4). A local sign-out would leave those usable.
+      // session, including any refresh token captured from another device.
+      // A local sign-out would leave those usable.
       await supabase.auth.signOut({ scope: 'global' });
       const redirectTo =
         Platform.OS === 'web'

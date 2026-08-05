@@ -108,9 +108,9 @@ describe('handleIngest', () => {
   });
 
   // Rate limiting itself now lives in Postgres (migration 12) — edge isolates
-  // do not survive between requests, so an in-memory limiter never applied
-  // (HANDOFF §18 SEC-2). What the handler owns is honouring the verdict, and
-  // asking for it in the same round trip as the device lookup.
+  // do not survive between requests, so an in-memory limiter never applied.
+  // What the handler owns is honouring the verdict, and asking for it in the
+  // same round trip as the device lookup.
   it('returns 429 when the store reports the caller rate limited', async () => {
     const store = makeFakeStore();
     store.blocked = true;

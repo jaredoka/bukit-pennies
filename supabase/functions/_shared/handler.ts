@@ -1,4 +1,4 @@
-// Pure ingest handler (HANDOFF.md §6) — no Deno/Supabase imports so it unit
+// Pure ingest handler — no Deno/Supabase imports so it unit
 // tests under vitest and runs unchanged in the edge runtime. All I/O goes
 // through the injected IngestStore.
 import {
@@ -142,7 +142,7 @@ export async function handleIngest(
   // This replaces the lookup the handler used to do, so the happy path costs
   // no more than before. The limits live in Postgres because edge isolates do
   // not survive between requests, which is why the previous in-memory limiter
-  // never applied at all (HANDOFF §18, SEC-2).
+  // never applied at all.
   const { device, blocked } = await store.resolveDevice({ tokenHash, peerKey });
   if (blocked) return error(429, 'rate_limited');
   if (!device) return error(401, 'invalid_token');

@@ -1,7 +1,7 @@
 -- 14_revoke_anon_dml.sql — SEC-8: the hosted project granted `anon` full DML.
 --
--- Found by `supabase db diff --linked` after pushing migration 13 (HANDOFF
--- §24). The hosted project hands `anon` SELECT/INSERT/UPDATE/DELETE on every
+-- Found by `supabase db diff --linked` after pushing migration 13. The
+-- hosted project hands `anon` SELECT/INSERT/UPDATE/DELETE on every
 -- public table; a local `supabase db reset` does not, because 04_grants.sql
 -- deliberately gives anon schema USAGE only. The project was created on an
 -- image that still auto-granted to anon, and 04 was written to add back the

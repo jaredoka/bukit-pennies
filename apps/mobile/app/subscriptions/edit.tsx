@@ -325,7 +325,7 @@ function Form({
 
         {existing ? (
           // Two taps in place rather than a confirmation dialog: a second Modal
-          // over a screen that may already have one is the freeze in HANDOFF §28.
+          // over a screen that may already have one is an iOS freeze.
           confirmingDelete ? (
             <>
               <Muted>Delete this subscription? Your transactions are not affected.</Muted>

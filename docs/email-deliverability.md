@@ -178,10 +178,10 @@ humans. One address doing both trains people to reply into a void.
    - `docs/index.md` — the Pages landing page
    - `docs/testflight-deploy.md` — the App Store metadata checklist
 
-   The first four are **published** by GitHub Pages (§19), so a partial change
+   The first four are **published** by GitHub Pages, so a partial change
    leaves a live policy listing a contact you have stopped reading. Verify with
    `grep -rn "bukitpennies@gmail.com" --exclude-dir=node_modules .` and expect
-   zero hits outside `HANDOFF.md`'s history notes.
+   zero hits outside git history.
 
-3. **Update §15 in `HANDOFF.md`**, which still records Gmail SMTP as current,
-   and §20, which records this migration as blocked.
+3. **Update `docs/email-deliverability.md`'s status notes** once Gmail SMTP
+   stops being current and this migration is no longer blocked.

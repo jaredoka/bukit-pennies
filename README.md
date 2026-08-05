@@ -10,6 +10,15 @@ I built this to track my own card spending, and learning the whole stack to do i
   <a href="https://bukit-pennies.netlify.app"><img src="https://img.shields.io/badge/Live%20demo-online-brightgreen" alt="Live demo"></a>
 </p>
 
+<p align="center">
+  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=fff" alt="TypeScript"></a>
+  <a href="https://expo.dev"><img src="https://img.shields.io/badge/Expo-000020?logo=expo" alt="Expo"></a>
+  <a href="https://reactnative.dev"><img src="https://img.shields.io/badge/React%20Native-61DAFB?logo=react&logoColor=000" alt="React Native"></a>
+  <a href="https://supabase.com"><img src="https://img.shields.io/badge/Supabase-3ECF8E?logo=supabase&logoColor=000" alt="Supabase"></a>
+  <a href="https://vitest.dev"><img src="https://img.shields.io/badge/Vitest-6E9F18?logo=vitest&logoColor=fff" alt="Vitest"></a>
+  <a href="https://pnpm.io"><img src="https://img.shields.io/badge/pnpm-F69220?logo=pnpm&logoColor=000" alt="pnpm"></a>
+</p>
+
 **It never connects to a bank account.** No credentials, no open banking, no scraping. The only thing it ever processes is a message that has already arrived on your phone.
 
 <p align="center">
@@ -22,6 +31,19 @@ I built this to track my own card spending, and learning the whole stack to do i
 *Screenshots use seeded demo data, not real spending.*
 
 > **Try the live demo:** [bukit-pennies.netlify.app](https://bukit-pennies.netlify.app). A sample SMS is built in, so you can watch a transaction parse in a few seconds without an iPhone.
+
+---
+
+## Contents
+
+- [Why it works this way](#why-it-works-this-way)
+- [How it works](#how-it-works)
+- [Architecture](#architecture)
+- [Design notes](#design-notes)
+- [Status and scope](#status-and-scope)
+- [Running it locally](#running-it-locally)
+- [How it was built](#how-it-was-built)
+- [Maintained by](#maintained-by)
 
 ---
 
@@ -71,19 +93,15 @@ The most interesting work is in the database layer, not the UI:
 - **Token hygiene.** Ingest tokens are stored only as SHA-256 fingerprints; the plaintext is shown once, and a database dump yields nothing usable.
 - **CI.** Tests and typechecks run on every pull request, and a GitHub Actions macOS runner builds the unsigned iOS IPA.
 
-## Things I learned building it
+## Design notes
 
-**Authorisation lives in the database, not in the client.** Every table has a Row Level Security policy scoped to `auth.uid()`, so even a hand-written API call cannot cross accounts, and writes go through a few security-checked RPCs rather than the client building its own `UPDATE` or `DELETE`. The subtle one is views: without `security_invoker`, a view runs as its owner and silently serves everyone everyone else's rows. Three security passes later, each one found the same shape of bug — a rule the app stated but the database did not enforce: text columns with no length bound, an endpoint with no quota, a session that survived a password reset. Code can be worked around; a constraint in Postgres cannot ([`02_rls.sql`](supabase/migrations/02_rls.sql), [`11_security_hardening.sql`](supabase/migrations/11_security_hardening.sql), [`20_input_bounds_and_quotas.sql`](supabase/migrations/20_input_bounds_and_quotas.sql)).
+Short versions of the lessons the architecture is built on; the full essays live in [Building Bukit Pennies](docs/building-bukit-pennies.md).
 
-**One parser, three runtimes.** The highest-risk logic in the app — turning a bank SMS into a transaction — is a single zero-dependency TypeScript package, imported by the mobile app (offline preview), the edge function (the authoritative parse) and the test suite, so a message previews identically everywhere. Adding a new bank format is one module plus one golden fixture of a real message. The raw text is kept forever, so a parser improvement can redo a transaction that was originally read wrong ([`packages/parsers/src/index.ts`](packages/parsers/src/index.ts)).
-
-**Serverless functions have no memory between calls.** My first rate limiter was an in-memory sliding window, and it passed every unit test because a single test process does share memory. Supabase Edge Functions give each request a fresh isolate, so in production the counter was always empty and the limit never fired. The limits now live in Postgres, where the state actually survives — and the database has the side benefit that a hand-written API call cannot get around them ([`12_ingest_rate_limits.sql`](supabase/migrations/12_ingest_rate_limits.sql)).
-
-**Design for testability from the start.** UI and device code cannot run in a Node test, so the pure logic is split into its own modules — filters, CSV quoting, subscriptions, calendar arithmetic — each with real tests. One test guards the whole app: a list of every storage key the app builds, asserted against the characters the platform's key store actually accepts. It caught the bug no amount of web development could reproduce, because the browser accepts keys the phone silently rejects ([`txFilters.ts`](apps/mobile/src/lib/txFilters.ts), [`kvStore.test.ts`](apps/mobile/test/kvStore.test.ts)).
-
-**The review queue is the data engine, not a fallback.** Anything the parser is not sure of lands in a review inbox instead of being guessed at — and that inbox doubles as the collection loop for bank formats I do not have yet. BIBD's parser went from a skeleton to verified the day a real message arrived; Standard Chartered's stays capped below the confidence threshold until a real sample exists. You collect the data before you trust the model ([`packages/parsers/test/golden/`](packages/parsers/test/golden/)).
-
-**Friction, not features, is what loses users.** The hard part of the product was never parsing a message; it was getting the message into the app. Setup meant building an iOS automation, and the step people abandoned is the one that has to happen inside another app. I could see the drop-off from the database alone — accounts created, versus capture tokens created, versus tokens that ever logged a transaction. The setup flow went from an enforced gate to an optional, resumable prompt, and the numbers are what will tell me whether it worked.
+- **Authorisation lives in the database.** Every table has Row Level Security scoped to `auth.uid()`; views use `security_invoker` or they silently run as their owner. Writes go through security-checked RPCs, never client-built `UPDATE`/`DELETE`.
+- **One parser, three runtimes.** The bank-SMS parser is a single zero-dependency TypeScript package used by the app, the edge function, and the test suite, so a message previews identically everywhere. Every real bank message becomes a golden fixture.
+- **Serverless functions have no memory.** The rate limiter is a table, not an in-memory counter — an edge function gets a fresh isolate per request, so anything that must survive lives in Postgres.
+- **The review queue is the data engine.** Anything the parser isn't sure of goes to a review inbox, which doubles as the collection loop for bank formats that lack a real sample yet.
+- **Test the logic you can, without the device.** Pure logic lives in its own modules with real tests; one test pins every storage key the app builds against what the platform's key store actually accepts.
 
 ## Status and scope
 
@@ -115,16 +133,17 @@ pnpm --filter @bukit/mobile web
 Deeper docs: [architecture and decisions](docs/architecture-and-decisions.md) ·
 [user guide](docs/user-guide.md) ·
 [hosted deploy](docs/hosted-supabase-deploy.md) ·
+[building this app](docs/building-bukit-pennies.md) ·
 [privacy policy](docs/privacy-policy.md)
+
+Release history: [CHANGELOG.md](CHANGELOG.md) · tag [`v0.1.0`](https://github.com/jaredoka/bukit-pennies/releases/tag/v0.1.0)
 
 Contributions are welcome; [CONTRIBUTING.md](CONTRIBUTING.md) explains the
 conventions (parser golden fixtures, GitHub Flow, RLS rules).
 
 ## How it was built
 
-I want to be honest about this: the code was written with Claude Code, an AI pair programmer. I set the product direction, made the engineering decisions, reviewed every change, and tested it on real hardware. The judgement calls are mine and I can explain any of them: dropping an unused table rather than leaving it dormant, cutting a dashboard banner because a badge already carried the same signal, and treating a back button that returned to the wrong screen as evidence the navigation structure was wrong rather than the button.
-
-Alongside the project I am working through the codebase deliberately, layer by layer, from the zero dependency parser package up through the database, the edge function and the app. The goal is to be able to explain and modify any part of it unaided. The sections above are the parts I have studied closely enough to defend under questioning; that is exactly why they are written down, and the list grows as I keep going.
+I want to be honest about this: the code was written with Claude Code, an AI pair programmer. I set the product direction, made the engineering decisions, reviewed every change, and tested it on real hardware. The judgement calls are mine and I can explain any of them: dropping an unused table rather than leaving it dormant, cutting a dashboard banner because a badge already carried the same signal, and treating a back button that returned to the wrong screen as evidence the navigation structure was wrong rather than the button. A fuller account of the lessons behind the architecture is in [Building Bukit Pennies](docs/building-bukit-pennies.md).
 
 ## Maintained by
 

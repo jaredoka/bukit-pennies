@@ -6,8 +6,8 @@ import { Platform } from 'react-native';
 // The key is scoped per user id. A device-global key leaked transactions
 // across accounts: the token outlived sign-out, so the next user to sign in on
 // the same device posted their captures with the previous user's bearer token
-// and the ingest function filed them under the previous user's account (see
-// HANDOFF §18, SEC-1). Scoping by user id also lets two accounts share a
+// and the ingest function filed them under the previous user's account.
+// Scoping by user id also lets two accounts share a
 // device without either one re-running the Shortcut setup.
 
 // Left behind by pre-scoping builds. Never adopted — only deleted. See

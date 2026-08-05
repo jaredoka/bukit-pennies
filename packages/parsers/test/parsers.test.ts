@@ -109,7 +109,7 @@ describe('parseBankMessage edge cases', () => {
     // The bank fingerprints are multi-wildcard patterns: text carrying many
     // label anchors and no terminator costs superlinear time (~46 ms at 4 KB,
     // 2.8 s at 16 KB unguarded). The size gate is what bounds it — without it
-    // this input would take minutes. See HANDOFF §23 (SEC-7).
+    // this input would take minutes.
     const adversarial = `Card No.: ${'Amount: Merchant: '.repeat(4000)}`;
     const started = Date.now();
     expect(parseBankMessage(adversarial)).toEqual({ tx: null, isTransactional: false });

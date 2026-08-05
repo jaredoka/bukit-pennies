@@ -69,7 +69,7 @@ export function detectBank(text: string, senderHint?: string): BankId {
  * crafted input carrying many label anchors and no terminator). The server has
  * always had this cap; the app called `parseBankMessage` on uncapped paste
  * input synchronously inside a `useMemo`, where a large enough blob would
- * freeze the UI thread. See HANDOFF §23 (SEC-7).
+ * freeze the UI thread.
  */
 export const MAX_TEXT_BYTES = 4096;
 

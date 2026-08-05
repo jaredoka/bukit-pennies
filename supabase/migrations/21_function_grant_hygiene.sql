@@ -1,5 +1,5 @@
 -- 21_function_grant_hygiene.sql — three leftovers surfaced by `supabase db
--- advisors` after the migration 20 deploy (HANDOFF §35).
+-- advisors` after the migration 20 deploy.
 --
 -- None of these is exploitable, and the analysis below records *why* so the
 -- next person does not have to redo it. They are fixed because an unnecessary

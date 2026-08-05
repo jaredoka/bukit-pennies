@@ -2,7 +2,7 @@
 // Preflight for a production EAS build. Run before `eas build --profile
 // production`; it catches the config mistakes that otherwise surface as a
 // failed build 20 minutes in, or — worse — as a shipped build that is quietly
-// missing something (HANDOFF §20).
+// missing something.
 //
 //   node scripts/check-release-config.mjs
 //

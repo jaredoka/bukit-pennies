@@ -2,10 +2,10 @@
 --
 -- Migration 13 capped a user at 10 ACTIVE capture devices. The number was
 -- chosen against "real usage is 1-2 devices", which was true and beside the
--- point: iOS Shortcut setup is a multi-attempt flow (HANDOFF §22), and its
+-- point: iOS Shortcut setup is a multi-attempt flow, and its
 -- failure mode is minting *another* token. Verifying the deploy found the
 -- owner's own account already at exactly 10 active, five of them never used —
--- so token creation was blocked by abandoned attempts alone (§25).
+-- so token creation was blocked by abandoned attempts alone.
 --
 -- Splitting the budget in two: a device that has actually captured something is
 -- real and worth 1 against a tight cap; a never-used one is setup debris and

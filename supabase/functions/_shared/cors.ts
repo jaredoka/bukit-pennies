@@ -1,5 +1,5 @@
 // Cross-origin access for the web demo. The app is served from
-// https://bukit-pennies.netlify.app and POSTs straight to these functions, so
+// https://bukit-pennies.pages.dev and POSTs straight to these functions, so
 // the browser fires a CORS preflight (the Authorization header plus a JSON
 // body both trigger one). Supabase's gateway does not add CORS headers for
 // edge functions, so without this every browser call fails as "Failed to

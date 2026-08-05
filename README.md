@@ -7,7 +7,7 @@ I built this to track my own card spending, and learning the whole stack to do i
 <p align="center">
   <a href="https://github.com/jaredoka/bukit-pennies/actions"><img src="https://img.shields.io/github/actions/workflow/status/jaredoka/bukit-pennies/ci.yml?label=CI" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow" alt="MIT License"></a>
-  <a href="https://bukit-pennies.netlify.app"><img src="https://img.shields.io/badge/Live%20demo-online-brightgreen" alt="Live demo"></a>
+  <a href="https://bukit-pennies.pages.dev"><img src="https://img.shields.io/badge/Live%20demo-online-brightgreen" alt="Live demo"></a>
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@ I built this to track my own card spending, and learning the whole stack to do i
 
 *Screenshots use seeded demo data, not real spending.*
 
-> **Try the live demo:** [bukit-pennies.netlify.app](https://bukit-pennies.netlify.app). A sample SMS is built in, so you can watch a transaction parse in a few seconds without an iPhone.
+> **Try the live demo:** [bukit-pennies.pages.dev](https://bukit-pennies.pages.dev). A sample SMS is built in, so you can watch a transaction parse in a few seconds without an iPhone.
 
 ---
 

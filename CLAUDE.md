@@ -52,6 +52,14 @@ host; run the verify script with a shim that forwards to
 `docker exec -i supabase_db_bukit-pennies psql` and
 `DB_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres`.
 
+**Encoding trap (HANDOFF §43):** never restore a file with a PowerShell
+`>`/`Set-Content` redirect — it re-encodes (UTF-16 by default) and the
+console codepage mangles non-ASCII glyphs. To restore a tracked file to
+disk, write the raw blob bytes byte-exact, e.g. `cmd /c "git cat-file -p
+<blob> > file"`. Mojibake like `┬º`/`ΓÇô`/`Ã` means a console-codepage
+double-encode; the fix is rewriting from the raw git blob, not hand-fixing
+characters.
+
 ## Commands
 
 ```

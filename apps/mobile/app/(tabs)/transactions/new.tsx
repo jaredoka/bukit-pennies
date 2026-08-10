@@ -4,6 +4,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Button, Card, DateField, Field, Muted, TimeField, Title } from '@/components/ui';
 import { bruneiParts } from '@/lib/format';
 import { useCategories, useCreateManualTransaction } from '@/lib/queries';
+import { useReviewPrompt } from '@/lib/reviewPrompt';
 import { themedStyles } from '@/lib/theme';
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -32,6 +33,7 @@ export default function NewTransaction() {
 
   const categories = useCategories();
   const create = useCreateManualTransaction();
+  const maybePrompt = useReviewPrompt();
 
   function validate(): string | null {
     if (!merchant.trim()) return 'Merchant is required.';
@@ -61,7 +63,10 @@ export default function NewTransaction() {
         notes: notes.trim() || null,
       },
       {
-        onSuccess: () => router.back(),
+        onSuccess: () => {
+          router.back();
+          void maybePrompt();
+        },
         onError: (e) => setError(e instanceof Error ? e.message : String(e)),
       },
     );

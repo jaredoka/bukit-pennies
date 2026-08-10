@@ -11,6 +11,7 @@ import {
 import { Badge, Button, Card, Centered, DateField, Field, Muted, TimeField, Title } from '@/components/ui';
 import { formatTime, bruneiDayKey, formatDayHeading } from '@/lib/format';
 import { useDeleteTransaction, usePullToRefresh, useReviewItems, useUpdateTransaction } from '@/lib/queries';
+import { useReviewPrompt } from '@/lib/reviewPrompt';
 import type { TransactionRow } from '@/lib/types';
 import { themedStyles } from '@/lib/theme';
 import { usePrivacy } from '@/lib/privacy';
@@ -54,6 +55,7 @@ function FixItem({ tx }: { tx: TransactionRow }) {
   const styles = useStyles();
   const update = useUpdateTransaction();
   const del = useDeleteTransaction();
+  const maybePrompt = useReviewPrompt();
   const [amount, setAmount] = useState(tx.amount === null ? '' : String(tx.amount));
   const [merchant, setMerchant] = useState(tx.merchant ?? '');
   // Split into a date and a time because each gets its own picker. Brunei local
@@ -84,6 +86,8 @@ function FixItem({ tx }: { tx: TransactionRow }) {
         parse_status: 'parsed',
         confidence: 1, // human-confirmed
       },
+    }, {
+      onSuccess: () => { void maybePrompt(); },
     });
   }
 

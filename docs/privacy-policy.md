@@ -32,6 +32,7 @@ Everything below is either typed by you or derived from text you sent us.
 |---|---|---|
 | Email address and a salted password hash | You, at sign-up | Account sign-in and password reset |
 | Display name (optional) | You | Shown in the app |
+| How you heard about the app (optional) | You, from Settings → About | Learning which channels reach users; an aggregate count, never used to profile or target you |
 
 ### Your spending record
 

@@ -43,3 +43,4 @@ and **Consequences** (what it means to live with it).
 | [0029](0029-phone-width-web-frame.md) | Wide web renders inside a phone-width frame | 2026-08-03 | Accepted |
 | [0030](0030-docs-reframe-and-adr-split.md) | Public docs reframe + ADR split | 2026-08-05 | Accepted |
 | [0031](0031-cloudflare-pages-for-web-demo.md) | Cloudflare Pages hosts the web demo | 2026-08-05 | Accepted |
+| [0032](0032-freemium-later.md) | Freemium later; core and shipped features stay free | 2026-08-10 | Accepted |

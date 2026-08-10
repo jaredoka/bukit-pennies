@@ -3,7 +3,7 @@
     "name": "Bukit Pennies",
     "slug": "bukit-pennies",
     "scheme": "bukitpennies",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",

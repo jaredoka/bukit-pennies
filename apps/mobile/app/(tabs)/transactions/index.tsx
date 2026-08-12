@@ -29,6 +29,7 @@ import { DAY_KEY_RE, dayKeyOf, monthGrid, stepMonth } from '@/lib/calendar';
 import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
 import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
 import { invalidateTransactionQueries, useCategories, useFilteredTransactions, usePullToRefresh, useReviewCount, useTransactionFacets } from '@/lib/queries';
+import { useReviewPrompt } from '@/lib/reviewPrompt';
 import { DEFAULT_FILTERS, hasAnyFilter, type TxFilters } from '@/lib/txFilters';
 import type { CategoryRow, TransactionRow } from '@/lib/types';
 import { themedStyles, useTheme } from '@/lib/theme';
@@ -767,6 +768,7 @@ function CaptureSheet({ visible, onClose }: { visible: boolean; onClose: () => v
   const styles = useStyles();
   const { colors } = useTheme();
   const qc = useQueryClient();
+  const maybePrompt = useReviewPrompt();
   const [text, setText] = useState('');
   const [result, setResult] = useState<IngestResponse | null>(null);
   const [bulkResults, setBulkResults] = useState<BulkItemResult[] | null>(null);
@@ -797,7 +799,7 @@ function CaptureSheet({ visible, onClose }: { visible: boolean; onClose: () => v
     try {
       const res = await postIngest(messages[0] ?? text.trim(), 'paste');
       setResult(res);
-      if (res.status === 'created') { setText(''); invalidate(); }
+      if (res.status === 'created') { setText(''); invalidate(); void maybePrompt(); }
     } catch (e) { setCaptureError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
@@ -808,6 +810,7 @@ function CaptureSheet({ visible, onClose }: { visible: boolean; onClose: () => v
     try {
       const results = await postIngestMany(messages, 'paste', (done, total) => setProgress({ done, total }));
       setBulkResults(results); invalidate();
+      if (results.some((r) => r.response.status === 'created')) void maybePrompt();
     } catch (e) { setCaptureError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); setProgress(null); }
   }

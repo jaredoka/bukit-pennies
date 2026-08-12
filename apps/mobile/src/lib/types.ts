@@ -8,6 +8,8 @@ export interface ProfileRow {
   display_name: string | null;
   default_currency: string;
   monthly_income: number | string | null;
+  heard_about: string | null;
+  heard_about_detail: string | null;
 }
 
 export interface SavingsGoalRow {

@@ -127,12 +127,9 @@ export function Field(props: TextInputProps & { label?: string }) {
  * Screen root that dismisses the keyboard when you tap anything that is not an
  * input or a control.
  *
- * The auth screens deliberately do not use KeyboardAvoidingView: their card is
- * vertically centred, so padding the screen for the keyboard re-centred the
- * card and the whole form visibly slid upward the moment a field was focused.
- * The keyboard overlays the card instead — which on a short screen can cover
- * the submit button, so there has to be a way to put the keyboard away that
- * does not involve reaching for the button hiding behind it.
+ * The auth screens pair this with a KeyboardAvoidingView + ScrollView so the
+ * focused field stays above the keyboard; the tap-to-dismiss here is the way
+ * to put the keyboard away without reaching for a button hidden behind it.
  *
  * Taps on children are unaffected: Pressable only fires for touches its
  * children did not handle. `accessible={false}` stops VoiceOver collapsing the

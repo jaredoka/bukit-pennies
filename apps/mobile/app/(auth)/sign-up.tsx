@@ -1,6 +1,6 @@
 ﻿import { Link } from 'expo-router';
 import { useState } from 'react';
-import { Linking as RNLinking, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Linking as RNLinking, Platform, ScrollView, Text, View } from 'react-native';
 import { HexBackground } from '@/components/HexBackground';
 import { Button, Card, DismissKeyboardView, Field, Title } from '@/components/ui';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/env';
@@ -48,66 +48,72 @@ export default function SignUp() {
     setBusy(false);
   }
 
-  // Not KeyboardAvoidingView — see the note on sign-in: `padding` behaviour
-  // shrank the screen under a vertically-centred card, so focusing a field slid
-  // the whole form up. The keyboard overlays instead. This is the tallest auth
-  // card, so it is also the one whose button the keyboard can reach on a short
-  // screen: tap the background to dismiss, or just press return in the password
-  // field, which submits.
+  // Same keyboard treatment as sign-in: the container shrinks by the keyboard
+  // height so the focused field stays visible, and the ScrollView is the safety
+  // net for the tallest auth card on a short screen.
   return (
     <DismissKeyboardView style={styles.screen}>
       <HexBackground />
       <Text style={styles.brand}>Bukit Pennies</Text>
-      <View style={styles.inner}>
-        <Card>
-          <Title>Create account</Title>
-          <Field label="Display name" value={displayName} onChangeText={setDisplayName} placeholder="Your name" />
-          <Field
-            label="Email"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-          />
-          <Field
-            label={`Password (${PASSWORD_HINT})`}
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Password"
-            onSubmitEditing={submit}
-          />
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          {info ? (
-            <View style={styles.verifyWrap}>
-              <Text style={styles.info}>{info}</Text>
-            </View>
-          ) : null}
-          {!info ? <Button label="Sign up" onPress={submit} busy={busy} disabled={!email || !isPasswordLongEnough(password)} /> : null}
-          <Text style={styles.legal}>
-            By signing up you agree to the{' '}
-            <Text style={styles.legalLink} onPress={() => RNLinking.openURL(TERMS_URL)}>
-              Terms of Service
-            </Text>{' '}
-            and{' '}
-            <Text style={styles.legalLink} onPress={() => RNLinking.openURL(PRIVACY_POLICY_URL)}>
-              Privacy Policy
-            </Text>
-            .
-          </Text>
-          <Link href="/(auth)/sign-in" style={styles.link}>
-            Have an account? Sign in
-          </Link>
-        </Card>
-      </View>
+      <KeyboardAvoidingView
+        style={styles.inner}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <View style={styles.center}>
+            <Card>
+              <Title>Create account</Title>
+              <Field label="Display name" value={displayName} onChangeText={setDisplayName} placeholder="Your name" />
+              <Field
+                label="Email"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@example.com"
+              />
+              <Field
+                label={`Password (${PASSWORD_HINT})`}
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Password"
+                onSubmitEditing={submit}
+              />
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+              {info ? (
+                <View style={styles.verifyWrap}>
+                  <Text style={styles.info}>{info}</Text>
+                </View>
+              ) : null}
+              {!info ? <Button label="Sign up" onPress={submit} busy={busy} disabled={!email || !isPasswordLongEnough(password)} /> : null}
+              <Text style={styles.legal}>
+                By signing up you agree to the{' '}
+                <Text style={styles.legalLink} onPress={() => RNLinking.openURL(TERMS_URL)}>
+                  Terms of Service
+                </Text>{' '}
+                and{' '}
+                <Text style={styles.legalLink} onPress={() => RNLinking.openURL(PRIVACY_POLICY_URL)}>
+                  Privacy Policy
+                </Text>
+                .
+              </Text>
+              <Link href="/(auth)/sign-in" style={styles.link}>
+                Have an account? Sign in
+              </Link>
+            </Card>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </DismissKeyboardView>
   );
 }
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
-  inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
+  inner: { flex: 1, padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
+  scrollContent: { flexGrow: 1 },
+  center: { flex: 1, justifyContent: 'center' },
   brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginBottom: 8 },
   verifyWrap: { alignItems: 'center', gap: 12, marginVertical: 8 },

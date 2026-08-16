@@ -30,7 +30,12 @@ export default function DeleteAccount() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+    >
       <Card>
         <Title>Delete your account</Title>
         <Text style={styles.body}>

@@ -40,7 +40,12 @@ export default function GoalsTab() {
           ),
         }}
       />
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <ScrollView
+          style={styles.screen}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
         {goals.length === 0 ? (
           <Card>
             <Title>No goals yet</Title>

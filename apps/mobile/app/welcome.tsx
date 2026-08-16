@@ -100,7 +100,12 @@ function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void 
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+    >
       <Steps current={1} />
       <Text style={styles.hello}>Welcome to Bukit Pennies 👋</Text>
       <Muted>

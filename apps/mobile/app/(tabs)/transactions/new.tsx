@@ -68,7 +68,12 @@ export default function NewTransaction() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+    >
       <Card>
         <Title>Add a transaction manually</Title>
         <Muted>For cash spends or anything that never produced a bank message.</Muted>

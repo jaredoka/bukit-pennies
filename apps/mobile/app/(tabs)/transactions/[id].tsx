@@ -114,7 +114,12 @@ export default function TransactionDetail() {
   const currentCategory = (categories.data ?? []).find((c) => c.id === tx.category_id);
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+    >
       {/* Hero card: centered merchant → category pill → big amount */}
       <Card>
         <View style={styles.hero}>

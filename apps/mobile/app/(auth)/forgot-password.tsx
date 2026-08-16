@@ -1,7 +1,7 @@
 ﻿import * as Linking from 'expo-linking';
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { Platform, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { HexBackground } from '@/components/HexBackground';
 import { Button, Card, DismissKeyboardView, Field, Muted, Title } from '@/components/ui';
 import { describeRequestError, withNetworkRetry } from '@/lib/netError';
@@ -34,44 +34,53 @@ export default function ForgotPassword() {
     <DismissKeyboardView style={styles.screen}>
       <HexBackground />
       <Text style={styles.brand}>Bukit Pennies</Text>
-      <View style={styles.inner}>
-        <Card>
-          <Title>Reset password</Title>
-          {sent ? (
-            <Muted>
-              If an account exists for that email, a reset link is on its way. Open it on this
-              device to choose a new password.{'\n\n'}If you don't see it within a minute, check your spam or junk folder.
-            </Muted>
-          ) : (
-            <>
-              <Muted>Enter your account email and we'll send a reset link.</Muted>
-              <View style={{ marginTop: 12 }}>
-                <Field
-                  label="Email"
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="you@example.com"
-                  onSubmitEditing={submit}
-                />
-              </View>
-              {error ? <Text style={styles.error}>{error}</Text> : null}
-              <Button label="Send reset link" onPress={submit} busy={busy} disabled={!email.trim()} />
-            </>
-          )}
-          <Link href="/(auth)/sign-in" style={styles.link}>
-            Back to sign in
-          </Link>
-        </Card>
-      </View>
+      <KeyboardAvoidingView
+        style={styles.inner}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <View style={styles.center}>
+            <Card>
+              <Title>Reset password</Title>
+              {sent ? (
+                <Muted>
+                  If an account exists for that email, a reset link is on its way. Open it on this
+                  device to choose a new password.{'\n\n'}If you don't see it within a minute, check your spam or junk folder.
+                </Muted>
+              ) : (
+                <>
+                  <Muted>Enter your account email and we'll send a reset link.</Muted>
+                  <View style={{ marginTop: 12 }}>
+                    <Field
+                      label="Email"
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                      value={email}
+                      onChangeText={setEmail}
+                      placeholder="you@example.com"
+                      onSubmitEditing={submit}
+                    />
+                  </View>
+                  {error ? <Text style={styles.error}>{error}</Text> : null}
+                  <Button label="Send reset link" onPress={submit} busy={busy} disabled={!email.trim()} />
+                </>
+              )}
+              <Link href="/(auth)/sign-in" style={styles.link}>
+                Back to sign in
+              </Link>
+            </Card>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </DismissKeyboardView>
   );
 }
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
-  inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
+  inner: { flex: 1, padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
+  scrollContent: { flexGrow: 1 },
+  center: { flex: 1, justifyContent: 'center' },
   brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginBottom: 8 },
   link: { color: colors.primary, textAlign: 'center', marginTop: 12 },

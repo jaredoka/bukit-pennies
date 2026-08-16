@@ -35,7 +35,12 @@ export default function ReportBug() {
 
   if (sent) {
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <ScrollView
+          style={styles.screen}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
         <Card>
           <Title>Thank you</Title>
           <Muted>
@@ -50,7 +55,12 @@ export default function ReportBug() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+          style={styles.screen}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
       <Card>
         <Title>Report a bug</Title>
         <Muted>

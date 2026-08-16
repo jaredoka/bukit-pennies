@@ -1,7 +1,7 @@
 ﻿import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { HexBackground } from '@/components/HexBackground';
 import { Button, Card, DismissKeyboardView, Field, Muted, Title } from '@/components/ui';
 import { describeRequestError, withNetworkRetry } from '@/lib/netError';
@@ -93,43 +93,52 @@ export default function ResetPassword() {
     <DismissKeyboardView style={styles.screen}>
       <HexBackground />
       <Text style={styles.brand}>Bukit Pennies</Text>
-      <View style={styles.inner}>
-        <Card>
-          <Title>Choose a new password</Title>
-          {!ready && !linkError ? <Muted>Verifying your reset link…</Muted> : null}
-          {ready ? (
-            <>
-              <Field
-                label={`New password (${PASSWORD_HINT})`}
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Password"
-                onSubmitEditing={submit}
-              />
-              <Button
-                label="Set new password"
-                onPress={submit}
-                busy={busy}
-                disabled={!isPasswordLongEnough(password)}
-              />
-            </>
-          ) : null}
-          {formError ? <Text style={styles.error}>{formError}</Text> : null}
-          {linkError ? (
-            <Text style={styles.error}>
-              {linkError}. Request a new link from the sign-in screen.
-            </Text>
-          ) : null}
-        </Card>
-      </View>
+      <KeyboardAvoidingView
+        style={styles.inner}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <View style={styles.center}>
+            <Card>
+              <Title>Choose a new password</Title>
+              {!ready && !linkError ? <Muted>Verifying your reset link…</Muted> : null}
+              {ready ? (
+                <>
+                  <Field
+                    label={`New password (${PASSWORD_HINT})`}
+                    secureTextEntry
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Password"
+                    onSubmitEditing={submit}
+                  />
+                  <Button
+                    label="Set new password"
+                    onPress={submit}
+                    busy={busy}
+                    disabled={!isPasswordLongEnough(password)}
+                  />
+                </>
+              ) : null}
+              {formError ? <Text style={styles.error}>{formError}</Text> : null}
+              {linkError ? (
+                <Text style={styles.error}>
+                  {linkError}. Request a new link from the sign-in screen.
+                </Text>
+              ) : null}
+            </Card>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </DismissKeyboardView>
   );
 }
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
-  inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
+  inner: { flex: 1, padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
+  scrollContent: { flexGrow: 1 },
+  center: { flex: 1, justifyContent: 'center' },
   brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginTop: 8 },
 }));

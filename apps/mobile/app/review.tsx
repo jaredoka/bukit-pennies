@@ -35,6 +35,8 @@ export default function ReviewInbox() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       style={styles.screen}
       contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
       data={items}
       keyExtractor={(item) => item.id}
       renderItem={({ item }) =>

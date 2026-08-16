@@ -15,7 +15,12 @@ export default function Budget() {
   const valid = value.trim() !== '' && Number.isFinite(parsed) && parsed > 0;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+    >
       <Card>
         <Title>Monthly limit</Title>
         <Muted>

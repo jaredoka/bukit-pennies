@@ -220,6 +220,28 @@ export function useReviewCount() {
   });
 }
 
+/**
+ * How many parsed transactions exist. Same `head: true` exact-count shape as
+ * `useReviewCount` — no rows cross the wire, which matters because the rate-me
+ * gate sits behind this: every transaction save calls through it once, and it
+ * is the cheapest thing that answers "has this account proved value yet?".
+ *
+ * Keyed under `transactions` so the existing invalidation catches it.
+ */
+export function useParsedTransactionCount() {
+  return useQuery({
+    queryKey: ['transactions', 'parsed-count'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('transactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('parse_status', 'parsed');
+      if (error) throw new Error(describeRequestError(error.message));
+      return count ?? 0;
+    },
+  });
+}
+
 export function useMonthlyTotals() {
   return useQuery({
     queryKey: ['monthly_totals'],
@@ -584,7 +606,9 @@ export function useProfile() {
 export function useUpdateProfile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (patch: Partial<Pick<ProfileRow, 'display_name' | 'monthly_income'>>) => {
+    mutationFn: async (
+      patch: Partial<Pick<ProfileRow, 'display_name' | 'monthly_income' | 'heard_about' | 'heard_about_detail'>>,
+    ) => {
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id;
       if (!userId) throw new Error('Not signed in');

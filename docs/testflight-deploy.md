@@ -69,8 +69,9 @@ user-facing `version` in `app.json` for feature releases.
 ## App Store review submission (after TestFlight is stable)
 
 - App Store Connect → the app → Distribution: screenshots (6.7" and 5.5"),
-  description, keywords, support URL (bukitpennies@gmail.com), privacy policy
-  URL: `https://jaredoka.github.io/bukit-pennies-legal/privacy-policy`.
+  description, keywords, support URL
+  (`https://github.com/jaredoka/bukit-pennies/issues`), privacy policy
+  URL: `https://jaredoka.github.io/bukit-pennies/privacy-policy`.
 - App Privacy questionnaire: data collected = email (account), financial
   info (user-provided transaction text) — linked to identity, not used for
   tracking.

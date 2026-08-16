@@ -1,7 +1,8 @@
 ﻿import { Link } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Linking as RNLinking, Platform, ScrollView, Text, View } from 'react-native';
+import { Linking as RNLinking, ScrollView, Text, View } from 'react-native';
 import { HexBackground } from '@/components/HexBackground';
+import { KeyboardGlide } from '@/components/KeyboardGlide';
 import { Button, Card, DismissKeyboardView, Field, Title } from '@/components/ui';
 import { PRIVACY_POLICY_URL, TERMS_URL } from '@/lib/env';
 import { describeRequestError, withNetworkRetry } from '@/lib/netError';
@@ -48,22 +49,17 @@ export default function SignUp() {
     setBusy(false);
   }
 
-  // Same keyboard treatment as sign-in: the card sits below the brand in the
-  // upper part of the screen, so the keyboard covers empty space and the
-  // top-anchored layout does not shift when it appears. Sign-up is the tallest
-  // auth card, so its ScrollView is the safety net on short screens — it
-  // scrolls rather than clips.
+  // Same centred layout and keyboard treatment as sign-in: brand + card as one
+  // vertically-centred group that KeyboardGlide lifts to rest just above the
+  // keyboard. Sign-up is the tallest auth card, so its ScrollView is the
+  // safety net on short screens — it scrolls rather than clips.
   return (
     <DismissKeyboardView style={styles.screen}>
       <HexBackground />
-      <Text style={styles.brand}>Bukit Pennies</Text>
-      <KeyboardAvoidingView
-        style={styles.inner}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <View style={styles.center}>
-            <Card>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <KeyboardGlide style={styles.glide}>
+          <Text style={styles.brand}>Bukit Pennies</Text>
+          <Card>
               <Title>Create account</Title>
               <Field label="Display name" value={displayName} onChangeText={setDisplayName} placeholder="Your name" />
               <Field
@@ -104,19 +100,17 @@ export default function SignUp() {
                 Have an account? Sign in
               </Link>
             </Card>
-          </View>
+          </KeyboardGlide>
         </ScrollView>
-      </KeyboardAvoidingView>
-    </DismissKeyboardView>
-  );
-}
+      </DismissKeyboardView>
+    );
+  }
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
-  inner: { flex: 1, width: '100%', maxWidth: 480, alignSelf: 'center' },
-  scrollContent: { flexGrow: 1, padding: 20, paddingTop: 140 },
-  center: { flex: 1 },
-  brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
+  scrollContent: { flexGrow: 1, padding: 20 },
+  glide: { flexGrow: 1, justifyContent: 'center' },
+  brand: { fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center', marginBottom: 24 },
   error: { color: colors.danger, marginBottom: 8 },
   verifyWrap: { alignItems: 'center', gap: 12, marginVertical: 8 },
   info: { color: colors.primary, textAlign: 'center', lineHeight: 20 },

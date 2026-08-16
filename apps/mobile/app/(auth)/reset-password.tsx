@@ -1,8 +1,9 @@
 ﻿import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { Platform, ScrollView, Text } from 'react-native';
 import { HexBackground } from '@/components/HexBackground';
+import { KeyboardGlide } from '@/components/KeyboardGlide';
 import { Button, Card, DismissKeyboardView, Field, Muted, Title } from '@/components/ui';
 import { describeRequestError, withNetworkRetry } from '@/lib/netError';
 import {
@@ -92,14 +93,10 @@ export default function ResetPassword() {
   return (
     <DismissKeyboardView style={styles.screen}>
       <HexBackground />
-      <Text style={styles.brand}>Bukit Pennies</Text>
-      <KeyboardAvoidingView
-        style={styles.inner}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <View style={styles.center}>
-            <Card>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <KeyboardGlide style={styles.glide}>
+          <Text style={styles.brand}>Bukit Pennies</Text>
+          <Card>
               <Title>Choose a new password</Title>
               {!ready && !linkError ? <Muted>Verifying your reset link…</Muted> : null}
               {ready ? (
@@ -127,18 +124,16 @@ export default function ResetPassword() {
                 </Text>
               ) : null}
             </Card>
-          </View>
+          </KeyboardGlide>
         </ScrollView>
-      </KeyboardAvoidingView>
-    </DismissKeyboardView>
-  );
-}
+      </DismissKeyboardView>
+    );
+  }
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
-  inner: { flex: 1, width: '100%', maxWidth: 480, alignSelf: 'center' },
-  scrollContent: { flexGrow: 1, padding: 20, paddingTop: 140 },
-  center: { flex: 1 },
-  brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
+  scrollContent: { flexGrow: 1, padding: 20 },
+  glide: { flexGrow: 1, justifyContent: 'center' },
+  brand: { fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center', marginBottom: 24 },
   error: { color: colors.danger, marginTop: 8 },
 }));

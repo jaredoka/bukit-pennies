@@ -1,7 +1,8 @@
 ﻿import { Link } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text } from 'react-native';
 import { HexBackground } from '@/components/HexBackground';
+import { KeyboardGlide } from '@/components/KeyboardGlide';
 import { Button, Card, DismissKeyboardView, Field, Title } from '@/components/ui';
 import { describeRequestError, withNetworkRetry } from '@/lib/netError';
 import { supabase } from '@/lib/supabase';
@@ -25,26 +26,22 @@ export default function SignIn() {
     // On success the AuthGate redirects to the tabs.
   }
 
-  // Top-anchored layout: the card sits in the upper part of the screen below
-  // the brand, so the keyboard covers empty space rather than the form. The
-  // KeyboardAvoidingView (padding) shortens the ScrollView to the area above
-  // the keyboard; because the card is anchored at the top this causes no
-  // movement — the earlier version vertically centred the card, so shrinking
-  // the container pushed the whole block up with the keyboard. Tall cards
-  // (sign-up) scroll within the ScrollView instead of clipping. `handled`
-  // keeps field and button taps working while the keyboard is up, and a tap on
-  // the background still dismisses it via DismissKeyboardView.
+  // Centred layout: the brand and card sit as one vertically-centred group (the
+  // PayPal/Revolut look). When the keyboard opens, KeyboardGlide glides the
+  // group up to rest just above it and back down on dismiss — the whole block
+  // lifting is intentional-looking, unlike shrinking a centred container, which
+  // re-centres in the leftover space and reads as the page being pushed up. The
+  // ScrollView is the safety net for short screens where the card is taller
+  // than the space the keyboard leaves; `handled` keeps field and button taps
+  // working while the keyboard is up, and a tap on the background still
+  // dismisses it via DismissKeyboardView.
   return (
     <DismissKeyboardView style={styles.screen}>
       <HexBackground />
-      <Text style={styles.brand}>Bukit Pennies</Text>
-      <KeyboardAvoidingView
-        style={styles.inner}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <View style={styles.center}>
-            <Card>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <KeyboardGlide style={styles.glide}>
+          <Text style={styles.brand}>Bukit Pennies</Text>
+          <Card>
               <Title>Sign in</Title>
               <Field
                 label="Email"
@@ -72,19 +69,17 @@ export default function SignIn() {
                 No account? Sign up
               </Link>
             </Card>
-          </View>
+          </KeyboardGlide>
         </ScrollView>
-      </KeyboardAvoidingView>
-    </DismissKeyboardView>
-  );
-}
+      </DismissKeyboardView>
+    );
+  }
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
-  inner: { flex: 1, width: '100%', maxWidth: 480, alignSelf: 'center' },
-  scrollContent: { flexGrow: 1, padding: 20, paddingTop: 140 },
-  center: { flex: 1 },
-  brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
+  scrollContent: { flexGrow: 1, padding: 20 },
+  glide: { flexGrow: 1, justifyContent: 'center' },
+  brand: { fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center', marginBottom: 24 },
   error: { color: colors.danger, marginBottom: 8 },
   link: { color: colors.primary, textAlign: 'center', marginTop: 12 },
 }));

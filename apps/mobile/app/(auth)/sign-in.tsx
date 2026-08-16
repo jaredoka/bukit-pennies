@@ -25,13 +25,15 @@ export default function SignIn() {
     // On success the AuthGate redirects to the tabs.
   }
 
-  // KeyboardAvoidingView keeps the focused field above the keyboard instead of
-  // letting it sit underneath: on iOS the card's container shrinks by the
-  // keyboard height, so the centred card rides up with it. The ScrollView is a
-  // safety net for short screens where the card is taller than the space the
-  // keyboard leaves — it can then scroll rather than clip. `handled` keeps
-  // field and button taps working while the keyboard is up, and a tap on the
-  // background still dismisses it via DismissKeyboardView.
+  // Top-anchored layout: the card sits in the upper part of the screen below
+  // the brand, so the keyboard covers empty space rather than the form. The
+  // KeyboardAvoidingView (padding) shortens the ScrollView to the area above
+  // the keyboard; because the card is anchored at the top this causes no
+  // movement — the earlier version vertically centred the card, so shrinking
+  // the container pushed the whole block up with the keyboard. Tall cards
+  // (sign-up) scroll within the ScrollView instead of clipping. `handled`
+  // keeps field and button taps working while the keyboard is up, and a tap on
+  // the background still dismisses it via DismissKeyboardView.
   return (
     <DismissKeyboardView style={styles.screen}>
       <HexBackground />
@@ -79,9 +81,9 @@ export default function SignIn() {
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
-  inner: { flex: 1, padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
-  scrollContent: { flexGrow: 1 },
-  center: { flex: 1, justifyContent: 'center' },
+  inner: { flex: 1, width: '100%', maxWidth: 480, alignSelf: 'center' },
+  scrollContent: { flexGrow: 1, padding: 20, paddingTop: 140 },
+  center: { flex: 1 },
   brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginBottom: 8 },
   link: { color: colors.primary, textAlign: 'center', marginTop: 12 },

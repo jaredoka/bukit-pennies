@@ -136,9 +136,9 @@ export default function ResetPassword() {
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
-  inner: { flex: 1, padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
-  scrollContent: { flexGrow: 1 },
-  center: { flex: 1, justifyContent: 'center' },
+  inner: { flex: 1, width: '100%', maxWidth: 480, alignSelf: 'center' },
+  scrollContent: { flexGrow: 1, padding: 20, paddingTop: 140 },
+  center: { flex: 1 },
   brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginTop: 8 },
 }));

@@ -48,9 +48,11 @@ export default function SignUp() {
     setBusy(false);
   }
 
-  // Same keyboard treatment as sign-in: the container shrinks by the keyboard
-  // height so the focused field stays visible, and the ScrollView is the safety
-  // net for the tallest auth card on a short screen.
+  // Same keyboard treatment as sign-in: the card sits below the brand in the
+  // upper part of the screen, so the keyboard covers empty space and the
+  // top-anchored layout does not shift when it appears. Sign-up is the tallest
+  // auth card, so its ScrollView is the safety net on short screens — it
+  // scrolls rather than clips.
   return (
     <DismissKeyboardView style={styles.screen}>
       <HexBackground />
@@ -111,9 +113,9 @@ export default function SignUp() {
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
-  inner: { flex: 1, padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
-  scrollContent: { flexGrow: 1 },
-  center: { flex: 1, justifyContent: 'center' },
+  inner: { flex: 1, width: '100%', maxWidth: 480, alignSelf: 'center' },
+  scrollContent: { flexGrow: 1, padding: 20, paddingTop: 140 },
+  center: { flex: 1 },
   brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
   error: { color: colors.danger, marginBottom: 8 },
   verifyWrap: { alignItems: 'center', gap: 12, marginVertical: 8 },

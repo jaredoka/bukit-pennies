@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useMemo, useState } from 'react';
+import { useScrollToTop } from 'expo-router';
+import { useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -40,6 +41,9 @@ type Tx = {
 export default function Insights() {
   const styles = useStyles();
   const { colors } = useTheme();
+  const scrollRef = useRef<ScrollView>(null);
+  // Re-tapping the active Insights tab returns to the top.
+  useScrollToTop(scrollRef);
   const { width } = useWindowDimensions();
   // The chart used to be sized off the window width (capped at 720), which
   // overflows the desktop web phone frame. Measure the card it sits in instead
@@ -108,6 +112,7 @@ export default function Insights() {
   return (
     <>
       <ScrollView
+        ref={scrollRef}
         style={styles.screen}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}

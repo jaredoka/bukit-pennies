@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useScrollToTop } from 'expo-router';
 import { Button, Card, Centered, Field, Muted, Title } from '@/components/ui';
 import { useAddSavingsGoalEntry, useSavingsGoals } from '@/lib/queries';
 import { usePrivacy } from '@/lib/privacy';
@@ -11,6 +11,9 @@ import type { SavingsGoalWithProgress } from '@/lib/types';
 export default function GoalsTab() {
   const styles = useStyles();
   const { colors } = useTheme();
+  const scrollRef = useRef<ScrollView>(null);
+  // Re-tapping the active Goals tab returns to the top.
+  useScrollToTop(scrollRef);
   const { data, isLoading } = useSavingsGoals();
 
   if (isLoading) {
@@ -41,6 +44,7 @@ export default function GoalsTab() {
         }}
       />
       <ScrollView
+          ref={scrollRef}
           style={styles.screen}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"

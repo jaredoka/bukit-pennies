@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { MAX_TEXT_BYTES, parseBankMessage, splitBankMessages } from '@bukit/parsers';
 import { useQueryClient } from '@tanstack/react-query';
-import { Link, Stack, useRouter } from 'expo-router';
+import { Link, Stack, useRouter, useScrollToTop } from 'expo-router';
 import { useEffect, useRef, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -480,6 +480,9 @@ export default function TransactionsList() {
   const [showAdd, setShowAdd] = useState(false);
   const addSheetPresent = useSheetPresence(showAdd ? 'add' : null) !== null;
   const { refreshing, onRefresh } = usePullToRefresh();
+  const listRef = useRef<SectionList<TransactionRow>>(null);
+  // Re-tapping the active Transactions tab returns to the top of the list.
+  useScrollToTop(listRef);
 
   function patch(p: Partial<TxFilters>) {
     setFilters((prev) => ({ ...prev, ...p }));
@@ -647,6 +650,7 @@ export default function TransactionsList() {
         </View>
 
         <SectionList
+          ref={listRef}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           sections={sections}
           keyExtractor={(item) => item.id}

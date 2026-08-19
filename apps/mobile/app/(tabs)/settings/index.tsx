@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useScrollToTop } from 'expo-router';
 import { NavRow } from '@/components/ui';
 import { themedStyles, useTheme } from '@/lib/theme';
 import Constants from 'expo-constants';
@@ -6,10 +8,13 @@ import Constants from 'expo-constants';
 export default function Settings() {
   const styles = useStyles();
   const { colors } = useTheme();
+  const scrollRef = useRef<ScrollView>(null);
+  // Re-tapping the active Settings tab returns to the top.
+  useScrollToTop(scrollRef);
   const version = Constants.expoConfig?.version ?? '—';
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.group}>
         <NavRow
           inset

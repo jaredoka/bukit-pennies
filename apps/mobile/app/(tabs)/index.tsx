@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Link, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useFocusEffect, useRouter, useScrollToTop } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -84,6 +84,9 @@ export default function Dashboard() {
   const { colors } = useTheme();
   const router = useRouter();
   const { session } = useSession();
+  const scrollRef = useRef<ScrollView>(null);
+  // Re-tapping the active Dashboard tab returns to the top, like the big apps.
+  useScrollToTop(scrollRef);
   // Optimistic: assume set up, so the card never flashes for existing users.
   const [onboarded, setOnboarded] = useState(true);
   const [cardDismissed, setCardDismissed] = useState(true);
@@ -307,6 +310,7 @@ export default function Dashboard() {
   return (
     <>
     <ScrollView
+      ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}

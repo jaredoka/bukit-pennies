@@ -474,9 +474,6 @@ export default function TransactionsList() {
     isFetchingNextPage,
   } = useFilteredTransactions(filters, debouncedSearch);
   const [activeSheet, setActiveSheet] = useState<SheetKey | null>(null);
-  // The sheet that is actually rendered: lags activeSheet on the way out so
-  // the panel can slide away before it unmounts.
-  const renderedSheet = useSheetPresence(activeSheet);
   const [showAdd, setShowAdd] = useState(false);
   const addSheetPresent = useSheetPresence(showAdd ? 'add' : null) !== null;
   const { refreshing, onRefresh } = usePullToRefresh();
@@ -690,24 +687,19 @@ export default function TransactionsList() {
         />
       </View>
 
-      {/* Per-filter sheets */}
+      {/* Per-filter sheets. Kept mounted and toggled via `visible` rather than
+          conditionally rendered, so reopening is a fast native re-present of
+          the same Modal instead of a fresh mount — see SheetShell. */}
       {addSheetPresent ? (
         <AddSheet visible={showAdd} onClose={() => setShowAdd(false)} />
       ) : null}
 
-      {renderedSheet === 'bank' ? (
-        <BankSheet visible={activeSheet === 'bank'} available={availBanks} selected={filters.banks} onChange={(v) => patch({ banks: v })} onClose={() => setActiveSheet(null)} />
-      ) : renderedSheet === 'card' ? (
-        <CardSheet visible={activeSheet === 'card'} available={availCards} selected={filters.cards} onChange={(v) => patch({ cards: v })} onClose={() => setActiveSheet(null)} />
-      ) : renderedSheet === 'category' ? (
-        <CategorySheet visible={activeSheet === 'category'} categories={categories.data ?? []} selected={filters.categoryIds} onChange={(v) => patch({ categoryIds: v })} onClose={() => setActiveSheet(null)} />
-      ) : renderedSheet === 'currency' ? (
-        <CurrencySheet visible={activeSheet === 'currency'} available={availCurrencies} selected={filters.currencies} onChange={(v) => patch({ currencies: v })} onClose={() => setActiveSheet(null)} />
-      ) : renderedSheet === 'date' ? (
-        <CalendarSheet visible={activeSheet === 'date'} dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={(p) => patch(p)} onClose={() => setActiveSheet(null)} />
-      ) : renderedSheet === 'recipient' ? (
-        <RecipientSheet visible={activeSheet === 'recipient'} value={filters.recipient} onChange={(v) => patch({ recipient: v })} onClose={() => setActiveSheet(null)} />
-      ) : null}
+      <BankSheet visible={activeSheet === 'bank'} available={availBanks} selected={filters.banks} onChange={(v) => patch({ banks: v })} onClose={() => setActiveSheet(null)} />
+      <CardSheet visible={activeSheet === 'card'} available={availCards} selected={filters.cards} onChange={(v) => patch({ cards: v })} onClose={() => setActiveSheet(null)} />
+      <CategorySheet visible={activeSheet === 'category'} categories={categories.data ?? []} selected={filters.categoryIds} onChange={(v) => patch({ categoryIds: v })} onClose={() => setActiveSheet(null)} />
+      <CurrencySheet visible={activeSheet === 'currency'} available={availCurrencies} selected={filters.currencies} onChange={(v) => patch({ currencies: v })} onClose={() => setActiveSheet(null)} />
+      <CalendarSheet visible={activeSheet === 'date'} dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={(p) => patch(p)} onClose={() => setActiveSheet(null)} />
+      <RecipientSheet visible={activeSheet === 'recipient'} value={filters.recipient} onChange={(v) => patch({ recipient: v })} onClose={() => setActiveSheet(null)} />
     </>
   );
 }

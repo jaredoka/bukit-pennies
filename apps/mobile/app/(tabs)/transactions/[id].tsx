@@ -11,7 +11,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Badge, Button, Card, Centered, Field, Muted, Sheet, Title, useSheetPresence } from '@/components/ui';
+import { Badge, Button, Card, Centered, Field, Muted, Sheet, Title } from '@/components/ui';
 import { formatTime, bruneiParts } from '@/lib/format';
 import { buildReparsePatch, canReparse } from '@/lib/reparse';
 import { themedStyles, useTheme } from '@/lib/theme';
@@ -69,10 +69,15 @@ export default function TransactionDetail() {
   const [reparseNote, setReparseNote] = useState<string | null>(null);
   const [newCategory, setNewCategory] = useState('');
   const [catSheetOpen, setCatSheetOpen] = useState(false);
-  const catSheetPresent = useSheetPresence(catSheetOpen ? 'cat' : null) !== null;
   useEffect(() => {
     if (tx) setNotes(tx.notes ?? '');
   }, [tx?.id]);
+  // The sheet used to unmount on close, which cleared a half-typed new
+  // category name. It stays mounted now for a fast reopen (see SheetShell),
+  // so the field is reset here instead.
+  useEffect(() => {
+    if (!catSheetOpen) setNewCategory('');
+  }, [catSheetOpen]);
 
   if (isLoading || !tx) {
     return (
@@ -203,54 +208,53 @@ export default function TransactionDetail() {
 
       <Button label="Delete transaction" variant="danger" onPress={remove} busy={del.isPending} />
 
-      {/* Category dropdown sheet */}
-      {catSheetPresent ? (
-        <Sheet
-          visible={catSheetOpen}
-          title="Category"
-          onClose={() => setCatSheetOpen(false)}
-          onClear={
-            tx.category_id
-              ? () => { update.mutate({ id: tx.id, patch: { category_id: null } }); setCatSheetOpen(false); }
-              : undefined
-          }
-        >
-                {(categories.data ?? []).map((c) => (
-                  <Pressable
-                    key={c.id}
-                    style={styles.catRow}
-                    onPress={() => {
-                      update.mutate({ id: tx.id, patch: { category_id: tx.category_id === c.id ? null : c.id } });
-                      setCatSheetOpen(false);
-                    }}
-                  >
-                    <Text style={[styles.catRowText, tx.category_id === c.id && { color: colors.primary, fontWeight: '600' }]}>
-                      {c.name}
-                    </Text>
-                    {tx.category_id === c.id ? <Ionicons name="checkmark" size={18} color={colors.primary} /> : null}
-                  </Pressable>
-                ))}
-                {categories.data?.length === 0 ? (
-                  <Muted>No categories yet. Add one below.</Muted>
-                ) : null}
-                <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginTop: 16 }}>
-                  <View style={{ flex: 1 }}>
-                    <Field
-                      placeholder="New category name"
-                      value={newCategory}
-                      onChangeText={setNewCategory}
-                      style={{ marginBottom: 0 }}
-                    />
-                  </View>
-                  <Button
-                    label="Add"
-                    variant="secondary"
-                    disabled={!newCategory.trim()}
-                    onPress={() => createCategory.mutate(newCategory.trim(), { onSuccess: () => setNewCategory('') })}
-                  />
-                </View>
-        </Sheet>
-      ) : null}
+      {/* Category dropdown sheet. Kept mounted and toggled via `visible` so
+          reopening is a fast re-present — see SheetShell. */}
+      <Sheet
+        visible={catSheetOpen}
+        title="Category"
+        onClose={() => setCatSheetOpen(false)}
+        onClear={
+          tx.category_id
+            ? () => { update.mutate({ id: tx.id, patch: { category_id: null } }); setCatSheetOpen(false); }
+            : undefined
+        }
+      >
+        {(categories.data ?? []).map((c) => (
+          <Pressable
+            key={c.id}
+            style={styles.catRow}
+            onPress={() => {
+              update.mutate({ id: tx.id, patch: { category_id: tx.category_id === c.id ? null : c.id } });
+              setCatSheetOpen(false);
+            }}
+          >
+            <Text style={[styles.catRowText, tx.category_id === c.id && { color: colors.primary, fontWeight: '600' }]}>
+              {c.name}
+            </Text>
+            {tx.category_id === c.id ? <Ionicons name="checkmark" size={18} color={colors.primary} /> : null}
+          </Pressable>
+        ))}
+        {categories.data?.length === 0 ? (
+          <Muted>No categories yet. Add one below.</Muted>
+        ) : null}
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginTop: 16 }}>
+          <View style={{ flex: 1 }}>
+            <Field
+              placeholder="New category name"
+              value={newCategory}
+              onChangeText={setNewCategory}
+              style={{ marginBottom: 0 }}
+            />
+          </View>
+          <Button
+            label="Add"
+            variant="secondary"
+            disabled={!newCategory.trim()}
+            onPress={() => createCategory.mutate(newCategory.trim(), { onSuccess: () => setNewCategory('') })}
+          />
+        </View>
+      </Sheet>
     </ScrollView>
   );
 }

@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Mobile app upgraded to Expo SDK 58 (React Native 0.88, React 19.3) and now
+  builds against the iOS 27 SDK, ahead of Apple's April 2027 requirement. The
+  minimum supported iOS version stays 16.4, and the app adopts SDK 58's
+  scene-based lifecycle. The unsigned-IPA GitHub workflow now runs on the
+  `xcode-27` runner.
 - Live web demo moved from Netlify to Cloudflare Pages (free tier: 500
   builds/month, unlimited bandwidth). The demo is now at
   https://bukit-pennies.pages.dev.

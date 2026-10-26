@@ -479,7 +479,7 @@ export default function TransactionsList() {
   const { refreshing, onRefresh } = usePullToRefresh();
   const listRef = useRef<SectionList<TransactionRow>>(null);
   // Re-tapping the active Transactions tab returns to the top of the list.
-  useScrollToTop(listRef);
+  useScrollToTop(listRef as unknown as Parameters<typeof useScrollToTop>[0]);
 
   function patch(p: Partial<TxFilters>) {
     setFilters((prev) => ({ ...prev, ...p }));
@@ -668,7 +668,7 @@ export default function TransactionsList() {
               <View style={{ paddingVertical: 20 }}>
                 <ActivityIndicator />
               </View>
-            ) : null
+            ) : undefined
           }
           ListEmptyComponent={
             anyFilter || search ? (

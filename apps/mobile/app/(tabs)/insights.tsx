@@ -9,6 +9,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
 import { Card, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
@@ -41,9 +42,9 @@ type Tx = {
 export default function Insights() {
   const styles = useStyles();
   const { colors } = useTheme();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   // Re-tapping the active Insights tab returns to the top.
-  useScrollToTop(scrollRef);
+  useScrollToTop(scrollRef as unknown as Parameters<typeof useScrollToTop>[0]);
   const { width } = useWindowDimensions();
   // The chart used to be sized off the window width (capped at 720), which
   // overflows the desktop web phone frame. Measure the card it sits in instead

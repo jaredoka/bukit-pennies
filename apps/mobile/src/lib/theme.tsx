@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Platform, StyleSheet, useColorScheme } from 'react-native';
+import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
 import { isFreshInstall } from './installMarker';
 
 // Default category colours per theme. User-chosen colours stored in the DB
@@ -193,6 +194,10 @@ export function useStackTheme() {
   const { colors } = useTheme();
   return {
     headerStyle: { backgroundColor: colors.card },
+    // SDK 58's iOS 26+ default is a transparent Liquid Glass header. The app's
+    // screens use their own card-coloured header and assume content starts
+    // below it, so keep the header opaque.
+    headerTransparent: false,
     headerTintColor: colors.primary,
     headerTitleStyle: { fontWeight: '700' as const, color: colors.text },
     headerTitleAlign: 'center' as const,
@@ -212,7 +217,13 @@ export function useStackTheme() {
  *   const useStyles = themedStyles((colors) => ({ ... }));
  *   ...inside the component: const styles = useStyles();
  */
-export function themedStyles<T extends StyleSheet.NamedStyles<T>>(
+
+// `StyleSheet.NamedStyles` was removed from React Native's strict TypeScript
+// API in 0.87. This is the same shape, kept local so the style factories keep
+// their contextual literal types.
+type NamedStyles<T> = { [P in keyof T]: ViewStyle | TextStyle | ImageStyle };
+
+export function themedStyles<T extends NamedStyles<T>>(
   factory: (colors: Palette) => T,
 ): () => T {
   return function useStyles(): T {

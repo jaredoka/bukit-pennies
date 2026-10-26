@@ -15,6 +15,7 @@ import {
   View,
   useWindowDimensions,
   type LayoutChangeEvent,
+  type ScrollViewInstance,
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
@@ -305,7 +306,7 @@ export function Chip({
 }
 
 function snapScroll(
-  ref: RefObject<ScrollView | null>,
+  ref: RefObject<ScrollViewInstance | null>,
   y: number,
   count: number,
   lastIdx: React.MutableRefObject<number>,
@@ -336,7 +337,7 @@ export function WheelPicker({
   visibleCount?: number;
 }) {
   const { colors } = useTheme();
-  const ref = useRef<ScrollView>(null);
+  const ref = useRef<ScrollViewInstance>(null);
   const lastIdx = useRef(selectedIndex);
   // Debounce timer — fires 120ms after the last scroll event on any platform.
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);

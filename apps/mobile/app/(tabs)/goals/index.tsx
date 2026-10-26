@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View, type ScrollViewInstance } from 'react-native';
 import { Stack, router, useScrollToTop } from 'expo-router';
 import { Button, Card, Centered, Field, Muted, Title } from '@/components/ui';
 import { useAddSavingsGoalEntry, useSavingsGoals } from '@/lib/queries';
@@ -11,9 +11,11 @@ import type { SavingsGoalWithProgress } from '@/lib/types';
 export default function GoalsTab() {
   const styles = useStyles();
   const { colors } = useTheme();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   // Re-tapping the active Goals tab returns to the top.
-  useScrollToTop(scrollRef);
+  // expo-router 58 still types this against the ScrollView component rather
+  // than its instance, so bridge the two here.
+  useScrollToTop(scrollRef as unknown as Parameters<typeof useScrollToTop>[0]);
   const { data, isLoading } = useSavingsGoals();
 
   if (isLoading) {

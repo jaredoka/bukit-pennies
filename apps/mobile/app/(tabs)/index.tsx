@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 import { PieChart } from 'react-native-gifted-charts';
 import { Card, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
@@ -84,9 +85,9 @@ export default function Dashboard() {
   const { colors } = useTheme();
   const router = useRouter();
   const { session } = useSession();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   // Re-tapping the active Dashboard tab returns to the top, like the big apps.
-  useScrollToTop(scrollRef);
+  useScrollToTop(scrollRef as unknown as Parameters<typeof useScrollToTop>[0]);
   // Optimistic: assume set up, so the card never flashes for existing users.
   const [onboarded, setOnboarded] = useState(true);
   const [cardDismissed, setCardDismissed] = useState(true);

@@ -15,6 +15,7 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
         headerStyle: { backgroundColor: colors.card },
+        headerTransparent: false,
         headerTitleStyle: { fontWeight: '700', color: colors.text },
         headerTitleAlign: 'center',
         sceneStyle: { backgroundColor: colors.bg },
@@ -24,7 +25,7 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart" color={color as string | undefined} size={size} />,
         }}
       />
       <Tabs.Screen
@@ -32,14 +33,14 @@ export default function TabsLayout() {
         options={{
           title: 'Transactions',
           headerShown: false,
-          tabBarIcon: ({ color, size }) => <Ionicons name="list" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="list" color={color as string | undefined} size={size} />,
         }}
       />
       <Tabs.Screen
         name="insights"
         options={{
           title: 'Insights',
-          tabBarIcon: ({ color, size }) => <Ionicons name="trending-up" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="trending-up" color={color as string | undefined} size={size} />,
         }}
       />
       <Tabs.Screen
@@ -51,7 +52,7 @@ export default function TabsLayout() {
           // against the safe-area edge and needed headerRightContainerStyle to
           // compensate.
           headerShown: false,
-          tabBarIcon: ({ color, size }) => <Ionicons name="flag" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="flag" color={color as string | undefined} size={size} />,
         }}
       />
       {/* Review and Subscriptions are not tabs. They live above the tab bar as
@@ -63,7 +64,7 @@ export default function TabsLayout() {
         options={{
           title: 'Settings',
           headerShown: false,
-          tabBarIcon: ({ color, size }) => <Ionicons name="settings" color={color} size={size} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="settings" color={color as string | undefined} size={size} />,
         }}
       />
     </Tabs>

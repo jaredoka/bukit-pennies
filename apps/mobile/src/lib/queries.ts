@@ -66,23 +66,64 @@ const MAX_ROWS_PER_REQUEST = 1000;
  * between two requests, which loses one and repeats another. Every caller here
  * ends its ordering with `id`.
  */
+/** How many page requests to have in flight at once.
+ *
+ *  The old loop awaited one page before starting the next, so a year of
+ *  transactions that needed four pages cost four full round trips back to
+ *  back — seconds on a mobile link even though the server had each page ready
+ *  immediately. Requesting the rest of a full batch together turns that into
+ *  roughly one round trip plus transfer. Four is high enough to hide latency
+ *  and low enough that the wasted page at the end of a period stays small. */
+const PAGE_CONCURRENCY = 4;
+
 export async function fetchAllPages<T>(
   page: (
     from: number,
     to: number,
   ) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
 ): Promise<T[]> {
-  const rows: T[] = [];
-  for (let from = 0; ; from += MAX_ROWS_PER_REQUEST) {
-    const batch = await unwrap<T[]>(page(from, from + MAX_ROWS_PER_REQUEST - 1));
-    rows.push(...batch);
-    if (batch.length < MAX_ROWS_PER_REQUEST) return rows;
+  const first = await unwrap<T[]>(page(0, MAX_ROWS_PER_REQUEST - 1));
+  if (first.length < MAX_ROWS_PER_REQUEST) return first;
+
+  const rows = [...first];
+  let nextPage = 1;
+  // Stop as soon as any response in a batch comes back short: everything after
+  // it is past the end of the period. Pages beyond the last one return an
+  // empty array, so over-requesting is harmless — just discarded.
+  for (;;) {
+    const requests: PromiseLike<{ data: T[] | null; error: { message: string } | null }>[] = [];
+    for (let i = 0; i < PAGE_CONCURRENCY; i++) {
+      const index = nextPage + i;
+      const from = index * MAX_ROWS_PER_REQUEST;
+      requests.push(page(from, from + MAX_ROWS_PER_REQUEST - 1));
+    }
+    const batches = await Promise.all(requests.map((request) => unwrap<T[]>(request)));
+    let done = false;
+    for (const batch of batches) {
+      if (done) break;
+      rows.push(...batch);
+      if (batch.length < MAX_ROWS_PER_REQUEST) done = true;
+    }
+    if (done) return rows;
+    nextPage += PAGE_CONCURRENCY;
   }
 }
 
 // ------------------------------------------------------------------ queries
 
 export const TX_PAGE_SIZE = 50;
+
+/** Whole-period aggregates change only when transactions do, and every write
+ *  path already invalidates them explicitly. The global 15s default made every
+ *  tab visit after fifteen seconds re-download months of rows, so a screen the
+ *  user was just looking at was forever refetching underneath them. Realtime
+ *  and mutation invalidation still refetch on an actual change. */
+const AGGREGATE_STALE_MS = 2 * 60_000;
+
+/** Reference data — categories, budgets, profile, subscriptions — changes on
+ *  an explicit save, which invalidates its own key. There is nothing to gain
+ *  from refetching it on a timer. */
+const REFERENCE_STALE_MS = 10 * 60_000;
 
 /** The projection every whole-period aggregate reads: enough to bucket by day,
  *  month, category and merchant, and nothing else — these queries can pull
@@ -115,6 +156,7 @@ export function useTransactionFacets() {
     queryKey: ['transaction_facets'],
     queryFn: () =>
       unwrap<TransactionFacetRow[]>(supabase.from('transaction_facets').select('*')),
+    staleTime: AGGREGATE_STALE_MS,
   });
 }
 
@@ -249,6 +291,7 @@ export function useMonthlyTotals() {
       unwrap<MonthlyTotalRow[]>(
         supabase.from('monthly_totals').select('*').order('month', { ascending: false }),
       ),
+    staleTime: AGGREGATE_STALE_MS,
   });
 }
 
@@ -271,6 +314,7 @@ export function useThisMonthTransactions() {
           .order('id', { ascending: true })
           .range(from, to),
       ),
+    staleTime: AGGREGATE_STALE_MS,
   });
 }
 
@@ -299,6 +343,8 @@ export function useTransactionsForPeriod(year: number, month: number | null) {
           .order('id', { ascending: true })
           .range(from, to),
       ),
+    staleTime: AGGREGATE_STALE_MS,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -343,6 +389,7 @@ export function useRecentMonthsTransactions(monthsBack = 6) {
           .order('id', { ascending: true })
           .range(from, to),
       ),
+    staleTime: AGGREGATE_STALE_MS,
   });
 }
 
@@ -350,6 +397,7 @@ export function useBudgets() {
   return useQuery({
     queryKey: ['budgets'],
     queryFn: () => unwrap<BudgetRow[]>(supabase.from('budgets').select('*')),
+    staleTime: REFERENCE_STALE_MS,
   });
 }
 
@@ -358,6 +406,7 @@ export function useCategories() {
     queryKey: ['categories'],
     queryFn: () =>
       unwrap<CategoryRow[]>(supabase.from('categories').select('*').order('name')),
+    staleTime: REFERENCE_STALE_MS,
   });
 }
 
@@ -552,6 +601,7 @@ export function useSubscriptions() {
       unwrap<SubscriptionRow[]>(
         supabase.from('subscriptions').select('*').order('created_at', { ascending: true }),
       ),
+    staleTime: REFERENCE_STALE_MS,
   });
 }
 
@@ -600,6 +650,7 @@ export function useProfile() {
   return useQuery({
     queryKey: ['profile'],
     queryFn: () => unwrap<ProfileRow>(supabase.from('profiles').select('*').single()),
+    staleTime: REFERENCE_STALE_MS,
   });
 }
 

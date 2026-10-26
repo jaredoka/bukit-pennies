@@ -15,16 +15,17 @@ import { Card, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
 import {
   bruneiDayKey,
   bruneiMonthKey,
+  bruneiMonthStartIso,
   formatMonthName,
 } from '@/lib/format';
 import { kvGet } from '@/lib/kvStore';
 import {
+  PAR_CURRENCIES,
   useBudgets,
   useCategories,
   useMonthlyTotals,
   useProfile,
   useRecentMonthsTransactions,
-  useThisMonthTransactions,
   useSubscriptions,
   useTransactionsForPeriod,
   usePullToRefresh,
@@ -131,10 +132,22 @@ export default function Dashboard() {
   const { currency: primaryCurrency } = usePrimaryCurrency();
   const profile = useProfile();
   const monthly = useMonthlyTotals();
-  const thisMonthTx = useThisMonthTransactions();
   const categories = useCategories();
   const budgets = useBudgets();
   const recentTx = useRecentMonthsTransactions(6);
+  // The current month is already inside the six-month window above, so slice
+  // it out locally. This used to be its own query, which downloaded the same
+  // rows a second time and was one more round trip (and one more full page
+  // walk) competing with everything else on first paint.
+  const thisMonthRows = useMemo(() => {
+    const sinceMs = new Date(bruneiMonthStartIso(0)).getTime();
+    return (recentTx.data ?? []).filter(
+      (tx) =>
+        tx.occurred_at !== null &&
+        new Date(tx.occurred_at).getTime() >= sinceMs &&
+        PAR_CURRENCIES.includes(tx.currency),
+    );
+  }, [recentTx.data]);
   const subscriptions = useSubscriptions();
   const { refreshing, onRefresh } = usePullToRefresh();
   const { hidden, toggle, money, pair } = usePrivacy();
@@ -250,7 +263,7 @@ export default function Dashboard() {
   const budgetProgress = useMemo(() => {
     if (!budgets.data?.length) return { items: [], hiddenCurrencies: new Set<string>() };
     const spentByCategory = new Map<string, number>();
-    for (const tx of thisMonthTx.data ?? []) {
+    for (const tx of thisMonthRows) {
       if (!tx.category_id || tx.amount === null || tx.currency !== primaryCurrency) continue;
       spentByCategory.set(tx.category_id, (spentByCategory.get(tx.category_id) ?? 0) + Number(tx.amount));
     }
@@ -272,7 +285,7 @@ export default function Dashboard() {
       })
       .sort((a, b) => b.spent / b.limit - a.spent / a.limit);
     return { items, hiddenCurrencies };
-  }, [budgets.data, thisMonthTx.data, categories.data, colors, primaryCurrency]);
+  }, [budgets.data, thisMonthRows, categories.data, colors, primaryCurrency]);
 
   const recurring = useMemo(() => detectRecurring(recentTx.data ?? []).slice(0, 6), [recentTx.data]);
 
@@ -292,13 +305,13 @@ export default function Dashboard() {
   const subsMonthlyTotal = monthlyTotal(subscriptionItems, primaryCurrency);
 
   useEffect(() => {
-    if (!userId || thisMonthTx.isLoading || recentTx.isLoading) return;
+    if (!userId || recentTx.isLoading) return;
     void syncScheduledNotifications({
       userId,
       spentThisMonth: thisMonthData ? Number(thisMonthData.total) : 0,
       income,
     });
-  }, [userId, thisMonthData, income, thisMonthTx.isLoading, recentTx.isLoading]);
+  }, [userId, thisMonthData, income, recentTx.isLoading]);
 
   useEffect(() => {
     if (!userId || budgetProgress.items.length === 0) return;

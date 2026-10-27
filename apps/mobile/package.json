@@ -1,7 +1,7 @@
 {
   "name": "@bukit/mobile",
   "version": "0.2.0",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "private": true,
   "scripts": {
     "start": "expo start",

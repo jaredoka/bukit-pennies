@@ -18,8 +18,12 @@ export interface IngestResponse {
  * to exactly one account and can never post another account's captures.
  */
 export async function ensureIngestToken(kind: TxSource = 'paste'): Promise<string> {
-  const { data: userData } = await supabase.auth.getUser();
-  const userId = userData.user?.id;
+  // `getSession` reads the session this client already holds. `getUser` would
+  // validate the token with the Auth server before every capture; the ingest
+  // endpoint authenticates the ingest token itself, so the local id is only
+  // used to key the stored token per account.
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user.id;
   if (!userId) throw new Error('not signed in');
 
   const stored = await getStoredToken(userId);

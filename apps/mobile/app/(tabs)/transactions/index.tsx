@@ -793,7 +793,9 @@ function CaptureSheet({ visible, onClose }: { visible: boolean; onClose: () => v
   const transactionalCount = bulkPreview.filter((p) => p.parsed.tx !== null).length;
 
   function invalidate() {
-    invalidateTransactionQueries(qc);
+    // A paste can add a card, fill the review queue and move the earliest
+    // year, so this is one of the places where the coarse scope is correct.
+    invalidateTransactionQueries(qc, { all: true });
   }
   function reset() { setResult(null); setBulkResults(null); setProgress(null); setCaptureError(null); }
 

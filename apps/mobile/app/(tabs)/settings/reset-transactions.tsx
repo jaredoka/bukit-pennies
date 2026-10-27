@@ -26,8 +26,8 @@ export default function ResetTransactions() {
       setConfirmText('');
       setNote({ text: `Deleted ${count} transaction${count === 1 ? '' : 's'}.`, ok: true });
       // Every derived cache — the list, monthly totals, facets, review — is a
-      // function of the transactions table; one helper invalidates them all.
-      invalidateTransactionQueries(qc);
+      // function of the transactions table, and a reset removes all of it.
+      invalidateTransactionQueries(qc, { all: true });
     } catch (e) {
       setNote({ text: `Reset failed: ${e instanceof Error ? e.message : String(e)}`, ok: false });
     } finally {

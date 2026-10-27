@@ -472,6 +472,10 @@ export default function TransactionsList() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    // With kept-previous-data the rows on screen can still belong to the
+    // previous filter, and their cursors point into that result. Paging from
+    // them would continue the old list, so wait for the real first page.
+    isPlaceholderData,
   } = useFilteredTransactions(filters, debouncedSearch);
   const [activeSheet, setActiveSheet] = useState<SheetKey | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -667,7 +671,7 @@ export default function TransactionsList() {
           )}
           renderItem={({ item }) => <TxRow tx={item} />}
           onEndReached={() => {
-            if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+            if (hasNextPage && !isFetchingNextPage && !isPlaceholderData) void fetchNextPage();
           }}
           onEndReachedThreshold={0.5}
           ListFooterComponent={

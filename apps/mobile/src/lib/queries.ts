@@ -11,6 +11,7 @@ import { bruneiMonthStartIso, bruneiParts } from './format';
 import { describeRequestError } from './netError';
 import { useUserId } from './session';
 import { supabase } from './supabase';
+import { txCursorFilter, txCursorOf, type TxCursor } from './txCursor';
 import {
   invalidateTransactionQueries,
   invalidationForPatch,
@@ -168,13 +169,18 @@ export function useTransactionFacets() {
  * time. Replaces a flat `limit(500)` that the client then filtered — which
  * quietly answered "matches, among the newest 500" (see txFilters.ts).
  *
+ * Pages are cursor-based, not offset-based: the cursor points at the last row
+ * the reader has seen, and `(occurred_at, created_at, id)` is a total order, so
+ * the next page cannot repeat or skip a row when a capture lands mid-scroll.
+ * See `./txCursor` for the predicate and why `id` has to be in it.
+ *
  * The key stays under `['transactions', …]` so scoped invalidation can target
  * the list by prefix (see `./txInvalidation`).
  */
 export function useFilteredTransactions(filters: TxFilters, search: string) {
   return useInfiniteQuery({
     queryKey: ['transactions', 'list', filters, search],
-    initialPageParam: 0,
+    initialPageParam: null as TxCursor | null,
     queryFn: ({ pageParam }) => {
       let q = supabase.from('transactions').select('*');
       for (const op of buildTransactionOps(filters, search)) {
@@ -183,16 +189,20 @@ export function useFilteredTransactions(filters: TxFilters, search: string) {
         else if (op.op === 'isNull') q = q.is(op.column, null);
         else q = q[op.op](op.column, op.value);
       }
+      if (pageParam) q = q.or(txCursorFilter(pageParam));
       return unwrap<TransactionRow[]>(
         q
           .order('occurred_at', { ascending: false, nullsFirst: false })
           .order('created_at', { ascending: false })
-          .range(pageParam, pageParam + TX_PAGE_SIZE - 1),
+          .order('id', { ascending: false })
+          .limit(TX_PAGE_SIZE),
       );
     },
     // A short page means the end; no count(*) on every scroll to learn it.
-    getNextPageParam: (lastPage, allPages) =>
-      lastPage.length < TX_PAGE_SIZE ? undefined : allPages.length * TX_PAGE_SIZE,
+    getNextPageParam: (lastPage) =>
+      lastPage.length < TX_PAGE_SIZE
+        ? undefined
+        : txCursorOf(lastPage[lastPage.length - 1]!),
     // Changing a filter changes the query key, which would otherwise empty the
     // list and throw the whole screen — filter bar included — behind a spinner
     // on every tap. Hold the previous rows until the new ones arrive.

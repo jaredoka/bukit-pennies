@@ -5,12 +5,17 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
-  type QueryClient,
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { bruneiMonthStartIso, bruneiParts } from './format';
 import { describeRequestError } from './netError';
+import { useUserId } from './session';
 import { supabase } from './supabase';
+import {
+  invalidateTransactionQueries,
+  invalidationForPatch,
+  type TxInvalidation,
+} from './txInvalidation';
 import { buildTransactionOps, type TxFilters } from './txFilters';
 import type {
   BudgetRow,
@@ -135,15 +140,13 @@ type TxAggregateRow = Pick<
 >;
 
 /**
- * Everything derived from the transactions table. One helper because the list
- * of derived caches keeps growing — `transaction_facets` is the fourth — and
- * six call sites each repeating the set is how one of them gets missed.
+ * Transaction cache invalidation lives in `./txInvalidation`, where the map
+ * from changed fields to refresh scope is pure and unit-tested without the
+ * Supabase client. Re-exported here because every caller imports from this
+ * module.
  */
-export function invalidateTransactionQueries(qc: QueryClient): void {
-  for (const key of ['transactions', 'monthly_totals', 'transaction_facets']) {
-    qc.invalidateQueries({ queryKey: [key] });
-  }
-}
+export { invalidateTransactionQueries };
+export type { TxInvalidation };
 
 /**
  * Distinct bank / card / currency combinations for this user, for the filter
@@ -165,9 +168,8 @@ export function useTransactionFacets() {
  * time. Replaces a flat `limit(500)` that the client then filtered — which
  * quietly answered "matches, among the newest 500" (see txFilters.ts).
  *
- * The key stays under `['transactions', …]` so the existing
- * `invalidateQueries({ queryKey: ['transactions'] })` calls after an ingest or
- * an edit still match it by prefix.
+ * The key stays under `['transactions', …]` so scoped invalidation can target
+ * the list by prefix (see `./txInvalidation`).
  */
 export function useFilteredTransactions(filters: TxFilters, search: string) {
   return useInfiniteQuery({
@@ -198,9 +200,15 @@ export function useFilteredTransactions(filters: TxFilters, search: string) {
   });
 }
 
+/** One transaction's detail cache. Its own branch, so an edit refreshes the
+ *  row it changed without dragging the list along, and vice versa. */
+export function transactionDetailKey(id: string) {
+  return ['transactions', 'detail', id] as const;
+}
+
 export function useTransaction(id: string | undefined) {
   return useQuery({
-    queryKey: ['transactions', id],
+    queryKey: transactionDetailKey(id ?? ''),
     enabled: !!id,
     queryFn: () =>
       unwrap<TransactionRow>(supabase.from('transactions').select('*').eq('id', id!).single()),
@@ -481,10 +489,9 @@ export function useSavingsGoalEntries(goalId: string | undefined) {
 
 export function useCreateSavingsGoal() {
   const qc = useQueryClient();
+  const userId = useUserId();
   return useMutation({
     mutationFn: async ({ name, target, currency }: { name: string; target: number; currency: string }) => {
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
       if (!userId) throw new Error('Not signed in');
       return unwrap<SavingsGoalRow>(
         supabase
@@ -656,12 +663,11 @@ export function useProfile() {
 
 export function useUpdateProfile() {
   const qc = useQueryClient();
+  const userId = useUserId();
   return useMutation({
     mutationFn: async (
       patch: Partial<Pick<ProfileRow, 'display_name' | 'monthly_income' | 'heard_about' | 'heard_about_detail'>>,
     ) => {
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
       if (!userId) throw new Error('Not signed in');
       return unwrap<ProfileRow>(
         supabase.from('profiles').update(patch).eq('id', userId).select().single(),
@@ -693,9 +699,10 @@ export function usePullToRefresh() {
 
 function useInvalidateTx() {
   const qc = useQueryClient();
-  return () => {
-    invalidateTransactionQueries(qc);
-  };
+  return useCallback(
+    (scope: TxInvalidation) => invalidateTransactionQueries(qc, scope),
+    [qc],
+  );
 }
 
 /** The columns a transaction edit may touch — mirrors the server-side
@@ -735,15 +742,17 @@ export function useUpdateTransaction() {
       ),
     // Optimistic notes/category edits.
     onMutate: async ({ id, patch }) => {
-      await qc.cancelQueries({ queryKey: ['transactions', id] });
-      const previous = qc.getQueryData<TransactionRow>(['transactions', id]);
-      if (previous) qc.setQueryData(['transactions', id], { ...previous, ...patch });
+      await qc.cancelQueries({ queryKey: transactionDetailKey(id) });
+      const previous = qc.getQueryData<TransactionRow>(transactionDetailKey(id));
+      if (previous) qc.setQueryData(transactionDetailKey(id), { ...previous, ...patch });
       return { previous };
     },
     onError: (_err, { id }, ctx) => {
-      if (ctx?.previous) qc.setQueryData(['transactions', id], ctx.previous);
+      if (ctx?.previous) qc.setQueryData(transactionDetailKey(id), ctx.previous);
     },
-    onSettled: invalidate,
+    // Only the surfaces the patched fields can actually affect.
+    onSettled: (_data, _err, { patch }) =>
+      invalidate(invalidationForPatch(Object.keys(patch))),
   });
 }
 
@@ -752,7 +761,7 @@ export function useDeleteTransaction() {
   return useMutation({
     mutationFn: async (id: string) =>
       unwrap(supabase.from('transactions').delete().eq('id', id)),
-    onSettled: invalidate,
+    onSettled: () => invalidate({ all: true }),
   });
 }
 
@@ -768,10 +777,9 @@ export interface ManualTxInput {
 
 export function useCreateManualTransaction() {
   const invalidate = useInvalidateTx();
+  const userId = useUserId();
   return useMutation({
     mutationFn: async (input: ManualTxInput) => {
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
       if (!userId) throw new Error('Not signed in');
       // raw_text documents the entry (shown as "Original message"); raw_hash
       // gets a per-entry unique suffix so two identical manual entries never
@@ -802,16 +810,15 @@ export function useCreateManualTransaction() {
           .single(),
       );
     },
-    onSettled: invalidate,
+    onSettled: () => invalidate({ all: true }),
   });
 }
 
 export function useUpsertBudget() {
   const qc = useQueryClient();
+  const userId = useUserId();
   return useMutation({
     mutationFn: async ({ categoryId, amount, currency }: { categoryId: string; amount: number; currency: string }) => {
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
       if (!userId) throw new Error('Not signed in');
       return unwrap<BudgetRow>(
         supabase
@@ -838,13 +845,14 @@ export function useDeleteBudget() {
 
 export function useCreateCategory() {
   const qc = useQueryClient();
+  const userId = useUserId();
   return useMutation({
     mutationFn: async (name: string) => {
-      const { data: userData } = await supabase.auth.getUser();
+      if (!userId) throw new Error('Not signed in');
       return unwrap<CategoryRow>(
         supabase
           .from('categories')
-          .insert({ name, user_id: userData.user?.id })
+          .insert({ name, user_id: userId })
           .select()
           .single(),
       );
@@ -875,10 +883,9 @@ export function useDeleteCategory() {
 
 export function useDeleteAllBudgets() {
   const qc = useQueryClient();
+  const userId = useUserId();
   return useMutation({
     mutationFn: async () => {
-      const { data: userData } = await supabase.auth.getUser();
-      const userId = userData.user?.id;
       if (!userId) throw new Error('Not signed in');
       return unwrap(supabase.from('budgets').delete().eq('user_id', userId));
     },
@@ -964,19 +971,41 @@ export function useSubmitFeatureRequest() {
 
 // ---------------------------------------------------------------- realtime
 
-/** Invalidate transaction queries on any realtime insert/update — Shortcut
- *  and listener-ingested spends appear live. */
+/**
+ * Invalidate transaction queries when this user's rows change, so a capture
+ * from another device appears live.
+ *
+ * The `user_id` filter is not an optimisation detail: without it the client
+ * subscribes to every insert and update in the whole table, and while RLS
+ * stops the payload from being readable, every subscriber still receives and
+ * evaluates every change. Filtering server-side keeps the cost proportional to
+ * one user's activity instead of the whole project's.
+ *
+ * Realtime events are treated as coarse (`all`) on purpose: the payload says
+ * what changed, but a capture from another device can add a card, move the
+ * earliest year and change every counter at once, and a narrow guess that
+ * misses one of those is a stale screen.
+ */
 export function useRealtimeTransactions() {
   const qc = useQueryClient();
+  const userId = useUserId();
   useEffect(() => {
+    if (!userId) return;
     const channel = supabase
-      .channel('tx-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
-        invalidateTransactionQueries(qc);
-      })
+      .channel(`tx-changes-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transactions',
+          filter: `user_id=eq.${userId}`,
+        },
+        () => invalidateTransactionQueries(qc, { all: true }),
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [qc]);
+  }, [qc, userId]);
 }

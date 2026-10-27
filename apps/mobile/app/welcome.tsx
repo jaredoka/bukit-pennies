@@ -90,7 +90,7 @@ function PastePage({ onDone, onSkip }: { onDone: () => void; onSkip: () => void 
         setError(res.error ?? 'Something went wrong. Try again or skip for now.');
         return;
       }
-      invalidateTransactionQueries(qc);
+      invalidateTransactionQueries(qc, { all: true });
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

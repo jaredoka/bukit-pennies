@@ -1,5 +1,3 @@
-// Must load before the renderer dispatches its first event.
-import '@/lib/perfFlags';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter, useSegments } from 'expo-router';

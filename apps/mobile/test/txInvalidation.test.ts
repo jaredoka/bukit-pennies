@@ -31,11 +31,12 @@ function keysFor(scope: TxInvalidation): string[] {
 
 const ROWS = ['transactions/list', 'transactions/detail'];
 const AGGREGATES = [
-  'transactions/period',
   'transactions/recent-months',
-  'transactions/month',
   'monthly_totals',
+  'dashboard_snapshot',
+  'insights_year',
 ];
+const COUNTS = ['transaction_counters'];
 
 describe('invalidationForPatch', () => {
   it('refreshes only the rows when nothing aggregated changed', () => {
@@ -79,7 +80,7 @@ describe('invalidationForPatch', () => {
     expect(keysFor(invalidationForPatch(['parse_status']))).toEqual([
       ...ROWS,
       ...AGGREGATES,
-      'transactions/parsed-count',
+      ...COUNTS,
       'transactions/review',
       'transactions/review-count',
     ]);
@@ -112,6 +113,9 @@ describe('invalidateTransactionQueries', () => {
       'transactions',
       'monthly_totals',
       'transaction_facets',
+      'dashboard_snapshot',
+      'insights_year',
+      'transaction_counters',
     ]);
   });
 

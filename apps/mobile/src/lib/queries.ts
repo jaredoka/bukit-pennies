@@ -21,7 +21,12 @@ import {
   type YearInsights,
 } from './snapshot';
 import { supabase } from './supabase';
-import { txCursorFilter, txCursorOf, type TxCursor } from './txCursor';
+import {
+  txCursorFilter,
+  txCursorFilterLegacy,
+  txCursorOf,
+  type TxCursor,
+} from './txCursor';
 import {
   invalidateTransactionQueries,
   invalidationForPatch,
@@ -217,6 +222,43 @@ export function useTransactionFacets() {
 }
 
 /**
+ * Does the connected project have `occurred_sorted` (migration 28)?
+ *
+ * The list is the most-used screen, and installing the app before pasting the
+ * migration should not turn it into an error screen. Probe once per session
+ * with a one-row select; `42703` is Postgres's undefined_column, i.e. "not
+ * applied yet". Any other failure (offline, auth) is not evidence of absence,
+ * so it assumes the new shape and lets the real query surface the problem.
+ */
+let sortKeySupport: Promise<boolean> | null = null;
+
+/**
+ * `42703` is Postgres's undefined_column (the migration has not run);
+ * `PGRST204` is PostgREST's "column not in the schema cache", which happens
+ * briefly after the DDL if the cache has not reloaded. Both mean "use the
+ * legacy predicate for now", and neither is evidence the app is broken.
+ */
+const MISSING_SORT_KEY_CODES = new Set(['42703', 'PGRST204']);
+
+function supportsSortKey(): Promise<boolean> {
+  sortKeySupport ??= (async () => {
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .select('occurred_sorted')
+        .limit(1);
+      if (!error) return true;
+      return MISSING_SORT_KEY_CODES.has((error as { code?: string }).code ?? '')
+        ? false
+        : true;
+    } catch {
+      return true;
+    }
+  })();
+  return sortKeySupport;
+}
+
+/**
  * The transactions list: filtered and ordered by the database, one page at a
  * time. Replaces a flat `limit(500)` that the client then filtered — which
  * quietly answered "matches, among the newest 500" (see txFilters.ts).
@@ -224,7 +266,9 @@ export function useTransactionFacets() {
  * Pages are cursor-based, not offset-based: the cursor points at the last row
  * the reader has seen, and `(occurred_at, created_at, id)` is a total order, so
  * the next page cannot repeat or skip a row when a capture lands mid-scroll.
- * See `./txCursor` for the predicate and why `id` has to be in it.
+ * See `./txCursor` for the predicate, why `id` has to be in it, and why the
+ * ordering is on `occurred_sorted` — the generated column that turns the cursor
+ * into an index range instead of a filter over the whole prefix.
  *
  * The key stays under `['transactions', …]` so scoped invalidation can target
  * the list by prefix (see `./txInvalidation`).
@@ -233,7 +277,8 @@ export function useFilteredTransactions(filters: TxFilters, search: string) {
   return useInfiniteQuery({
     queryKey: ['transactions', 'list', filters, search],
     initialPageParam: null as TxCursor | null,
-    queryFn: ({ pageParam }) => {
+    queryFn: async ({ pageParam }) => {
+      const sorted = await supportsSortKey();
       let q = supabase.from('transactions').select('*');
       for (const op of buildTransactionOps(filters, search)) {
         if (op.op === 'in') q = q.in(op.column, op.values);
@@ -241,10 +286,19 @@ export function useFilteredTransactions(filters: TxFilters, search: string) {
         else if (op.op === 'isNull') q = q.is(op.column, null);
         else q = q[op.op](op.column, op.value);
       }
-      if (pageParam) q = q.or(txCursorFilter(pageParam));
+      if (pageParam) {
+        // The range is what makes the page cost the same at any depth; the OR
+        // tree is the strict "after this row" half. Both are required: alone,
+        // `lte` would repeat the cursor row, and alone, the OR tree is a scan.
+        q = sorted
+          ? q.lte('occurred_sorted', pageParam.occurredSorted).or(txCursorFilter(pageParam))
+          : q.or(txCursorFilterLegacy(pageParam));
+      }
+      q = sorted
+        ? q.order('occurred_sorted', { ascending: false })
+        : q.order('occurred_at', { ascending: false, nullsFirst: false });
       return unwrap<TransactionRow[]>(
         q
-          .order('occurred_at', { ascending: false, nullsFirst: false })
           .order('created_at', { ascending: false })
           .order('id', { ascending: false })
           .limit(TX_PAGE_SIZE),

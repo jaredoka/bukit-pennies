@@ -16,9 +16,10 @@ import type { QueryClient } from '@tanstack/react-query';
 export interface TxInvalidation {
   /** List pages and the one-row detail cache. */
   rows?: boolean;
-  /** Period, recent-months, month and monthly_totals rollups. */
+  /** Period, recent-months and monthly_totals rollups, plus the two aggregate
+   *  RPCs (dashboard_snapshot, insights_year). */
   aggregates?: boolean;
-  /** Parsed transaction count (the rate-me gate). */
+  /** The maintained parsed/review counters. */
   counts?: boolean;
   /** Review inbox and its counter. */
   review?: boolean;
@@ -86,7 +87,14 @@ export function invalidateTransactionQueries(
   scope: TxInvalidation,
 ): void {
   if (scope.all) {
-    for (const key of ['transactions', 'monthly_totals', 'transaction_facets']) {
+    for (const key of [
+      'transactions',
+      'monthly_totals',
+      'transaction_facets',
+      'dashboard_snapshot',
+      'insights_year',
+      'transaction_counters',
+    ]) {
       qc.invalidateQueries({ queryKey: [key] });
     }
     return;
@@ -97,13 +105,17 @@ export function invalidateTransactionQueries(
     qc.invalidateQueries({ queryKey: ['transactions', 'detail'] });
   }
   if (scope.aggregates) {
-    qc.invalidateQueries({ queryKey: ['transactions', 'period'] });
     qc.invalidateQueries({ queryKey: ['transactions', 'recent-months'] });
-    qc.invalidateQueries({ queryKey: ['transactions', 'month'] });
     qc.invalidateQueries({ queryKey: ['monthly_totals'] });
+    // The dashboard and Insights reads from migration 27. Both are keyed by
+    // period, so one invalidation covers every cached period — the alternative
+    // (patching the affected bucket in place) would have to reproduce the
+    // server's month/currency/category grouping on the client to stay right.
+    qc.invalidateQueries({ queryKey: ['dashboard_snapshot'] });
+    qc.invalidateQueries({ queryKey: ['insights_year'] });
   }
   if (scope.counts) {
-    qc.invalidateQueries({ queryKey: ['transactions', 'parsed-count'] });
+    qc.invalidateQueries({ queryKey: ['transaction_counters'] });
   }
   if (scope.review) {
     qc.invalidateQueries({ queryKey: ['transactions', 'review'] });

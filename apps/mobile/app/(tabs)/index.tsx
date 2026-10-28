@@ -15,19 +15,16 @@ import { Card, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
 import {
   bruneiDayKey,
   bruneiMonthKey,
-  bruneiMonthStartIso,
   formatMonthName,
 } from '@/lib/format';
 import { kvGet } from '@/lib/kvStore';
 import {
-  PAR_CURRENCIES,
   useBudgets,
   useCategories,
-  useMonthlyTotals,
+  useDashboardSnapshot,
   useProfile,
   useRecentMonthsTransactions,
   useSubscriptions,
-  useTransactionsForPeriod,
   usePullToRefresh,
 } from '@/lib/queries';
 import { maybeOverspendAlert, syncScheduledNotifications } from '@/lib/notifications';
@@ -131,23 +128,12 @@ export default function Dashboard() {
 
   const { currency: primaryCurrency } = usePrimaryCurrency();
   const profile = useProfile();
-  const monthly = useMonthlyTotals();
   const categories = useCategories();
   const budgets = useBudgets();
+  // Kept only for recurring detection, which clusters individual amounts and so
+  // cannot be answered from a month x merchant total (see lib/recurring.ts).
+  // Everything else numeric on this screen comes from one snapshot request.
   const recentTx = useRecentMonthsTransactions(6);
-  // The current month is already inside the six-month window above, so slice
-  // it out locally. This used to be its own query, which downloaded the same
-  // rows a second time and was one more round trip (and one more full page
-  // walk) competing with everything else on first paint.
-  const thisMonthRows = useMemo(() => {
-    const sinceMs = new Date(bruneiMonthStartIso(0)).getTime();
-    return (recentTx.data ?? []).filter(
-      (tx) =>
-        tx.occurred_at !== null &&
-        new Date(tx.occurred_at).getTime() >= sinceMs &&
-        PAR_CURRENCIES.includes(tx.currency),
-    );
-  }, [recentTx.data]);
   const subscriptions = useSubscriptions();
   const { refreshing, onRefresh } = usePullToRefresh();
   const { hidden, toggle, money, pair } = usePrivacy();
@@ -168,7 +154,17 @@ export default function Dashboard() {
   const isYearMode = periodMonthIdx === 0;
   const selectedYear = Number(yearItems[periodYearIdx]);
 
-  const periodTx = useTransactionsForPeriod(selectedYear, isYearMode ? null : periodMonthIdx);
+  // One request for the whole numeric surface of this screen: the selected
+  // period's category totals and currency list, plus the current month's
+  // category totals for budget progress. Before migration 27 this was a paged
+  // download of a year of rows, a second download for this month, and a
+  // group-by over the account's entire history. `month = 0` is "all year",
+  // matching the wheel's position.
+  const snapshot = useDashboardSnapshot(
+    selectedYear,
+    isYearMode ? 0 : periodMonthIdx,
+    primaryCurrency,
+  );
 
   const periodTitle = isYearMode
     ? yearItems[periodYearIdx]
@@ -184,44 +180,35 @@ export default function Dashboard() {
 
   const userId = session?.user.id;
 
-  const thisMonthData = monthly.data?.find(
-    (r) => r.month.startsWith(thisMonthKey.slice(0, 7)) && r.currency === primaryCurrency,
-  );
+  const thisMonthData = snapshot.data?.this_month;
   const income = profile.data?.monthly_income == null ? null : Number(profile.data.monthly_income);
   // Income comparison only makes sense for BND
   const effectiveIncome = primaryCurrency === 'BND' ? income : null;
 
-  // Count excluded (non-primary-currency) transactions for the note
-  const excludedCurrencies = useMemo(() => {
-    const others = new Set<string>();
-    for (const tx of periodTx.data ?? []) {
-      if (tx.currency !== primaryCurrency) others.add(tx.currency);
-    }
-    return [...others].sort();
-  }, [periodTx.data, primaryCurrency]);
+  // Currencies recorded in the period that the donut leaves out because they
+  // are not the primary one. The RPC reports their presence without totalling
+  // them, so this is still one query.
+  const excludedCurrencies = useMemo(
+    () => (snapshot.data?.period.currencies ?? []).filter((c) => c !== primaryCurrency).sort(),
+    [snapshot.data, primaryCurrency],
+  );
 
   // ---- Hero donut: category spend vs income / period ----------------------
   const donut = useMemo(() => {
-    const byCategory = new Map<string | null, number>();
-    let spent = 0;
-    for (const tx of periodTx.data ?? []) {
-      if (tx.amount === null || tx.currency !== primaryCurrency) continue;
-      byCategory.set(tx.category_id, (byCategory.get(tx.category_id) ?? 0) + Number(tx.amount));
-      spent += Number(tx.amount);
-    }
-    const named = Array.from(byCategory.entries())
-      .map(([id, value]) => {
-        const catIndex = id === null ? -1 : (categories.data?.findIndex((c) => c.id === id) ?? -1);
+    const named = (snapshot.data?.period.by_category ?? [])
+      .map((c) => {
+        const catIndex = c.category_id === null ? -1 : (categories.data?.findIndex((x) => x.id === c.category_id) ?? -1);
         const cat = catIndex >= 0 ? categories.data![catIndex] : undefined;
         return {
-          key: id ?? 'uncategorized',
-          name: id === null ? 'Uncategorized' : (cat?.name ?? 'Unknown'),
-          dbColor: id === null ? null : (cat?.color ?? null),
+          key: c.category_id ?? 'uncategorized',
+          name: c.category_id === null ? 'Uncategorized' : (cat?.name ?? 'Unknown'),
+          dbColor: c.category_id === null ? null : (cat?.color ?? null),
           catIndex,
-          value,
+          value: Number(c.total),
         };
       })
       .sort((a, b) => b.value - a.value);
+    const spent = Number(snapshot.data?.period.total ?? 0);
     const slices: Slice[] = named.slice(0, 5).map((c) => ({
       key: c.key,
       name: c.name,
@@ -250,7 +237,7 @@ export default function Dashboard() {
       });
     }
     return { slices, spent, remaining };
-  }, [periodTx.data, categories.data, colors, effectiveIncome, isYearMode, primaryCurrency]);
+  }, [snapshot.data, categories.data, colors, effectiveIncome, isYearMode]);
 
   const selectedSlice = donut.slices.find((s) => s.key === selected) ?? null;
   const pctBase = effectiveIncome !== null && !isYearMode ? effectiveIncome : donut.spent;
@@ -263,9 +250,9 @@ export default function Dashboard() {
   const budgetProgress = useMemo(() => {
     if (!budgets.data?.length) return { items: [], hiddenCurrencies: new Set<string>() };
     const spentByCategory = new Map<string, number>();
-    for (const tx of thisMonthRows) {
-      if (!tx.category_id || tx.amount === null || tx.currency !== primaryCurrency) continue;
-      spentByCategory.set(tx.category_id, (spentByCategory.get(tx.category_id) ?? 0) + Number(tx.amount));
+    for (const c of snapshot.data?.this_month.by_category ?? []) {
+      if (c.category_id === null) continue;
+      spentByCategory.set(c.category_id, Number(c.total));
     }
     const hiddenCurrencies = new Set<string>();
     const items = budgets.data
@@ -285,7 +272,7 @@ export default function Dashboard() {
       })
       .sort((a, b) => b.spent / b.limit - a.spent / a.limit);
     return { items, hiddenCurrencies };
-  }, [budgets.data, thisMonthRows, categories.data, colors, primaryCurrency]);
+  }, [budgets.data, snapshot.data, categories.data, colors, primaryCurrency]);
 
   const recurring = useMemo(() => detectRecurring(recentTx.data ?? []).slice(0, 6), [recentTx.data]);
 
@@ -305,13 +292,13 @@ export default function Dashboard() {
   const subsMonthlyTotal = monthlyTotal(subscriptionItems, primaryCurrency);
 
   useEffect(() => {
-    if (!userId || recentTx.isLoading) return;
+    if (!userId || snapshot.isLoading) return;
     void syncScheduledNotifications({
       userId,
-      spentThisMonth: thisMonthData ? Number(thisMonthData.total) : 0,
+      spentThisMonth: Number(thisMonthData?.total ?? 0),
       income,
     });
-  }, [userId, thisMonthData, income, recentTx.isLoading]);
+  }, [userId, thisMonthData, income, snapshot.isLoading]);
 
   useEffect(() => {
     if (!userId || budgetProgress.items.length === 0) return;

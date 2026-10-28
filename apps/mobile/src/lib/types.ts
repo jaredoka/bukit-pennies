@@ -121,11 +121,3 @@ export interface BudgetRow {
   created_at: string;
   updated_at: string;
 }
-
-export interface MonthlyTotalRow {
-  user_id: string;
-  month: string; // 'YYYY-MM-01'
-  currency: string;
-  total: number;
-  tx_count: number;
-}

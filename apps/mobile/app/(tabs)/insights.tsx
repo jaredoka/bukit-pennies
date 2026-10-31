@@ -46,7 +46,7 @@ export default function Insights() {
   const chartWidth = (cardInnerWidth ?? Math.min(width, 720) - 64) - 24;
   const barWidth = Math.max(8, Math.floor((chartWidth - BAR_SPACING * 13) / 12));
   const { money } = usePrivacy();
-  const { currency: primaryCurrency } = usePrimaryCurrency();
+  const { currency: primaryCurrency, convertOthers } = usePrimaryCurrency();
 
   const currentYear = bruneiParts(Date.now()).year;
   const [year, setYear] = useState(currentYear);
@@ -61,7 +61,7 @@ export default function Insights() {
   }, [earliestYear.data, currentYear]);
   const yearIdx = Math.max(0, yearItems.indexOf(String(year)));
 
-  const yearSnapshot = useInsightsSnapshot(year, primaryCurrency);
+  const yearSnapshot = useInsightsSnapshot(year, primaryCurrency, convertOthers);
   const categories = useCategories();
   const { refreshing, onRefresh } = usePullToRefresh();
 

@@ -1,3 +1,5 @@
+import { bruneiMonthKey, convertAmount, rateAt, type FxTable } from './fx';
+
 /**
  * CSV rendering for the transactions export — the pure half, split out of
  * `exportCsv.ts` so it can be unit-tested without expo-file-system, expo-sharing
@@ -45,6 +47,25 @@ export const CSV_HEADER = [
   'notes',
   'raw_text',
 ];
+
+/**
+ * Extra columns, appended only when the caller supplies rates. Always adding
+ * them would mean every export carries four empty columns for a feature most
+ * people leave off; never adding them would mean a converted total cannot be
+ * reconciled against the rows that produced it.
+ */
+export const CSV_FX_HEADER = [
+  'primary_currency',
+  'converted_amount',
+  'fx_rate_month',
+  'fx_approximate',
+];
+
+export interface CsvFxContext {
+  /** The currency `converted_amount` is expressed in. */
+  currency: string;
+  table: FxTable;
+}
 
 /** Leading formula trigger, allowing for whitespace a spreadsheet would trim. */
 const FORMULA_LEAD = /^[\s ]*[=+\-@\t\r]/;
@@ -95,29 +116,57 @@ export interface CsvFormatters {
   time: (iso: string) => string;
 }
 
+/**
+ * The four FX cells for one row. A row already in the primary currency gets a
+ * blank converted amount rather than a duplicate — `amount` is already the
+ * answer, and repeating it invites a spreadsheet sum that double-counts.
+ */
+function fxFields(tx: CsvTransaction, fx: CsvFxContext): string[] {
+  const primary = fx.currency;
+  if (
+    tx.amount === null ||
+    !tx.occurred_at ||
+    tx.currency.toUpperCase() === primary.toUpperCase()
+  ) {
+    return [csvField(primary), '', '', ''];
+  }
+
+  const month = bruneiMonthKey(tx.occurred_at);
+  const converted = convertAmount(Number(tx.amount), tx.currency, primary, month, fx.table);
+  const resolved = rateAt(fx.table, tx.currency, month);
+
+  return [
+    csvField(primary),
+    converted === null ? '' : csvField(converted.toFixed(2)),
+    csvField(resolved?.month ?? ''),
+    csvField(resolved ? String(resolved.month < month) : ''),
+  ];
+}
+
 export function buildCsv(
   txs: CsvTransaction[],
   categoryNameById: Map<string, string>,
   fmt: CsvFormatters,
+  fx?: CsvFxContext,
 ): string {
-  const lines = [CSV_HEADER.join(',')];
+  const lines = [fx ? [...CSV_HEADER, ...CSV_FX_HEADER].join(',') : CSV_HEADER.join(',')];
   for (const tx of txs) {
-    lines.push(
-      [
-        csvField(tx.occurred_at ? fmt.day(tx.occurred_at) : null),
-        csvField(tx.occurred_at ? fmt.time(tx.occurred_at) : null),
-        csvField(tx.amount === null ? null : Number(tx.amount).toFixed(2)),
-        csvField(tx.currency),
-        csvText(tx.merchant),
-        csvText(tx.category_id ? (categoryNameById.get(tx.category_id) ?? '') : null),
-        csvField(tx.bank),
-        csvField(tx.card_last4),
-        csvField(tx.source),
-        csvField(tx.parse_status),
-        csvText(tx.notes),
-        csvText(tx.raw_text),
-      ].join(','),
-    );
+    const fields = [
+      csvField(tx.occurred_at ? fmt.day(tx.occurred_at) : null),
+      csvField(tx.occurred_at ? fmt.time(tx.occurred_at) : null),
+      csvField(tx.amount === null ? null : Number(tx.amount).toFixed(2)),
+      csvField(tx.currency),
+      csvText(tx.merchant),
+      csvText(tx.category_id ? (categoryNameById.get(tx.category_id) ?? '') : null),
+      csvField(tx.bank),
+      csvField(tx.card_last4),
+      csvField(tx.source),
+      csvField(tx.parse_status),
+      csvText(tx.notes),
+      csvText(tx.raw_text),
+    ];
+    if (fx) fields.push(...fxFields(tx, fx));
+    lines.push(fields.join(','));
   }
   return lines.join('\r\n') + '\r\n';
 }

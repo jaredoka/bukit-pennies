@@ -11,6 +11,7 @@ import { bruneiMonthStartIso, bruneiParts } from './format';
 import { describeRequestError } from './netError';
 import { useUserId } from './session';
 import {
+  emptyFxInfo,
   insightsFromRows,
   insightsFromSnapshot,
   monthSnapshotFromRows,
@@ -20,6 +21,7 @@ import {
   type DashboardSnapshot,
   type YearInsights,
 } from './snapshot';
+import { buildFxTable, emptyFxTable, type FxRateRow, type FxTable } from './fx';
 import { supabase } from './supabase';
 import {
   txCursorFilter,
@@ -183,10 +185,14 @@ export const TX_PAGE_SIZE = 50;
  *  and mutation invalidation still refetch on an actual change. */
 const AGGREGATE_STALE_MS = 2 * 60_000;
 
-/** Reference data — categories, budgets, profile, subscriptions — changes on
+/** Reference data - categories, budgets, profile, subscriptions - changes on
  *  an explicit save, which invalidates its own key. There is nothing to gain
  *  from refetching it on a timer. */
 const REFERENCE_STALE_MS = 10 * 60_000;
+
+/** FX rates change at most once a month, on the server. Six hours is already
+ *  far more revalidation than the data can justify. */
+const FX_STALE_MS = 6 * 60 * 60_000;
 
 /** The projection every whole-period aggregate reads: enough to bucket by day,
  *  month, category and merchant, and nothing else — these queries can pull
@@ -497,9 +503,14 @@ async function fetchThisMonthRows(): Promise<AggregateRow[]> {
  * year of transactions, six months of transactions) plus a group-by over every
  * row the account had ever recorded. See `./snapshot` for the fallback.
  */
-export function useDashboardSnapshot(year: number, month: number, currency: string) {
+export function useDashboardSnapshot(
+  year: number,
+  month: number,
+  currency: string,
+  convert = false,
+) {
   return useQuery({
-    queryKey: ['dashboard_snapshot', year, month, currency],
+    queryKey: ['dashboard_snapshot', year, month, currency, convert],
     queryFn: async (): Promise<DashboardSnapshot> => {
       try {
         return normalizeDashboardSnapshot(
@@ -507,7 +518,9 @@ export function useDashboardSnapshot(year: number, month: number, currency: stri
             p_year: year,
             p_month: month,
             p_currency: currency,
+            p_convert: convert,
           }),
+          currency,
         );
       } catch (error) {
         if (!isMissingRpc(error)) throw error;
@@ -518,6 +531,10 @@ export function useDashboardSnapshot(year: number, month: number, currency: stri
         return {
           period: periodSnapshotFromRows(periodRows, currency),
           this_month: monthSnapshotFromRows(monthRows, currency),
+          // The RPC and the rate table arrive in the same migration, so if the
+          // RPC is missing there is nothing to convert with. Say so instead of
+          // returning primary-only totals under a toggle that claims otherwise.
+          fx: emptyFxInfo(currency, convert),
         };
       }
     },
@@ -533,21 +550,58 @@ export function useDashboardSnapshot(year: number, month: number, currency: stri
  * Same fallback reasoning as `useDashboardSnapshot`; the row path reuses
  * `insightsFromRows`, which is the logic that used to live in the screen.
  */
-export function useInsightsSnapshot(year: number, currency: string) {
+export function useInsightsSnapshot(year: number, currency: string, convert = false) {
   return useQuery({
-    queryKey: ['insights_year', year, currency],
+    queryKey: ['insights_year', year, currency, convert],
     queryFn: async (): Promise<YearInsights> => {
       try {
         return insightsFromSnapshot(
-          await rpcJson('insights_year', { p_year: year, p_currency: currency }),
+          await rpcJson('insights_year', {
+            p_year: year,
+            p_currency: currency,
+            p_convert: convert,
+          }),
+          currency,
         );
       } catch (error) {
         if (!isMissingRpc(error)) throw error;
-        return insightsFromRows(await fetchPeriodRows(year, null), currency);
+        const rows = insightsFromRows(await fetchPeriodRows(year, null), currency);
+        return convert ? { ...rows, fx: emptyFxInfo(currency, true) } : rows;
       }
     },
     staleTime: AGGREGATE_STALE_MS,
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Monthly reference rates from migration 29, loaded once per six hours.
+ *
+ * The table is `months x currencies` — a few hundred rows even with a decade of
+ * history — so a full read is cheaper than asking the server to price each row,
+ * which is what the per-row "≈" label needs. When the table does not exist yet
+ * the answer is an empty table, not an error: conversion is simply unavailable,
+ * and the dashboard says so.
+ */
+export function useFxRates(enabled: boolean) {
+  return useQuery({
+    queryKey: ['fx_rates'],
+    enabled,
+    queryFn: async (): Promise<FxTable> => {
+      try {
+        const rows = await unwrap<FxRateRow[]>(
+          supabase
+            .from('fx_rates')
+            .select('month,currency,rate_to_bnd')
+            .order('month', { ascending: true }),
+        );
+        return buildFxTable(rows ?? []);
+      } catch (error) {
+        if (isMissingTable(error)) return emptyFxTable();
+        throw error;
+      }
+    },
+    staleTime: FX_STALE_MS,
   });
 }
 

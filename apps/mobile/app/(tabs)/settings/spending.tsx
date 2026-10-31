@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { Button, Card, Muted, NavRow, Title } from '@/components/ui';
 import { exportTransactionsCsv } from '@/lib/exportCsv';
+import { usePrimaryCurrency } from '@/lib/primaryCurrency';
 import { themedStyles } from '@/lib/theme';
 
 export default function Spending() {
   const styles = useStyles();
+  const { currency, convertOthers } = usePrimaryCurrency();
   const [exporting, setExporting] = useState(false);
   const [exportNote, setExportNote] = useState<string | null>(null);
 
@@ -13,7 +15,7 @@ export default function Spending() {
     setExporting(true);
     setExportNote(null);
     try {
-      const count = await exportTransactionsCsv();
+      const count = await exportTransactionsCsv({ currency, convert: convertOthers });
       setExportNote(`Exported ${count} transaction${count === 1 ? '' : 's'}.`);
     } catch (e) {
       setExportNote(`Export failed: ${e instanceof Error ? e.message : String(e)}`);

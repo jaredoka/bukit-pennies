@@ -1,7 +1,8 @@
 import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import * as Sharing from 'expo-sharing';
-import { buildCsv } from './csv';
+import { buildCsv, type CsvFxContext } from './csv';
+import { buildFxTable } from './fx';
 import { bruneiDayKey, formatTime } from './format';
 import { fetchAllPages } from './queries';
 import { supabase } from './supabase';
@@ -27,16 +28,35 @@ function fetchAllTransactions(): Promise<TransactionRow[]> {
   );
 }
 
-/** Export every transaction as CSV: share sheet on device, download on web. */
-export async function exportTransactionsCsv(): Promise<number> {
+/** Export every transaction as CSV: share sheet on device, download on web.
+ *
+ *  Pass `fx` to append converted columns. The rate table is read here rather
+ *  than passed in because this is a one-shot export, not a screen: a stale
+ *  six-hour cache from the dashboard would be the wrong source of truth for a
+ *  spreadsheet someone is about to reconcile. */
+export async function exportTransactionsCsv(
+  fx?: { currency: string; convert: boolean },
+): Promise<number> {
   const [txs, { data: categories, error }] = await Promise.all([
     fetchAllTransactions(),
     supabase.from('categories').select('*'),
   ]);
   if (error) throw new Error(error.message);
 
+  let fxContext: CsvFxContext | undefined;
+  if (fx?.convert) {
+    const { data: rates, error: ratesError } = await supabase
+      .from('fx_rates')
+      .select('month,currency,rate_to_bnd')
+      .order('month', { ascending: true });
+    // No rate table means no conversion columns, not a failed export.
+    if (!ratesError) {
+      fxContext = { currency: fx.currency, table: buildFxTable(rates ?? []) };
+    }
+  }
+
   const catName = new Map((categories ?? []).map((c: CategoryRow) => [c.id, c.name]));
-  const csv = buildCsv(txs, catName, { day: bruneiDayKey, time: formatTime });
+  const csv = buildCsv(txs, catName, { day: bruneiDayKey, time: formatTime }, fxContext);
   const filename = `bukit-pennies-${bruneiDayKey(Date.now())}.csv`;
 
   if (Platform.OS === 'web') {

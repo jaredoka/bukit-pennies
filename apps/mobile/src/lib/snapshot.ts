@@ -35,9 +35,26 @@ export interface MonthSnapshot {
   by_category: CategoryTotal[];
 }
 
+/**
+ * The `fx` block both RPCs return (migration 29). `unconverted` is the honest
+ * half: currencies that were present but could not be priced, so the screen can
+ * name them instead of quietly shrinking the total.
+ */
+export interface FxInfo {
+  enabled: boolean;
+  primary_currency: string;
+  converted_currencies: string[];
+  /** A fallback month had to be used for at least one row. */
+  approximate: boolean;
+  unconverted: { currency: string; total: number; tx_count: number }[];
+  /** Set client-side when conversion was asked for but the SQL is absent. */
+  unavailable?: boolean;
+}
+
 export interface DashboardSnapshot {
   period: PeriodSnapshot;
   this_month: MonthSnapshot;
+  fx: FxInfo;
 }
 
 /** The five columns every period query selects. */
@@ -55,6 +72,7 @@ export interface YearInsights {
   topCategoryIds: (string | null)[];
   categoryTotals: { id: string | null; total: number }[];
   merchantTotals: { name: string; total: number }[];
+  fx: FxInfo;
 }
 
 export interface RawYearInsights {
@@ -62,6 +80,7 @@ export interface RawYearInsights {
   category_totals: CategoryTotal[];
   merchant_totals: { merchant_normalized: string; total: number | string }[];
   tx_count: number | string;
+  fx?: unknown;
 }
 
 const num = (value: unknown): number => {
@@ -84,6 +103,45 @@ export function emptyYearInsights(): YearInsights {
     topCategoryIds: [],
     categoryTotals: [],
     merchantTotals: [],
+    fx: emptyFxInfo(''),
+  };
+}
+
+/**
+ * The "conversion is off" block, used for the default state, for payloads that
+ * predate migration 29, and for the row fallback (which cannot convert: the
+ * same migration provides the RPCs and the rate table, so if one is missing the
+ * other is too).
+ */
+export function emptyFxInfo(currency: string, unavailable = false): FxInfo {
+  return {
+    enabled: false,
+    primary_currency: currency,
+    converted_currencies: [],
+    approximate: false,
+    unconverted: [],
+    ...(unavailable ? { unavailable: true } : {}),
+  };
+}
+
+/** Tolerant parser for the `fx` block; every field has a safe default. */
+export function normalizeFxInfo(raw: unknown, currency: string): FxInfo {
+  const value = (raw ?? {}) as Partial<FxInfo>;
+  if (typeof value !== 'object' || value === null) return emptyFxInfo(currency);
+  return {
+    enabled: value.enabled === true,
+    primary_currency: value.primary_currency ?? currency,
+    converted_currencies: Array.isArray(value.converted_currencies)
+      ? value.converted_currencies
+      : [],
+    approximate: value.approximate === true,
+    unconverted: Array.isArray(value.unconverted)
+      ? value.unconverted.map((u) => ({
+          currency: u.currency,
+          total: num(u.total),
+          tx_count: num(u.tx_count),
+        }))
+      : [],
   };
 }
 
@@ -92,7 +150,10 @@ export function emptyYearInsights(): YearInsights {
  * columns can also come back as strings depending on the serialiser, and a
  * screen that renders "undefined" is a worse failure than a `Number()` call.
  */
-export function normalizeDashboardSnapshot(raw: unknown): DashboardSnapshot {
+export function normalizeDashboardSnapshot(
+  raw: unknown,
+  currency = '',
+): DashboardSnapshot {
   const value = (raw ?? {}) as Partial<DashboardSnapshot>;
   const period = value.period ?? ({} as PeriodSnapshot);
   const thisMonth = value.this_month ?? ({} as MonthSnapshot);
@@ -114,6 +175,7 @@ export function normalizeDashboardSnapshot(raw: unknown): DashboardSnapshot {
         total: num(c.total),
       })),
     },
+    fx: normalizeFxInfo(value.fx, currency),
   };
 }
 
@@ -172,7 +234,7 @@ export function monthSnapshotFromRows(
  * The RPC returns only months with data; filling here keeps the SQL free of a
  * `generate_series` that would emit eleven empty objects per user.
  */
-export function insightsFromSnapshot(raw: unknown): YearInsights {
+export function insightsFromSnapshot(raw: unknown, currency = ''): YearInsights {
   const value = (raw ?? {}) as Partial<RawYearInsights>;
   const months = emptyMonths();
 
@@ -204,6 +266,7 @@ export function insightsFromSnapshot(raw: unknown): YearInsights {
       name: m.merchant_normalized,
       total: num(m.total),
     })),
+    fx: normalizeFxInfo(value.fx, currency),
   };
 }
 
@@ -257,5 +320,6 @@ export function insightsFromRows(rows: AggregateRow[], currency: string): YearIn
       .map(([name, total]) => ({ name, total }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 10),
+    fx: emptyFxInfo(currency),
   };
 }

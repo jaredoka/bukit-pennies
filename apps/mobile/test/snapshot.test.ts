@@ -91,7 +91,7 @@ describe('insightsFromRows', () => {
 
 describe('insightsFromSnapshot', () => {
   it('produces exactly what the row path produces for the same data', () => {
-    expect(insightsFromSnapshot(rawYear)).toEqual(insightsFromRows(rows, 'BND'));
+    expect(insightsFromSnapshot(rawYear, 'BND')).toEqual(insightsFromRows(rows, 'BND'));
   });
 
   it('fills the months the RPC omits, so the chart always has twelve bars', () => {
@@ -168,7 +168,38 @@ describe('normalizeDashboardSnapshot', () => {
     expect(normalizeDashboardSnapshot({})).toEqual({
       period: { total: 0, tx_count: 0, by_category: [], currencies: [] },
       this_month: { total: 0, tx_count: 0, by_category: [] },
+      // Conversion off, nothing converted, nothing reported as unconvertible.
+      fx: {
+        enabled: false,
+        primary_currency: '',
+        converted_currencies: [],
+        approximate: false,
+        unconverted: [],
+      },
     });
+  });
+
+  it('reads the fx block and defaults it when absent', () => {
+    const off = normalizeDashboardSnapshot({ period: { currencies: ['BND'] } }, 'BND');
+    expect(off.fx.enabled).toBe(false);
+    expect(off.fx.primary_currency).toBe('BND');
+
+    const on = normalizeDashboardSnapshot(
+      {
+        fx: {
+          enabled: true,
+          primary_currency: 'BND',
+          converted_currencies: ['USD'],
+          approximate: true,
+          unconverted: [{ currency: 'EUR', total: '25.00', tx_count: '1' }],
+        },
+      },
+      'BND',
+    );
+    expect(on.fx.enabled).toBe(true);
+    expect(on.fx.converted_currencies).toEqual(['USD']);
+    expect(on.fx.approximate).toBe(true);
+    expect(on.fx.unconverted).toEqual([{ currency: 'EUR', total: 25, tx_count: 1 }]);
   });
 
   it('coerces strings and keeps an explicit null category', () => {

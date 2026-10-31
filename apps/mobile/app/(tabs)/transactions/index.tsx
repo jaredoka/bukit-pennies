@@ -27,8 +27,17 @@ import {
 } from '@/components/ui';
 import { DAY_KEY_RE, dayKeyOf, monthGrid, stepMonth } from '@/lib/calendar';
 import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
+import { emptyFxTable, rowConversion, type FxTable } from '@/lib/fx';
 import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
-import { invalidateTransactionQueries, useCategories, useFilteredTransactions, usePullToRefresh, useReviewCount, useTransactionFacets } from '@/lib/queries';
+import {
+  invalidateTransactionQueries,
+  useCategories,
+  useFilteredTransactions,
+  useFxRates,
+  usePullToRefresh,
+  useReviewCount,
+  useTransactionFacets,
+} from '@/lib/queries';
 import { useReviewPrompt } from '@/lib/reviewPrompt';
 import { DEFAULT_FILTERS, hasAnyFilter, type TxFilters } from '@/lib/txFilters';
 import type { CategoryRow, TransactionRow } from '@/lib/types';
@@ -462,6 +471,12 @@ export default function TransactionsList() {
   const categories = useCategories();
   const facets = useTransactionFacets();
   const reviewCount = useReviewCount();
+  // One rate query for the whole list. Rows receive the table as a prop rather
+  // than each subscribing to the query: a list can mount dozens of rows, and
+  // the conversion is the same table for all of them.
+  const { convertOthers } = usePrimaryCurrency();
+  const fxRates = useFxRates(convertOthers);
+  const fxTable = fxRates.data ?? NO_RATES;
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<TxFilters>(DEFAULT_FILTERS);
   const debouncedSearch = useDebounced(search, 300);
@@ -669,7 +684,7 @@ export default function TransactionsList() {
               <Muted>{money(section.total)}</Muted>
             </View>
           )}
-          renderItem={({ item }) => <TxRow tx={item} />}
+          renderItem={({ item }) => <TxRow tx={item} fxTable={fxTable} />}
           onEndReached={() => {
             if (hasNextPage && !isFetchingNextPage && !isPlaceholderData) void fetchNextPage();
           }}
@@ -907,9 +922,25 @@ function CaptureSheet({ visible, onClose }: { visible: boolean; onClose: () => v
 
 // ---- Transaction row --------------------------------------------------------
 
-const TxRow = memo(function TxRow({ tx }: { tx: TransactionRow }) {
+/** Shared empty table, so a disabled or still-loading rate query does not
+ *  allocate a new Map on every row render. */
+const NO_RATES = emptyFxTable();
+
+const TxRow = memo(function TxRow({ tx, fxTable }: { tx: TransactionRow; fxTable: FxTable }) {
   const { money } = usePrivacy();
+  const { currency: primaryCurrency, convertOthers } = usePrimaryCurrency();
   const styles = useStyles();
+  const approx = convertOthers
+    ? rowConversion(
+        {
+          amount: tx.amount === null ? null : Number(tx.amount),
+          currency: tx.currency,
+          occurred_at: tx.occurred_at,
+        },
+        primaryCurrency,
+        fxTable,
+      )
+    : null;
   return (
     <Link href={{ pathname: '/(tabs)/transactions/[id]', params: { id: tx.id } }} asChild>
       <Pressable style={styles.row}>
@@ -926,7 +957,16 @@ const TxRow = memo(function TxRow({ tx }: { tx: TransactionRow }) {
             {tx.notes ? <Badge label="note" /> : null}
           </View>
         </View>
-        <Text style={styles.amount}>{money(tx.amount === null ? null : Number(tx.amount), tx.currency)}</Text>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={styles.amount}>{money(tx.amount === null ? null : Number(tx.amount), tx.currency)}</Text>
+          {/* The "≈" is load-bearing: it says this is the month's average rate,
+              not what the card was actually charged. */}
+          {approx ? (
+            <Text style={styles.approx}>
+              {`≈ ${money(approx.amount, primaryCurrency)}`}
+            </Text>
+          ) : null}
+        </View>
       </Pressable>
     </Link>
   );
@@ -1028,6 +1068,12 @@ const useStyles = themedStyles((colors) => ({
   },
   merchant: { fontWeight: '600', color: colors.text },
   amount: { fontWeight: '700', color: colors.text },
+  approx: {
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 2,
+    fontVariant: ['tabular-nums'],
+  },
   // Sheet
   sheet: {
     backgroundColor: colors.card,

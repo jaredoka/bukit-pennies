@@ -50,6 +50,10 @@ import { themedStyles, useTheme } from '@/lib/theme';
 
 const REMAINING_KEY = '__remaining__';
 
+/** Stable empty list, so `useMemo` below is not invalidated every render when
+ *  conversion is off (a fresh `[]` literal would be a new dependency each time). */
+const EMPTY_CURRENCIES: string[] = [];
+
 // Month wheel: index 0 = full year, indices 1–12 = specific month
 const MONTH_ITEMS = [
   'All year',
@@ -126,7 +130,7 @@ export default function Dashboard() {
     if (session?.user.id) await dismissSetupCard(session.user.id);
   }
 
-  const { currency: primaryCurrency } = usePrimaryCurrency();
+  const { currency: primaryCurrency, convertOthers } = usePrimaryCurrency();
   const profile = useProfile();
   const categories = useCategories();
   const budgets = useBudgets();
@@ -164,6 +168,7 @@ export default function Dashboard() {
     selectedYear,
     isYearMode ? 0 : periodMonthIdx,
     primaryCurrency,
+    convertOthers,
   );
 
   const periodTitle = isYearMode
@@ -187,10 +192,16 @@ export default function Dashboard() {
 
   // Currencies recorded in the period that the donut leaves out because they
   // are not the primary one. The RPC reports their presence without totalling
-  // them, so this is still one query.
+  // them, so this is still one query. With conversion on, a currency is only
+  // "left out" if it could not be priced — the rest are inside the total.
+  const fx = snapshot.data?.fx;
+  const convertedCurrencies = fx?.enabled ? fx.converted_currencies : EMPTY_CURRENCIES;
   const excludedCurrencies = useMemo(
-    () => (snapshot.data?.period.currencies ?? []).filter((c) => c !== primaryCurrency).sort(),
-    [snapshot.data, primaryCurrency],
+    () =>
+      (snapshot.data?.period.currencies ?? [])
+        .filter((c) => c !== primaryCurrency && !convertedCurrencies.includes(c))
+        .sort(),
+    [snapshot.data, primaryCurrency, convertedCurrencies],
   );
 
   // ---- Hero donut: category spend vs income / period ----------------------
@@ -443,7 +454,67 @@ export default function Dashboard() {
             <Muted>Capture a bank message or add one manually.</Muted>
           </View>
         )}
-        {excludedCurrencies.length > 0 ? (
+        {fx?.unavailable ? (
+          <View style={styles.currencyNote}>
+            <View style={styles.currencyNoteHead}>
+              <Ionicons name="alert-circle-outline" size={14} color={colors.muted} />
+              <Muted>Currency conversion is not available yet</Muted>
+            </View>
+            <View style={styles.currencyNoteBody}>
+              <Muted>
+                {`The database update that supplies exchange rates has not been applied, so these totals show ${primaryCurrency} only.`}
+              </Muted>
+            </View>
+          </View>
+        ) : fx && convertedCurrencies.length > 0 ? (
+          <View style={styles.currencyNote}>
+            {/* Same collapsed-by-default shape as the old "only BND" note: the
+                headline is the fact, the workings are one tap away. */}
+            <Pressable
+              onPress={() => setCurrencyNoteOpen((o) => !o)}
+              style={styles.currencyNoteHead}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: currencyNoteOpen }}
+              accessibilityLabel={`${convertedCurrencies.join(' and ')} converted to ${primaryCurrency}. ${currencyNoteOpen ? 'Collapse' : 'Expand'} for details.`}
+            >
+              <Ionicons name="information-circle-outline" size={14} color={colors.muted} />
+              <Muted>{`${convertedCurrencies.join(' and ')} converted`}</Muted>
+              <Ionicons
+                name={currencyNoteOpen ? 'chevron-up' : 'chevron-down'}
+                size={14}
+                color={colors.muted}
+              />
+            </Pressable>
+            {currencyNoteOpen ? (
+              <View style={styles.currencyNoteBody}>
+                <Muted>
+                  {`Totals include ${convertedCurrencies.join(' and ')} at monthly reference rates, so they are an estimate rather than the exact amount your card was charged.`}
+                </Muted>
+                {fx.approximate ? (
+                  <Muted>
+                    A rate from an earlier month was used where this month&apos;s rate is not
+                    published yet.
+                  </Muted>
+                ) : null}
+                {fx.unconverted.length > 0 ? (
+                  <Muted>
+                    {`${fx.unconverted.map((u) => u.currency).join(' and ')} could not be converted, so ${
+                      fx.unconverted.length === 1 ? 'it is' : 'they are'
+                    } not included in these totals.`}
+                  </Muted>
+                ) : null}
+                <Link href="/(tabs)/settings/appearance" asChild>
+                  <Pressable hitSlop={6}>
+                    <Text style={styles.currencyNoteLink}>
+                      Change this in Settings &gt; Appearance →
+                    </Text>
+                  </Pressable>
+                </Link>
+              </View>
+            ) : null}
+          </View>
+        ) : excludedCurrencies.length > 0 ? (
           <View style={styles.currencyNote}>
             {/* Header carries the one fact worth reading at a glance; the
                 explanation and the way to change it sit behind the chevron. */}
@@ -466,6 +537,9 @@ export default function Dashboard() {
             {currencyNoteOpen ? (
               <View style={styles.currencyNoteBody}>
                 <Muted>{`You also have ${excludedCurrencies.join(' and ')} transactions recorded, which the donut above leaves out.`}</Muted>
+                <Muted>
+                  Turn on &ldquo;Convert other currencies&rdquo; in Settings to include them.
+                </Muted>
                 {/* Its own Link, not the whole block: with the block tappable,
                     a tap meant to collapse the note navigated to Settings. */}
                 <Link href="/(tabs)/settings/appearance" asChild>

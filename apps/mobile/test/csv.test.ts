@@ -1,6 +1,7 @@
 import { parseBankMessage } from '@bukit/parsers';
 import { describe, expect, it } from 'vitest';
-import { buildCsv, csvField, csvText, type CsvTransaction } from '@/lib/csv';
+import { buildCsv, CSV_FX_HEADER, csvField, csvText, type CsvTransaction } from '@/lib/csv';
+import { buildFxTable } from '@/lib/fx';
 
 const fmt = { day: () => '2026-07-31', time: () => '17:37' };
 
@@ -167,5 +168,40 @@ describe('buildCsv', () => {
     expect(row[0]).toBe('');
     expect(row[1]).toBe('');
     expect(row[2]).toBe('');
+  });
+});
+
+describe('buildCsv — converted columns', () => {
+  const rates = buildFxTable([{ month: '2026-07-01', currency: 'USD', rate_to_bnd: '1.40' }]);
+
+  it('adds no columns when no rates are supplied', () => {
+    const header = cells(buildCsv([tx()], new Map(), fmt))[0]!;
+    expect(header).not.toContain('converted_amount');
+    expect(header).toHaveLength(12);
+  });
+
+  it('appends the fx columns and converts only foreign rows', () => {
+    const rows = cells(
+      buildCsv(
+        [tx(), tx({ currency: 'USD', amount: 100, occurred_at: '2026-07-15T04:00:00.000Z' })],
+        new Map(),
+        fmt,
+        { currency: 'BND', table: rates },
+      ),
+    );
+    expect(rows[0]!.slice(12)).toEqual(CSV_FX_HEADER);
+    // Already in the primary currency: named, but no duplicated amount.
+    expect(rows[1]!.slice(12)).toEqual(['BND', '', '', '']);
+    expect(rows[2]!.slice(12)).toEqual(['BND', '140.00', '2026-07-01', 'false']);
+  });
+
+  it('leaves the converted amount blank when the currency has no rate', () => {
+    const rows = cells(
+      buildCsv([tx({ currency: 'EUR', amount: 10 })], new Map(), fmt, {
+        currency: 'BND',
+        table: rates,
+      }),
+    );
+    expect(rows[1]!.slice(12)).toEqual(['BND', '', '', '']);
   });
 });

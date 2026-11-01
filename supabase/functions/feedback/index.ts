@@ -32,13 +32,26 @@ function storeFor(authorization: string): FeedbackStore {
   });
   return {
     async insert(sub) {
-      const row: Record<string, string> = {
+      const row: Record<string, unknown> = {
         short_id: sub.shortId,
         app_version: sub.appVersion,
         description: sub.description,
       };
       // feature_requests.area is not null; bug_reports has no such column.
       if (sub.kind === 'feature') row.area = sub.area ?? 'Unspecified';
+      // Diagnostics are already allowlisted by parseDiagnostics; split into
+      // columns so the intake job can filter without opening the jsonb.
+      if (sub.kind === 'bug' && sub.diagnostics) {
+        const d = sub.diagnostics;
+        row.build_number = d.buildNumber;
+        row.git_sha = d.gitSha;
+        row.platform = d.platform;
+        row.os_version = d.osVersion;
+        row.device_model = d.deviceModel;
+        row.route = d.route;
+        row.sentry_event_id = d.sentryEventId;
+        if (Object.keys(d.extra).length > 0) row.diagnostics = d.extra;
+      }
       const { error } = await supabase.from(TABLE[sub.kind]).insert(row);
       if (error) throw error;
     },

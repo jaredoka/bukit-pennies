@@ -4,6 +4,7 @@ import {
   MAX_DESCRIPTION,
   feedbackEmail,
   handleFeedback,
+  parseDiagnostics,
   parseFeedback,
   type FeedbackStore,
   type FeedbackSubmission,
@@ -50,6 +51,7 @@ describe('parseFeedback', () => {
         appVersion: '1.2.0',
         area: null,
         description: 'It crashed.',
+        diagnostics: null,
       },
     });
   });
@@ -100,6 +102,76 @@ describe('parseFeedback', () => {
   });
 });
 
+describe('parseDiagnostics', () => {
+  const DIAG = {
+    build_number: '42',
+    git_sha: 'abc1234',
+    platform: 'ios',
+    os_version: '27.0',
+    device_model: 'iPhone18,3',
+    route: '/(tabs)/dashboard',
+    sentry_event_id: 'deadbeef',
+    extra: {
+      locale: 'en-BN',
+      app_state: 'active',
+      network: 'wifi',
+      screen: '390x844',
+      breadcrumbs: ['/(tabs)/dashboard', '/(tabs)/settings'],
+    },
+  };
+
+  it('keeps only allowlisted keys and maps them to the stored shape', () => {
+    const parsed = parseDiagnostics({
+      ...DIAG,
+      // Nothing the client would send, but a hostile or buggy caller might.
+      amount: '123.45',
+      merchant: 'Coffee shop',
+      note: 'paid the rent',
+      sms: 'RM12.00 at KEDAI',
+    });
+    expect(parsed).toEqual({
+      buildNumber: '42',
+      gitSha: 'abc1234',
+      platform: 'ios',
+      osVersion: '27.0',
+      deviceModel: 'iPhone18,3',
+      route: '/(tabs)/dashboard',
+      sentryEventId: 'deadbeef',
+      extra: DIAG.extra,
+    });
+    expect(JSON.stringify(parsed)).not.toMatch(/Coffee shop|paid the rent|KEDAI|123\.45/);
+  });
+
+  it('degrades to null when the caller sends nothing usable', () => {
+    expect(parseDiagnostics(undefined)).toBe(null);
+    expect(parseDiagnostics('nope')).toBe(null);
+    expect(parseDiagnostics({})).toBe(null);
+    expect(parseDiagnostics({ extra: { locale: '  ' } })).toBe(null);
+  });
+
+  it('caps breadcrumb count and length', () => {
+    const parsed = parseDiagnostics({
+      build_number: '1',
+      extra: {
+        breadcrumbs: [ 'x'.repeat(500), ...Array.from({ length: 30 }, (_, i) => `r${i}`) ],
+      },
+    });
+    expect(parsed?.extra.breadcrumbs).toHaveLength(20);
+    expect(parsed?.extra.breadcrumbs?.[0]).toHaveLength(120);
+  });
+
+  it('is bug-only: a feature request never stores diagnostics', () => {
+    const parsed = parseFeedback({ ...FEATURE, diagnostics: DIAG });
+    expect(parsed.ok && parsed.value.diagnostics).toBe(null);
+  });
+
+  it('does not fail the report when diagnostics are malformed', () => {
+    const parsed = parseFeedback({ ...BUG, diagnostics: 'not an object' });
+    expect(parsed.ok).toBe(true);
+    expect(parsed.ok && parsed.value.diagnostics).toBe(null);
+  });
+});
+
 describe('feedbackEmail', () => {
   it('titles a feature request with its area and carries the identifying fields', () => {
     const parsed = parseFeedback(FEATURE);
@@ -114,6 +186,17 @@ describe('feedbackEmail', () => {
     const parsed = parseFeedback(BUG);
     const mail = feedbackEmail((parsed as { ok: true; value: FeedbackSubmission }).value);
     expect(mail.subject).toBe('[Bukit Pennies] Bug report');
+  });
+
+  it('carries the build and screen of a report that has diagnostics', () => {
+    const parsed = parseFeedback({
+      ...BUG,
+      diagnostics: { build_number: '42', git_sha: 'abc1234', route: '/(tabs)/dashboard' },
+    });
+    const mail = feedbackEmail((parsed as { ok: true; value: FeedbackSubmission }).value);
+    expect(mail.text).toContain('Build: 42');
+    expect(mail.text).toContain('Commit: abc1234');
+    expect(mail.text).toContain('Screen: /(tabs)/dashboard');
   });
 
   // The end-to-end property the allowlist exists for: whatever a caller sends,

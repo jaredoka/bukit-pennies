@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { bruneiMonthStartIso, bruneiParts } from './format';
+import type { DiagnosticsPayload } from './diagnostics';
 import { describeRequestError } from './netError';
 import { useUserId } from './session';
 import {
@@ -1195,6 +1196,8 @@ async function submitFeedback(payload: {
   app_version: string;
   area?: string;
   description: string;
+  /** Bug reports only; null when the user has not opted in. */
+  diagnostics?: DiagnosticsPayload | null;
 }) {
   const { error } = await supabase.functions.invoke('feedback', { body: payload });
   if (error) throw new Error(error.message);
@@ -1202,8 +1205,12 @@ async function submitFeedback(payload: {
 
 export function useSubmitBugReport() {
   return useMutation({
-    mutationFn: (report: { short_id: string; app_version: string; description: string }) =>
-      submitFeedback({ kind: 'bug', ...report }),
+    mutationFn: (report: {
+      short_id: string;
+      app_version: string;
+      description: string;
+      diagnostics?: DiagnosticsPayload | null;
+    }) => submitFeedback({ kind: 'bug', ...report }),
   });
 }
 

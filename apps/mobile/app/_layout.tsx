@@ -1,12 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { Centered } from '@/components/ui';
+import { ActivityIndicator, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Button, Centered } from '@/components/ui';
 import { initSentry, Sentry } from '@/lib/sentry';
+import { recordScreen } from '@/lib/diagnostics';
 import { SessionProvider, useSession } from '@/lib/session';
 import { ThemeProvider, useStackTheme, useTheme } from '@/lib/theme';
 import { PrivacyProvider } from '@/lib/privacy';
@@ -133,7 +134,13 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 function ThemedApp() {
   const { colors, resolved } = useTheme();
   const stackTheme = useStackTheme();
+  const pathname = usePathname();
   const { width } = useWindowDimensions();
+  // Recent route names, kept in memory, capped, and only while diagnostics
+  // consent is on. They become the breadcrumbs on a bug report.
+  useEffect(() => {
+    recordScreen(pathname);
+  }, [pathname]);
   // Desktop browsers get the phone frame; everything else is full-bleed.
   const framed = Platform.OS === 'web' && width > WEB_FRAME_BREAKPOINT;
   const backdrop = resolved === 'dark' ? '#05090E' : '#E8EAED';
@@ -190,6 +197,31 @@ function ThemedApp() {
   );
 }
 
+/**
+ * Last-resort screen for a render error. Sentry.ErrorBoundary has already
+ * captured the error (subject to consent); this gives the user a way back
+ * instead of a white screen, and names the build so a screenshot is usable as
+ * a report.
+ */
+function CrashScreen({ onReset }: { onReset: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.plain, crashStyles.root, { backgroundColor: colors.bg }]}>
+      <Text style={[crashStyles.title, { color: colors.text }]}>Something went wrong</Text>
+      <Text style={[crashStyles.body, { color: colors.muted }]}>
+        The screen could not be drawn. You can try again, or report the bug from Settings.
+      </Text>
+      <Button label="Try again" onPress={onReset} />
+    </View>
+  );
+}
+
+const crashStyles = StyleSheet.create({
+  root: { justifyContent: 'center', padding: 24, gap: 12 },
+  title: { fontSize: 20, fontWeight: '700' },
+  body: { fontSize: 15, lineHeight: 21, marginBottom: 8 },
+});
+
 function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     [Ionicons.getFontFamily()]: IONICONS_FONT,
@@ -210,7 +242,11 @@ function RootLayout() {
         <ThemeProvider>
           <PrimaryCurrencyProvider>
             <PrivacyProvider>
-              <ThemedApp />
+              <Sentry.ErrorBoundary
+                fallback={({ resetError }) => <CrashScreen onReset={resetError} />}
+              >
+                <ThemedApp />
+              </Sentry.ErrorBoundary>
             </PrivacyProvider>
           </PrimaryCurrencyProvider>
         </ThemeProvider>

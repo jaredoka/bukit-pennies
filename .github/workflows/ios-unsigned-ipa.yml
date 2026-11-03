@@ -18,7 +18,7 @@ on:
         required: true
         type: string
       sentry_dsn:
-        description: "Optional EXPO_PUBLIC_SENTRY_DSN. Leave empty to build with crash reporting off."
+        description: "Optional EXPO_PUBLIC_SENTRY_DSN. Leave empty to use the SENTRY_DSN repo variable; if neither exists, crash reporting stays off."
         required: false
         default: ""
         type: string
@@ -33,7 +33,9 @@ jobs:
     env:
       EXPO_PUBLIC_SUPABASE_URL: ${{ inputs.supabase_url }}
       EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ inputs.supabase_anon_key }}
-      EXPO_PUBLIC_SENTRY_DSN: ${{ inputs.sentry_dsn }}
+      # The DSN is public by design; the repo variable keeps it in every build
+      # without a human retyping it, and the manual input still overrides it.
+      EXPO_PUBLIC_SENTRY_DSN: ${{ inputs.sentry_dsn || vars.SENTRY_DSN }}
       SENTRY_ORG: ${{ vars.SENTRY_ORG || 'bukit-pennies' }}
       SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT || 'mobile' }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}

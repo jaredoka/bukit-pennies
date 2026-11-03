@@ -66,6 +66,13 @@ export interface Palette {
    */
   inputBg: string;
   inputBorder: string;
+  /**
+   * Off-state track for a Switch. `border` cannot do this job: in light mode it
+   * is a pale yellow line that disappears on the card, so an off switch read as
+   * an empty gap rather than a control. This is deliberately a mid-tone in both
+   * themes — the thumb is what shows the state, the track just has to be visible.
+   */
+  switchOff: string;
   chartCategories: string[];
   chartOther: string;
 }
@@ -83,6 +90,7 @@ export const palettes: Record<'light' | 'dark', Palette> = {
     border: '#F5F0CC',        // very faint yellow-tinted border
     inputBg: '#FFFFFF',       // white against the pale yellow card
     inputBorder: '#DDD5B4',   // warm greige; carries the edge on white too
+    switchOff: '#BFC7D1',     // visible on the pale card, still reads as "off"
     chartCategories: CATEGORY_COLORS.light,
     chartOther: CATEGORY_COLOR_OTHER.light,
   },
@@ -98,6 +106,7 @@ export const palettes: Record<'light' | 'dark', Palette> = {
     border: '#263240',
     inputBg: '#1F2A37',       // lifted off the card, as white is in light mode
     inputBorder: '#3A4A5C',
+    switchOff: '#41505F',
     chartCategories: CATEGORY_COLORS.dark,
     chartOther: CATEGORY_COLOR_OTHER.dark,
   },

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, ScrollView, Switch, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { usePathname } from 'expo-router';
 import { Button, Card, Field, Muted, Title } from '@/components/ui';
 import { APP_VERSION, VERSION_LABEL } from '@/lib/buildInfo';
@@ -96,7 +96,13 @@ export default function ReportBug() {
             maxLength={MAX_FEEDBACK_DESCRIPTION}
             style={{ minHeight: 120, textAlignVertical: 'top' }}
           />
-          <View style={styles.toggleRow}>
+          <Pressable
+            style={styles.toggleRow}
+            onPress={() => toggleDiagnostics(!withDiagnostics)}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: withDiagnostics }}
+            accessibilityLabel="Attach diagnostics to this report"
+          >
             <View style={{ flex: 1, paddingRight: 12 }}>
               <Text style={[styles.toggleLabel, { color: colors.text }]}>Attach diagnostics</Text>
               <Muted>
@@ -107,9 +113,10 @@ export default function ReportBug() {
             <Switch
               value={withDiagnostics}
               onValueChange={toggleDiagnostics}
-              trackColor={{ false: colors.border, true: colors.primary }}
+              trackColor={{ false: colors.switchOff, true: colors.primary }}
+              ios_backgroundColor={colors.switchOff}
             />
-          </View>
+          </Pressable>
           <Button
             label="Submit report"
             onPress={handleSubmit}
@@ -130,7 +137,12 @@ const useStyles = themedStyles((colors) => ({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-    paddingVertical: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+    backgroundColor: colors.inputBg,
   },
   toggleLabel: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
   version: { textAlign: 'center', fontSize: 12, marginTop: 12 },

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ScrollView, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { Card, Muted, Title } from '@/components/ui';
 import { BUILD_NUMBER, GIT_SHA, VERSION_LABEL } from '@/lib/buildInfo';
 import { getDiagnosticsConsent, setDiagnosticsConsent } from '@/lib/diagnostics';
@@ -27,14 +27,21 @@ export default function Privacy() {
           Diagnostics help fix crashes and bugs. They are off by default and only ever sent
           while this switch is on.
         </Muted>
-        <View style={styles.switchRow}>
+        <Pressable
+          style={styles.switchRow}
+          onPress={() => toggle(!enabled)}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: enabled }}
+          accessibilityLabel="Send crash and diagnostic reports"
+        >
           <Text style={[styles.switchLabel, { color: colors.text }]}>Send diagnostics</Text>
           <Switch
             value={enabled}
             onValueChange={toggle}
-            accessibilityLabel="Send crash and diagnostic reports"
+            trackColor={{ false: colors.switchOff, true: colors.primary }}
+            ios_backgroundColor={colors.switchOff}
           />
-        </View>
+        </Pressable>
       </Card>
 
       <Card>
@@ -82,7 +89,12 @@ const useStyles = themedStyles((colors) => ({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 12,
-    paddingVertical: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+    backgroundColor: colors.inputBg,
   },
   switchLabel: { fontSize: 15, fontWeight: '500' },
   list: { marginTop: 12, gap: 6 },

@@ -50,12 +50,11 @@ async function post(content) {
 }
 
 async function main() {
-  if (!WEBHOOK) {
-    console.log('DISCORD_WEBHOOK_URL is not set; crash alerts are idle.');
-    return;
-  }
-
   if (TEST) {
+    if (!WEBHOOK) {
+      console.log('DISCORD_WEBHOOK_URL is not set; cannot send a test message.');
+      return;
+    }
     await post('Bukit Pennies crash alerts are wired up. This is a test message.');
     console.log('Sent a test message to Discord.');
     return;
@@ -84,12 +83,20 @@ async function main() {
   }
 
   const issues = await res.json();
+  const unresolved = Array.isArray(issues) ? issues.length : 0;
+
+  if (!WEBHOOK) {
+    console.log(
+      `${unresolved} unresolved Sentry issue(s). DISCORD_WEBHOOK_URL is not set; alerts are idle and the state was not advanced.`,
+    );
+    return;
+  }
   const state = loadState();
   const seen = new Set(state.issues);
   const fresh = (Array.isArray(issues) ? issues : []).filter((issue) => !seen.has(String(issue.id)));
 
   if (fresh.length === 0) {
-    console.log(`No new crash issues (${issues.length} unresolved, ${seen.size} remembered).`);
+    console.log(`No new crash issues (${unresolved} unresolved, ${seen.size} remembered).`);
     return;
   }
 

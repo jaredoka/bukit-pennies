@@ -17,6 +17,11 @@ on:
         description: "EXPO_PUBLIC_SUPABASE_ANON_KEY baked into the build (anon/publishable key — not a secret)"
         required: true
         type: string
+      sentry_dsn:
+        description: "Optional EXPO_PUBLIC_SENTRY_DSN. Leave empty to use the SENTRY_DSN repo variable; if neither exists, crash reporting stays off."
+        required: false
+        default: ""
+        type: string
 
 jobs:
   build-ipa:
@@ -28,11 +33,27 @@ jobs:
     env:
       EXPO_PUBLIC_SUPABASE_URL: ${{ inputs.supabase_url }}
       EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ inputs.supabase_anon_key }}
-      # No Sentry auth token in CI — skip source-map upload or the Sentry
-      # build phase fails the archive.
-      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+      # The DSN is public by design; the repo variable keeps it in every build
+      # without a human retyping it, and the manual input still overrides it.
+      EXPO_PUBLIC_SENTRY_DSN: ${{ inputs.sentry_dsn || vars.SENTRY_DSN }}
+      SENTRY_ORG: ${{ vars.SENTRY_ORG || 'bukit-pennies' }}
+      SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT || 'mobile' }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      # Without a token the expo plugin's upload build phase fails the archive.
+      # With one, it uploads source maps and the stack traces are readable.
+      SENTRY_DISABLE_AUTO_UPLOAD: ${{ secrets.SENTRY_AUTH_TOKEN == '' && 'true' || 'false' }}
     steps:
+      # Full history: the build number is the commit count and the short SHA is
+      # the commit the binary was made from. A shallow clone would produce a
+      # build number that changes whenever the fetch depth does.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build identity
+        run: |
+          echo "BUKIT_BUILD_NUMBER=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
+          echo "BUKIT_GIT_SHA=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
 
       - uses: pnpm/action-setup@v4
 

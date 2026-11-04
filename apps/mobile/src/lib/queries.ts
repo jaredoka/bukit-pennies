@@ -8,9 +8,28 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { bruneiMonthStartIso, bruneiParts } from './format';
+import type { DiagnosticsPayload } from './diagnostics';
 import { describeRequestError } from './netError';
 import { useUserId } from './session';
+import {
+  emptyFxInfo,
+  insightsFromRows,
+  insightsFromSnapshot,
+  monthSnapshotFromRows,
+  normalizeDashboardSnapshot,
+  periodSnapshotFromRows,
+  type AggregateRow,
+  type DashboardSnapshot,
+  type YearInsights,
+} from './snapshot';
+import { buildFxTable, emptyFxTable, type FxRateRow, type FxTable } from './fx';
 import { supabase } from './supabase';
+import {
+  txCursorFilter,
+  txCursorFilterLegacy,
+  txCursorOf,
+  type TxCursor,
+} from './txCursor';
 import {
   invalidateTransactionQueries,
   invalidationForPatch,
@@ -21,7 +40,6 @@ import type {
   BudgetRow,
   CategoryRow,
   IngestDeviceRow,
-  MonthlyTotalRow,
   ProfileRow,
   SavingsGoalEntryRow,
   SavingsGoalRow,
@@ -30,10 +48,6 @@ import type {
   TransactionFacetRow,
   TransactionRow,
 } from './types';
-
-/** SGD circulates 1:1 with BND in Brunei (Currency Interchangeability
- *  Agreement) — SGD amounts count toward BND totals at par. */
-export const PAR_CURRENCIES = ['BND', 'SGD', 'USD', 'MYR', 'GBP', 'EUR', 'AUD'];
 
 async function unwrap<T>(promise: PromiseLike<{ data: T | null; error: { message: string } | null }>): Promise<T> {
   // A transport failure can arrive either way: supabase-js folds most fetch
@@ -46,6 +60,53 @@ async function unwrap<T>(promise: PromiseLike<{ data: T | null; error: { message
   }
   if (result.error) throw new Error(describeRequestError(result.error.message));
   return result.data as T;
+}
+
+/**
+ * True when an RPC is simply not deployed yet.
+ *
+ * Migration 27 adds `dashboard_snapshot` and `insights_year`, and the SQL is
+ * applied by hand on the hosted project while the app ships through its own
+ * pipeline. Those two orderings can invert, and the difference between "the
+ * migration has not been pasted" and "the database is broken" has to be
+ * visible in the code, because they deserve opposite responses: fall back
+ * quietly for the first, surface the error for the second.
+ *
+ * `PGRST202` is PostgREST's "no matches were found in the schema cache";
+ * `42883` is Postgres's undefined_function. Both mean absent, not failed.
+ */
+function isMissingRpc(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code ?? '';
+  const message = (error as { message?: string } | null)?.message ?? '';
+  return (
+    code === 'PGRST202' ||
+    code === '42883' ||
+    /could not find the function|function .* does not exist/i.test(message)
+  );
+}
+
+/** Same idea as `isMissingRpc`, for the counters table before migration 27. */
+function isMissingTable(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code ?? '';
+  const message = (error as { message?: string } | null)?.message ?? '';
+  return (
+    code === 'PGRST205' ||
+    code === '42P01' ||
+    /could not find the table|relation .* does not exist/i.test(message)
+  );
+}
+
+/**
+ * Calls an RPC and keeps the PostgREST error *code*, which `unwrap` discards.
+ * The code is the only reliable way to tell a missing function from a
+ * permission failure or a statement timeout — all three arrive as a message.
+ */
+async function rpcJson<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.rpc(fn, args);
+  if (error) {
+    throw Object.assign(new Error(error.message), { code: error.code });
+  }
+  return data as T;
 }
 
 /**
@@ -125,10 +186,14 @@ export const TX_PAGE_SIZE = 50;
  *  and mutation invalidation still refetch on an actual change. */
 const AGGREGATE_STALE_MS = 2 * 60_000;
 
-/** Reference data — categories, budgets, profile, subscriptions — changes on
+/** Reference data - categories, budgets, profile, subscriptions - changes on
  *  an explicit save, which invalidates its own key. There is nothing to gain
  *  from refetching it on a timer. */
 const REFERENCE_STALE_MS = 10 * 60_000;
+
+/** FX rates change at most once a month, on the server. Six hours is already
+ *  far more revalidation than the data can justify. */
+const FX_STALE_MS = 6 * 60 * 60_000;
 
 /** The projection every whole-period aggregate reads: enough to bucket by day,
  *  month, category and merchant, and nothing else — these queries can pull
@@ -164,9 +229,53 @@ export function useTransactionFacets() {
 }
 
 /**
+ * Does the connected project have `occurred_sorted` (migration 28)?
+ *
+ * The list is the most-used screen, and installing the app before pasting the
+ * migration should not turn it into an error screen. Probe once per session
+ * with a one-row select; `42703` is Postgres's undefined_column, i.e. "not
+ * applied yet". Any other failure (offline, auth) is not evidence of absence,
+ * so it assumes the new shape and lets the real query surface the problem.
+ */
+let sortKeySupport: Promise<boolean> | null = null;
+
+/**
+ * `42703` is Postgres's undefined_column (the migration has not run);
+ * `PGRST204` is PostgREST's "column not in the schema cache", which happens
+ * briefly after the DDL if the cache has not reloaded. Both mean "use the
+ * legacy predicate for now", and neither is evidence the app is broken.
+ */
+const MISSING_SORT_KEY_CODES = new Set(['42703', 'PGRST204']);
+
+function supportsSortKey(): Promise<boolean> {
+  sortKeySupport ??= (async () => {
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .select('occurred_sorted')
+        .limit(1);
+      if (!error) return true;
+      return MISSING_SORT_KEY_CODES.has((error as { code?: string }).code ?? '')
+        ? false
+        : true;
+    } catch {
+      return true;
+    }
+  })();
+  return sortKeySupport;
+}
+
+/**
  * The transactions list: filtered and ordered by the database, one page at a
  * time. Replaces a flat `limit(500)` that the client then filtered — which
  * quietly answered "matches, among the newest 500" (see txFilters.ts).
+ *
+ * Pages are cursor-based, not offset-based: the cursor points at the last row
+ * the reader has seen, and `(occurred_at, created_at, id)` is a total order, so
+ * the next page cannot repeat or skip a row when a capture lands mid-scroll.
+ * See `./txCursor` for the predicate, why `id` has to be in it, and why the
+ * ordering is on `occurred_sorted` — the generated column that turns the cursor
+ * into an index range instead of a filter over the whole prefix.
  *
  * The key stays under `['transactions', …]` so scoped invalidation can target
  * the list by prefix (see `./txInvalidation`).
@@ -174,8 +283,9 @@ export function useTransactionFacets() {
 export function useFilteredTransactions(filters: TxFilters, search: string) {
   return useInfiniteQuery({
     queryKey: ['transactions', 'list', filters, search],
-    initialPageParam: 0,
-    queryFn: ({ pageParam }) => {
+    initialPageParam: null as TxCursor | null,
+    queryFn: async ({ pageParam }) => {
+      const sorted = await supportsSortKey();
       let q = supabase.from('transactions').select('*');
       for (const op of buildTransactionOps(filters, search)) {
         if (op.op === 'in') q = q.in(op.column, op.values);
@@ -183,16 +293,29 @@ export function useFilteredTransactions(filters: TxFilters, search: string) {
         else if (op.op === 'isNull') q = q.is(op.column, null);
         else q = q[op.op](op.column, op.value);
       }
+      if (pageParam) {
+        // The range is what makes the page cost the same at any depth; the OR
+        // tree is the strict "after this row" half. Both are required: alone,
+        // `lte` would repeat the cursor row, and alone, the OR tree is a scan.
+        q = sorted
+          ? q.lte('occurred_sorted', pageParam.occurredSorted).or(txCursorFilter(pageParam))
+          : q.or(txCursorFilterLegacy(pageParam));
+      }
+      q = sorted
+        ? q.order('occurred_sorted', { ascending: false })
+        : q.order('occurred_at', { ascending: false, nullsFirst: false });
       return unwrap<TransactionRow[]>(
         q
-          .order('occurred_at', { ascending: false, nullsFirst: false })
           .order('created_at', { ascending: false })
-          .range(pageParam, pageParam + TX_PAGE_SIZE - 1),
+          .order('id', { ascending: false })
+          .limit(TX_PAGE_SIZE),
       );
     },
     // A short page means the end; no count(*) on every scroll to learn it.
-    getNextPageParam: (lastPage, allPages) =>
-      lastPage.length < TX_PAGE_SIZE ? undefined : allPages.length * TX_PAGE_SIZE,
+    getNextPageParam: (lastPage) =>
+      lastPage.length < TX_PAGE_SIZE
+        ? undefined
+        : txCursorOf(lastPage[lastPage.length - 1]!),
     // Changing a filter changes the query key, which would otherwise empty the
     // list and throw the whole screen — filter bar included — behind a spinner
     // on every tap. Hold the previous rows until the new ones arrive.
@@ -245,89 +368,96 @@ export function useReviewItems() {
 }
 
 /**
- * How many rows are waiting in the review inbox.
+ * How many rows are waiting in the review inbox, and how many are parsed.
  *
- * `head: true` with an exact count asks Postgres for the number and transfers
- * no rows, which is what makes it cheap enough to sit on the dashboard and the
- * transactions header — the two places that are now the only way in. The inbox
- * had no entry point at all for several releases: the tab was hidden and
- * nothing linked to it, so every low-confidence parse and every flagged
- * duplicate accumulated somewhere no user could reach.
+ * Both used to be `count(*)` over `transactions` on every screen that showed a
+ * number: two of them on the dashboard, one in the transactions header, one
+ * behind the rate-me gate. Migration 27 maintains the two integers on write, so
+ * this is a primary-key read.
  *
- * Keyed under `transactions` so the existing invalidation catches it.
+ * One shared query, two `select`s: the cache key is the counters row, so the
+ * dashboard and the header cannot disagree by a refetch, and neither pays for a
+ * second request.
  */
+interface TransactionCounts {
+  parsed: number;
+  review: number;
+}
+
+/** Pre-migration counts, kept only for the fallback below. */
+async function countParsedTransactions(): Promise<number> {
+  const { count, error } = await supabase
+    .from('transactions')
+    .select('id', { count: 'exact', head: true })
+    .eq('parse_status', 'parsed');
+  if (error) throw new Error(describeRequestError(error.message));
+  return count ?? 0;
+}
+
+async function countReviewTransactions(): Promise<number> {
+  const { count, error } = await supabase
+    .from('transactions')
+    .select('id', { count: 'exact', head: true })
+    .or(REVIEW_PREDICATE);
+  if (error) throw new Error(describeRequestError(error.message));
+  return count ?? 0;
+}
+
+export function useTransactionCounts() {
+  return useQuery({
+    queryKey: ['transaction_counters'],
+    queryFn: fetchTransactionCounts,
+    staleTime: AGGREGATE_STALE_MS,
+  });
+}
+
+async function fetchTransactionCounts(): Promise<TransactionCounts> {
+  const { data, error } = await supabase
+    .from('transaction_counters')
+    .select('parsed_count,review_count')
+    .maybeSingle();
+  if (error) {
+    if (!isMissingTable(error)) throw new Error(describeRequestError(error.message));
+    const [parsed, review] = await Promise.all([
+      countParsedTransactions(),
+      countReviewTransactions(),
+    ]);
+    return { parsed, review };
+  }
+  // No row yet means no transactions yet — the row is created with the
+  // first one, so this is "zero", not "unknown".
+  return {
+    parsed: Number(data?.parsed_count ?? 0),
+    review: Number(data?.review_count ?? 0),
+  };
+}
+
 export function useReviewCount() {
   return useQuery({
-    queryKey: ['transactions', 'review-count'],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from('transactions')
-        .select('id', { count: 'exact', head: true })
-        .or(REVIEW_PREDICATE);
-      if (error) throw new Error(describeRequestError(error.message));
-      return count ?? 0;
-    },
+    queryKey: ['transaction_counters'],
+    queryFn: (): Promise<TransactionCounts> => fetchTransactionCounts(),
+    select: (counts) => counts.review,
+    staleTime: AGGREGATE_STALE_MS,
+  });
+}
+
+export function useParsedTransactionCount() {
+  return useQuery({
+    queryKey: ['transaction_counters'],
+    queryFn: (): Promise<TransactionCounts> => fetchTransactionCounts(),
+    select: (counts) => counts.parsed,
+    staleTime: AGGREGATE_STALE_MS,
   });
 }
 
 /**
- * How many parsed transactions exist. Same `head: true` exact-count shape as
- * `useReviewCount` — no rows cross the wire, which matters because the rate-me
- * gate sits behind this: every transaction save calls through it once, and it
- * is the cheapest thing that answers "has this account proved value yet?".
+ * The pre-migration period query: every parsed, priced row in a Brunei year
+ * (month=null) or month (1-indexed), five columns, paged.
  *
- * Keyed under `transactions` so the existing invalidation catches it.
+ * Only the fallback uses it now. It stays because migration 27 is applied by
+ * hand, and the app has to keep working — correctly, if slower — until it is.
  */
-export function useParsedTransactionCount() {
-  return useQuery({
-    queryKey: ['transactions', 'parsed-count'],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from('transactions')
-        .select('id', { count: 'exact', head: true })
-        .eq('parse_status', 'parsed');
-      if (error) throw new Error(describeRequestError(error.message));
-      return count ?? 0;
-    },
-  });
-}
-
-export function useMonthlyTotals() {
-  return useQuery({
-    queryKey: ['monthly_totals'],
-    queryFn: () =>
-      unwrap<MonthlyTotalRow[]>(
-        supabase.from('monthly_totals').select('*').order('month', { ascending: false }),
-      ),
-    staleTime: AGGREGATE_STALE_MS,
-  });
-}
-
-/** Parsed transactions of the current Brunei month — daily-spend chart,
- *  category donut, and this-month stat tiles. */
-export function useThisMonthTransactions() {
-  const since = bruneiMonthStartIso(0);
-  return useQuery({
-    queryKey: ['transactions', 'month', since],
-    queryFn: () =>
-      fetchAllPages<TxAggregateRow>((from, to) =>
-        supabase
-          .from('transactions')
-          .select(TX_AGGREGATE_COLUMNS)
-          .eq('parse_status', 'parsed')
-          .not('amount', 'is', null)
-          .in('currency', PAR_CURRENCIES)
-          .gte('occurred_at', since)
-          .order('occurred_at', { ascending: true })
-          .order('id', { ascending: true })
-          .range(from, to),
-      ),
-    staleTime: AGGREGATE_STALE_MS,
-  });
-}
-
-/** Transactions for a specific Brunei year (month=null) or month (1-indexed). */
-export function useTransactionsForPeriod(year: number, month: number | null) {
+async function fetchPeriodRows(year: number, month: number | null): Promise<AggregateRow[]> {
   const BNT = 8 * 60 * 60 * 1000;
   const start = month !== null
     ? new Date(Date.UTC(year, month - 1, 1) - BNT).toISOString()
@@ -335,24 +465,144 @@ export function useTransactionsForPeriod(year: number, month: number | null) {
   const end = month !== null
     ? new Date(Date.UTC(year, month, 1) - BNT).toISOString()
     : new Date(Date.UTC(year + 1, 0, 1) - BNT).toISOString();
+  return fetchAllPages<TxAggregateRow>((from, to) =>
+    supabase
+      .from('transactions')
+      .select(TX_AGGREGATE_COLUMNS)
+      .eq('parse_status', 'parsed')
+      .not('amount', 'is', null)
+      .gte('occurred_at', start)
+      .lt('occurred_at', end)
+      .order('occurred_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+}
+
+async function fetchThisMonthRows(): Promise<AggregateRow[]> {
+  const since = bruneiMonthStartIso(0);
+  return fetchAllPages<TxAggregateRow>((from, to) =>
+    supabase
+      .from('transactions')
+      .select(TX_AGGREGATE_COLUMNS)
+      .eq('parse_status', 'parsed')
+      .not('amount', 'is', null)
+      .gte('occurred_at', since)
+      .order('occurred_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
+}
+
+/**
+ * The dashboard's whole numeric surface in one request: the selected period's
+ * category totals and the currencies present in it, plus the current month's
+ * category totals for budget progress.
+ *
+ * `month = 0` means the whole year, matching the month wheel's "All year".
+ * Before migration 27 these three questions were two paged row downloads (a
+ * year of transactions, six months of transactions) plus a group-by over every
+ * row the account had ever recorded. See `./snapshot` for the fallback.
+ */
+export function useDashboardSnapshot(
+  year: number,
+  month: number,
+  currency: string,
+  convert = false,
+) {
   return useQuery({
-    queryKey: ['transactions', 'period', year, month],
-    queryFn: () =>
-      fetchAllPages<TxAggregateRow>((from, to) =>
-        supabase
-          .from('transactions')
-          .select(TX_AGGREGATE_COLUMNS)
-          .eq('parse_status', 'parsed')
-          .not('amount', 'is', null)
-          .in('currency', PAR_CURRENCIES)
-          .gte('occurred_at', start)
-          .lt('occurred_at', end)
-          .order('occurred_at', { ascending: true })
-          .order('id', { ascending: true })
-          .range(from, to),
-      ),
+    queryKey: ['dashboard_snapshot', year, month, currency, convert],
+    queryFn: async (): Promise<DashboardSnapshot> => {
+      try {
+        return normalizeDashboardSnapshot(
+          await rpcJson('dashboard_snapshot', {
+            p_year: year,
+            p_month: month,
+            p_currency: currency,
+            p_convert: convert,
+          }),
+          currency,
+        );
+      } catch (error) {
+        if (!isMissingRpc(error)) throw error;
+        const [periodRows, monthRows] = await Promise.all([
+          fetchPeriodRows(year, month === 0 ? null : month),
+          fetchThisMonthRows(),
+        ]);
+        return {
+          period: periodSnapshotFromRows(periodRows, currency),
+          this_month: monthSnapshotFromRows(monthRows, currency),
+          // The RPC and the rate table arrive in the same migration, so if the
+          // RPC is missing there is nothing to convert with. Say so instead of
+          // returning primary-only totals under a toggle that claims otherwise.
+          fx: emptyFxInfo(currency, convert),
+        };
+      }
+    },
     staleTime: AGGREGATE_STALE_MS,
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * One Brunei year of spending for the Insights screen: month x category series,
+ * year category totals and the top ten merchants.
+ *
+ * Same fallback reasoning as `useDashboardSnapshot`; the row path reuses
+ * `insightsFromRows`, which is the logic that used to live in the screen.
+ */
+export function useInsightsSnapshot(year: number, currency: string, convert = false) {
+  return useQuery({
+    queryKey: ['insights_year', year, currency, convert],
+    queryFn: async (): Promise<YearInsights> => {
+      try {
+        return insightsFromSnapshot(
+          await rpcJson('insights_year', {
+            p_year: year,
+            p_currency: currency,
+            p_convert: convert,
+          }),
+          currency,
+        );
+      } catch (error) {
+        if (!isMissingRpc(error)) throw error;
+        const rows = insightsFromRows(await fetchPeriodRows(year, null), currency);
+        return convert ? { ...rows, fx: emptyFxInfo(currency, true) } : rows;
+      }
+    },
+    staleTime: AGGREGATE_STALE_MS,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Monthly reference rates from migration 29, loaded once per six hours.
+ *
+ * The table is `months x currencies` — a few hundred rows even with a decade of
+ * history — so a full read is cheaper than asking the server to price each row,
+ * which is what the per-row "≈" label needs. When the table does not exist yet
+ * the answer is an empty table, not an error: conversion is simply unavailable,
+ * and the dashboard says so.
+ */
+export function useFxRates(enabled: boolean) {
+  return useQuery({
+    queryKey: ['fx_rates'],
+    enabled,
+    queryFn: async (): Promise<FxTable> => {
+      try {
+        const rows = await unwrap<FxRateRow[]>(
+          supabase
+            .from('fx_rates')
+            .select('month,currency,rate_to_bnd')
+            .order('month', { ascending: true }),
+        );
+        return buildFxTable(rows ?? []);
+      } catch (error) {
+        if (isMissingTable(error)) return emptyFxTable();
+        throw error;
+      }
+    },
+    staleTime: FX_STALE_MS,
   });
 }
 
@@ -946,6 +1196,8 @@ async function submitFeedback(payload: {
   app_version: string;
   area?: string;
   description: string;
+  /** Bug reports only; null when the user has not opted in. */
+  diagnostics?: DiagnosticsPayload | null;
 }) {
   const { error } = await supabase.functions.invoke('feedback', { body: payload });
   if (error) throw new Error(error.message);
@@ -953,8 +1205,12 @@ async function submitFeedback(payload: {
 
 export function useSubmitBugReport() {
   return useMutation({
-    mutationFn: (report: { short_id: string; app_version: string; description: string }) =>
-      submitFeedback({ kind: 'bug', ...report }),
+    mutationFn: (report: {
+      short_id: string;
+      app_version: string;
+      description: string;
+      diagnostics?: DiagnosticsPayload | null;
+    }) => submitFeedback({ kind: 'bug', ...report }),
   });
 }
 

@@ -25,6 +25,13 @@ export default function Settings() {
         />
         <NavRow
           inset
+          href="/(tabs)/settings/privacy"
+          icon="shield-checkmark"
+          label="Privacy & diagnostics"
+          note="Crash reports and what gets sent"
+        />
+        <NavRow
+          inset
           href="/(tabs)/settings/appearance"
           icon="color-palette"
           label="Appearance"

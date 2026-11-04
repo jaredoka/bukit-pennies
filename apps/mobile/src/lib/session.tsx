@@ -28,3 +28,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 export function useSession() {
   return useContext(SessionContext);
 }
+
+/**
+ * The signed-in user's id, read from the session the provider already holds.
+ *
+ * `supabase.auth.getUser()` validates the token with the Auth server on every
+ * call, which puts a network round trip in front of every write. This value
+ * comes from the session in memory. It is not a trust boundary: the database
+ * still applies `auth.uid()` through RLS, so a stale or tampered id cannot
+ * reach another account's rows.
+ */
+export function useUserId(): string | null {
+  const { session } = useSession();
+  return session?.user.id ?? null;
+}

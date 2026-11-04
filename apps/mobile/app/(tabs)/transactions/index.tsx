@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { MAX_TEXT_BYTES, parseBankMessage, splitBankMessages } from '@bukit/parsers';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, Stack, useRouter, useScrollToTop } from 'expo-router';
-import { useEffect, useRef, useMemo, useState } from 'react';
+import { memo, useEffect, useRef, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -652,6 +652,13 @@ export default function TransactionsList() {
           sections={sections}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.content}
+          // Rows are 50/page and cheap, but the default window renders a lot
+          // more than a phone screen needs on every filter change. These keep
+          // the first paint and each filter swap to roughly one screenful.
+          initialNumToRender={12}
+          maxToRenderPerBatch={12}
+          updateCellsBatchingPeriod={50}
+          windowSize={7}
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{section.title}</Text>
@@ -894,7 +901,7 @@ function CaptureSheet({ visible, onClose }: { visible: boolean; onClose: () => v
 
 // ---- Transaction row --------------------------------------------------------
 
-function TxRow({ tx }: { tx: TransactionRow }) {
+const TxRow = memo(function TxRow({ tx }: { tx: TransactionRow }) {
   const { money } = usePrivacy();
   const styles = useStyles();
   return (
@@ -917,7 +924,7 @@ function TxRow({ tx }: { tx: TransactionRow }) {
       </Pressable>
     </Link>
   );
-}
+});
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },

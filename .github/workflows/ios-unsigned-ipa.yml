@@ -52,8 +52,15 @@ jobs:
 
       - name: Build identity
         run: |
-          echo "BUKIT_BUILD_NUMBER=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
+          VERSION=$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' apps/mobile/app.json | head -1)
+          BUILD=$(git rev-list --count HEAD)
+          echo "BUKIT_BUILD_NUMBER=$BUILD" >> "$GITHUB_ENV"
           echo "BUKIT_GIT_SHA=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+          # Sentry Cocoa's default release is "<bundle id>@<version>+<build>".
+          # Pinning it here keeps the app, the dSYM upload and the CLI release
+          # step on one exact string instead of three guesses.
+          echo "SENTRY_RELEASE=com.bukitpennies.app@${VERSION}+${BUILD}" >> "$GITHUB_ENV"
+          echo "SENTRY_DIST=$BUILD" >> "$GITHUB_ENV"
 
       - uses: pnpm/action-setup@v4
 
@@ -63,6 +70,18 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # A release is what turns "an error happened" into "this started in build
+      # 143". Without it Sentry groups crashes but cannot call a regression.
+      - name: Create Sentry release
+        if: env.SENTRY_AUTH_TOKEN != ''
+        run: |
+          npx --yes @sentry/cli@2 releases new "$SENTRY_RELEASE" \
+            --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" || true
+          npx --yes @sentry/cli@2 releases set-commits "$SENTRY_RELEASE" --auto \
+            --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" || true
+          npx --yes @sentry/cli@2 releases finalize "$SENTRY_RELEASE" \
+            --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" || true
 
       # Generates apps/mobile/ios (CocoaPods install included).
       - name: Expo prebuild (iOS)

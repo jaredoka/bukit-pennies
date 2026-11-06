@@ -47,6 +47,7 @@ import type {
   SubscriptionRow,
   TransactionFacetRow,
   TransactionRow,
+  TxDirection,
 } from './types';
 
 async function unwrap<T>(promise: PromiseLike<{ data: T | null; error: { message: string } | null }>): Promise<T> {
@@ -198,11 +199,20 @@ const FX_STALE_MS = 6 * 60 * 60_000;
 /** The projection every whole-period aggregate reads: enough to bucket by day,
  *  month, category and merchant, and nothing else — these queries can pull
  *  thousands of rows, so `select *` would move a lot of `raw_text` for nothing. */
-const TX_AGGREGATE_COLUMNS = 'occurred_at, amount, currency, category_id, merchant_normalized';
+const TX_AGGREGATE_COLUMNS =
+  'occurred_at, amount, currency, category_id, merchant_normalized, direction';
 type TxAggregateRow = Pick<
   TransactionRow,
-  'occurred_at' | 'amount' | 'currency' | 'category_id' | 'merchant_normalized'
+  'occurred_at' | 'amount' | 'currency' | 'category_id' | 'merchant_normalized' | 'direction'
 >;
+
+/** PostgREST predicate for "not a transfer", keeping the nullable column's
+ *  NULL rows. A plain `neq` would drop them, which is exactly the opposite of
+ *  what "Not set is money out" means. */
+const NOT_TRANSFER = 'direction.is.null,direction.neq.transfer';
+
+/** PostgREST predicate for spending rows (out, plus untagged). */
+const EFFECTIVE_SPEND = 'direction.is.null,direction.eq.out';
 
 /**
  * Transaction cache invalidation lives in `./txInvalidation`, where the map
@@ -471,6 +481,7 @@ async function fetchPeriodRows(year: number, month: number | null): Promise<Aggr
       .select(TX_AGGREGATE_COLUMNS)
       .eq('parse_status', 'parsed')
       .not('amount', 'is', null)
+      .or(NOT_TRANSFER)
       .gte('occurred_at', start)
       .lt('occurred_at', end)
       .order('occurred_at', { ascending: true })
@@ -487,6 +498,7 @@ async function fetchThisMonthRows(): Promise<AggregateRow[]> {
       .select(TX_AGGREGATE_COLUMNS)
       .eq('parse_status', 'parsed')
       .not('amount', 'is', null)
+      .or(NOT_TRANSFER)
       .gte('occurred_at', since)
       .order('occurred_at', { ascending: true })
       .order('id', { ascending: true })
@@ -642,6 +654,9 @@ export function useRecentMonthsTransactions(monthsBack = 6) {
           .eq('parse_status', 'parsed')
           .not('amount', 'is', null)
           .not('occurred_at', 'is', null)
+          // Recurring detection and the subscription suggestions are about
+          // spending: money in, refunds and transfers are not candidates.
+          .or(EFFECTIVE_SPEND)
           .gte('occurred_at', since)
           .order('occurred_at', { ascending: true })
           .order('id', { ascending: true })
@@ -972,6 +987,7 @@ const TRANSACTION_EDIT_COLUMNS = [
   'parse_status',
   'confidence',
   'possible_duplicate_of',
+  'direction',
 ] as const;
 export type TransactionPatch = Partial<Pick<TransactionRow, (typeof TRANSACTION_EDIT_COLUMNS)[number]>>;
 
@@ -1023,6 +1039,8 @@ export interface ManualTxInput {
   categoryId: string | null;
   cardLast4: string | null;
   notes: string | null;
+  /** NULL = Not set, which every aggregate treats as money out. */
+  direction: TxDirection | null;
 }
 
 export function useCreateManualTransaction() {
@@ -1055,6 +1073,7 @@ export function useCreateManualTransaction() {
             confidence: 1,
             raw_text: rawText,
             raw_hash: rawHash,
+            direction: input.direction,
           })
           .select()
           .single(),

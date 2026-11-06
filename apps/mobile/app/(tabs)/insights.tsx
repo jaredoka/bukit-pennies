@@ -100,7 +100,25 @@ export default function Insights() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [insights, categories.data, colors]);
 
-  const hasData = insights.months.some((m) => m.total > 0);
+  const hasData = insights.months.some((m) => m.total > 0 || m.moneyIn > 0);
+
+  // Incoming money plotted over the spending bars. The same month buckets, so
+  // a salary and the month's spending can be compared directly. Refunds are not
+  // in here: they already reduce the bars.
+  const moneyInLine = useMemo(
+    () => insights.months.map((m) => ({ value: m.moneyIn })),
+    [insights],
+  );
+
+  // Scale to the taller of the bars and the line, or a salary far above
+  // spending would draw off the top of the chart.
+  const chartMax = useMemo(() => {
+    const peak = insights.months.reduce(
+      (max, m) => Math.max(max, m.total, m.moneyIn),
+      0,
+    );
+    return peak > 0 ? peak : 10;
+  }, [insights]);
 
   return (
     <>
@@ -137,6 +155,9 @@ export default function Insights() {
               >
                 <BarChart
                   stackData={stackedBars}
+                  lineData={moneyInLine}
+                  lineConfig={{ color: colors.primary, thickness: 2, hideDataPoints: true }}
+                  maxValue={chartMax}
                   width={chartWidth}
                   height={170}
                   barWidth={barWidth}
@@ -163,6 +184,10 @@ export default function Insights() {
                   <View style={[styles.legendDot, { backgroundColor: colors.chartOther }]} />
                   <Text style={styles.legendText}>Other</Text>
                 </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendLine, { backgroundColor: colors.primary }]} />
+                  <Text style={styles.legendText}>Money in</Text>
+                </View>
               </View>
             </>
           )}
@@ -170,6 +195,25 @@ export default function Insights() {
 
         {hasData ? (
           <>
+            {/* ---- Year totals ---- */}
+            <Card>
+              <Title>Year totals</Title>
+              <View style={styles.row}>
+                <Text style={styles.rowName}>Money in</Text>
+                <Text style={styles.rowValue}>{money(insights.moneyInTotal, primaryCurrency)}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.rowName}>Spent</Text>
+                <Text style={styles.rowValue}>
+                  {money(
+                    insights.months.reduce((sum, m) => sum + m.total, 0),
+                    primaryCurrency,
+                  )}
+                </Text>
+              </View>
+              <Muted>Transfers are left out of both figures. Refunds reduce spending.</Muted>
+            </Card>
+
             {/* ---- Category totals for the year ---- */}
             <Card>
               <Title>Categories</Title>
@@ -237,6 +281,7 @@ const useStyles = themedStyles((colors) => ({
   legendWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendLine: { width: 14, height: 3, borderRadius: 2 },
   legendText: { color: colors.muted, fontSize: 12 },
   row: {
     flexDirection: 'row',

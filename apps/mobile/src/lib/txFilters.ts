@@ -13,6 +13,7 @@
  * pure is what makes it testable, and the semantics below are worth pinning
  * down in tests.
  */
+import type { TxDirection } from './types';
 
 export interface TxFilters {
   currencies: string[];
@@ -23,6 +24,8 @@ export interface TxFilters {
   banks: string[];
   categoryIds: (string | null)[];
   cards: string[];
+  /** Explicit direction choices; `null` means "Not set". Empty = no filter. */
+  directions: (TxDirection | null)[];
 }
 
 export const DEFAULT_FILTERS: TxFilters = {
@@ -33,6 +36,7 @@ export const DEFAULT_FILTERS: TxFilters = {
   banks: [],
   categoryIds: [],
   cards: [],
+  directions: [],
 };
 
 /** One PostgREST operation. `or` carries a raw, already-escaped expression. */
@@ -50,7 +54,8 @@ export function hasAnyFilter(f: TxFilters): boolean {
     !!f.recipient.trim() ||
     f.banks.length > 0 ||
     f.categoryIds.length > 0 ||
-    f.cards.length > 0
+    f.cards.length > 0 ||
+    f.directions.length > 0
   );
 }
 
@@ -94,12 +99,10 @@ export function bruneiDayEndIso(day: string): string {
  * is the behaviour we want and now get for free. Undated rows remain fully
  * visible with no date filter set, and Review is where they belong.
  *
- * There is no direction filter. `parseAmount` refuses anything at or below
- * zero, manual entry requires a positive amount and so does confirming a row in
- * Review, so no write path in this app can produce a negative — an "incoming"
- * option could only ever return an empty list. Refunds and credits are a real
- * gap; when they are built, the filter comes back with them (and with a golden
- * fixture for whatever a refund message looks like).
+ * There is now a direction filter. It was removed in ADR-0014 because no write
+ * path could produce an incoming row; optional directions (ADR-0034) bring it
+ * back. NULL is a real choice ("Not set") and, like Uncategorised, cannot be
+ * expressed with `in`.
  */
 export function buildTransactionOps(filters: TxFilters, search: string): TxQueryOp[] {
   const ops: TxQueryOp[] = [];
@@ -132,6 +135,21 @@ export function buildTransactionOps(filters: TxFilters, search: string): TxQuery
       ops.push({ op: 'isNull', column: 'category_id' });
     } else {
       ops.push({ op: 'in', column: 'category_id', values: ids });
+    }
+  }
+
+  // Null is "Not set"; the explicit choices are ordinary enum values.
+  if (filters.directions.length > 0) {
+    const chosen = filters.directions.filter(
+      (d): d is TxDirection => d !== null,
+    );
+    const wantsNull = filters.directions.some((d) => d === null);
+    if (wantsNull && chosen.length > 0) {
+      ops.push({ op: 'or', expr: `direction.is.null,direction.in.(${chosen.join(',')})` });
+    } else if (wantsNull) {
+      ops.push({ op: 'isNull', column: 'direction' });
+    } else {
+      ops.push({ op: 'in', column: 'direction', values: chosen });
     }
   }
 

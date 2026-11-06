@@ -15,15 +15,21 @@
  * they cannot quietly disagree: a monthly total that differs between them is a
  * bug, not a rounding difference.
  */
+import { effectiveDirection } from './direction';
 import { bruneiParts } from './format';
+import type { TxDirection } from './types';
 
 export interface CategoryTotal {
   category_id: string | null;
   total: number;
 }
 export interface PeriodSnapshot {
+  /** Net spending: money out minus refunds, floored per category. */
   total: number;
   tx_count: number;
+  /** Plain money in. Refunds are not included — they already reduce spending. */
+  money_in: number;
+  money_in_tx_count: number;
   by_category: CategoryTotal[];
   /** Every currency present in the period, so the screen can explain omissions. */
   currencies: string[];
@@ -32,6 +38,8 @@ export interface PeriodSnapshot {
 export interface MonthSnapshot {
   total: number;
   tx_count: number;
+  money_in: number;
+  money_in_tx_count: number;
   by_category: CategoryTotal[];
 }
 
@@ -57,18 +65,21 @@ export interface DashboardSnapshot {
   fx: FxInfo;
 }
 
-/** The five columns every period query selects. */
+/** The six columns every period query selects. */
 export interface AggregateRow {
   occurred_at: string | null;
   amount: number | string | null;
   currency: string;
   category_id: string | null;
   merchant_normalized: string | null;
+  /** NULL = not set, which the helpers treat as money out. */
+  direction: TxDirection | null;
 }
 
 export interface YearInsights {
   /** Always twelve, January first, even for months with no spending. */
-  months: { total: number; byCategory: Map<string | null, number> }[];
+  months: { total: number; moneyIn: number; byCategory: Map<string | null, number> }[];
+  moneyInTotal: number;
   topCategoryIds: (string | null)[];
   categoryTotals: { id: string | null; total: number }[];
   merchantTotals: { name: string; total: number }[];
@@ -76,10 +87,16 @@ export interface YearInsights {
 }
 
 export interface RawYearInsights {
-  months: { month: number; total: number | string; by_category: CategoryTotal[] }[];
+  months: {
+    month: number;
+    total: number | string;
+    money_in?: number | string;
+    by_category: CategoryTotal[];
+  }[];
   category_totals: CategoryTotal[];
   merchant_totals: { merchant_normalized: string; total: number | string }[];
   tx_count: number | string;
+  money_in?: number | string;
   fx?: unknown;
 }
 
@@ -93,13 +110,18 @@ const MATERIAL = 0.005;
 
 /** Twelve zeroed month buckets. */
 function emptyMonths(): YearInsights['months'] {
-  return Array.from({ length: 12 }, () => ({ total: 0, byCategory: new Map() }));
+  return Array.from({ length: 12 }, () => ({
+    total: 0,
+    moneyIn: 0,
+    byCategory: new Map(),
+  }));
 }
 
 /** A year with no spending — the shape the screen renders while data loads. */
 export function emptyYearInsights(): YearInsights {
   return {
     months: emptyMonths(),
+    moneyInTotal: 0,
     topCategoryIds: [],
     categoryTotals: [],
     merchantTotals: [],
@@ -161,6 +183,8 @@ export function normalizeDashboardSnapshot(
     period: {
       total: num(period.total),
       tx_count: num(period.tx_count),
+      money_in: num(period.money_in),
+      money_in_tx_count: num(period.money_in_tx_count),
       by_category: (period.by_category ?? []).map((c) => ({
         category_id: c.category_id ?? null,
         total: num(c.total),
@@ -170,6 +194,8 @@ export function normalizeDashboardSnapshot(
     this_month: {
       total: num(thisMonth.total),
       tx_count: num(thisMonth.tx_count),
+      money_in: num(thisMonth.money_in),
+      money_in_tx_count: num(thisMonth.money_in_tx_count),
       by_category: (thisMonth.by_category ?? []).map((c) => ({
         category_id: c.category_id ?? null,
         total: num(c.total),
@@ -190,7 +216,8 @@ export function periodSnapshotFromRows(
 ): PeriodSnapshot {
   const byCategory = new Map<string | null, number>();
   const currencies = new Set<string>();
-  let total = 0;
+  let moneyIn = 0;
+  let moneyInTxCount = 0;
   let txCount = 0;
 
   for (const row of rows) {
@@ -199,20 +226,39 @@ export function periodSnapshotFromRows(
     // query is date-bounded in SQL, so this guard only matters when these
     // helpers are called with unfiltered fixtures.
     if (!row.occurred_at) continue;
+    const direction = effectiveDirection(row.direction);
+    // A transfer changes no total, but it is still a currency the user has
+    // used, so it belongs in the note below the donut.
     currencies.add(row.currency);
     if (row.currency !== currency) continue;
+    if (direction === 'transfer') continue;
+
     const amount = num(row.amount);
-    total += amount;
+    if (direction === 'in') {
+      moneyIn += amount;
+      moneyInTxCount += 1;
+      continue;
+    }
+
+    // Refunds are negative spending in their category, never income.
+    const signed = direction === 'refund' ? -amount : amount;
     txCount += 1;
-    byCategory.set(row.category_id, (byCategory.get(row.category_id) ?? 0) + amount);
+    byCategory.set(row.category_id, (byCategory.get(row.category_id) ?? 0) + signed);
   }
 
+  // Match `dashboard_snapshot`'s `having > 0`: a category whose refunds exceed
+  // its spending in this period disappears instead of drawing a negative slice.
+  const by_category = [...byCategory.entries()]
+    .map(([category_id, sum]) => ({ category_id, total: sum }))
+    .filter((c) => c.total > 0)
+    .sort((a, b) => b.total - a.total);
+
   return {
-    total,
+    total: by_category.reduce((sum, c) => sum + c.total, 0),
     tx_count: txCount,
-    by_category: [...byCategory.entries()]
-      .map(([category_id, sum]) => ({ category_id, total: sum }))
-      .sort((a, b) => b.total - a.total),
+    money_in: moneyIn,
+    money_in_tx_count: moneyInTxCount,
+    by_category,
     currencies: [...currencies].sort(),
   };
 }
@@ -225,6 +271,8 @@ export function monthSnapshotFromRows(
   return {
     total: snapshot.total,
     tx_count: snapshot.tx_count,
+    money_in: snapshot.money_in,
+    money_in_tx_count: snapshot.money_in_tx_count,
     by_category: snapshot.by_category,
   };
 }
@@ -242,12 +290,12 @@ export function insightsFromSnapshot(raw: unknown, currency = ''): YearInsights 
     const index = month.month - 1;
     const bucket = months[index];
     if (!bucket) continue;
-    bucket.total = num(month.total);
+    bucket.total = Math.max(0, num(month.total));
+    bucket.moneyIn = num(month.money_in);
     for (const category of month.by_category ?? []) {
-      bucket.byCategory.set(
-        category.category_id ?? null,
-        num(category.total),
-      );
+      const total = num(category.total);
+      if (total <= 0) continue;
+      bucket.byCategory.set(category.category_id ?? null, total);
     }
   }
 
@@ -258,6 +306,7 @@ export function insightsFromSnapshot(raw: unknown, currency = ''): YearInsights 
 
   return {
     months,
+    moneyInTotal: num(value.money_in),
     // Ranked across the whole year so a category keeps its stack colour from
     // month to month.
     topCategoryIds: categoryTotals.map((c) => c.id),
@@ -280,6 +329,7 @@ export function insightsFromRows(rows: AggregateRow[], currency: string): YearIn
   const months = emptyMonths();
   const categoryTotalsMap = new Map<string | null, number>();
   const merchantTotalsMap = new Map<string, number>();
+  let moneyInTotal = 0;
 
   for (const row of rows) {
     if (row.currency !== currency) continue;
@@ -289,21 +339,44 @@ export function insightsFromRows(rows: AggregateRow[], currency: string): YearIn
     const bucket = months[monthIndex];
     if (!bucket) continue;
 
+    const direction = effectiveDirection(row.direction);
+    // Transfers move the user's own money; they never reach any total.
+    if (direction === 'transfer') continue;
     const amount = num(row.amount);
-    bucket.total += amount;
+
+    if (direction === 'in') {
+      bucket.moneyIn += amount;
+      moneyInTotal += amount;
+      continue;
+    }
+
+    // Refunds are negative spending in their category, never income.
+    const signed = direction === 'refund' ? -amount : amount;
+    bucket.total += signed;
     bucket.byCategory.set(
       row.category_id,
-      (bucket.byCategory.get(row.category_id) ?? 0) + amount,
+      (bucket.byCategory.get(row.category_id) ?? 0) + signed,
     );
     categoryTotalsMap.set(
       row.category_id,
-      (categoryTotalsMap.get(row.category_id) ?? 0) + amount,
+      (categoryTotalsMap.get(row.category_id) ?? 0) + signed,
     );
-    if (row.merchant_normalized) {
+    // The merchant ranking is about where money went; a refund would drag a
+    // merchant down without being spending, matching the RPC's `out` filter.
+    if (direction === 'out' && row.merchant_normalized) {
       merchantTotalsMap.set(
         row.merchant_normalized,
         (merchantTotalsMap.get(row.merchant_normalized) ?? 0) + amount,
       );
+    }
+  }
+
+  // Match the RPC: a month or category whose refunds exceed its spending is
+  // floored at zero rather than drawn as a negative bar or slice.
+  for (const bucket of months) {
+    bucket.total = Math.max(0, bucket.total);
+    for (const [id, total] of bucket.byCategory) {
+      if (total <= 0) bucket.byCategory.delete(id);
     }
   }
 
@@ -314,6 +387,7 @@ export function insightsFromRows(rows: AggregateRow[], currency: string): YearIn
 
   return {
     months,
+    moneyInTotal,
     topCategoryIds: categoryTotals.map((c) => c.id),
     categoryTotals,
     merchantTotals: [...merchantTotalsMap.entries()]

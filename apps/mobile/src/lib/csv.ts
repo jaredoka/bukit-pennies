@@ -1,4 +1,6 @@
 import { bruneiMonthKey, convertAmount, rateAt, type FxTable } from './fx';
+import { signedAmount } from './direction';
+import type { TxDirection } from './types';
 
 /**
  * CSV rendering for the transactions export — the pure half, split out of
@@ -37,6 +39,8 @@ export const CSV_HEADER = [
   'date',
   'time',
   'amount',
+  'signed_amount',
+  'direction',
   'currency',
   'merchant',
   'category',
@@ -107,6 +111,8 @@ export interface CsvTransaction {
   parse_status: string;
   notes: string | null;
   raw_text: string;
+  /** NULL = Not set; exported as a blank direction cell. */
+  direction: TxDirection | null;
 }
 
 export interface CsvFormatters {
@@ -155,6 +161,10 @@ export function buildCsv(
       csvField(tx.occurred_at ? fmt.day(tx.occurred_at) : null),
       csvField(tx.occurred_at ? fmt.time(tx.occurred_at) : null),
       csvField(tx.amount === null ? null : Number(tx.amount).toFixed(2)),
+      // A real signed number so a spreadsheet can sum cash flow; blank for a
+      // transfer, which moves the user's own money and changes no total.
+      csvField(signedAmount(tx.amount === null ? null : Number(tx.amount), tx.direction)?.toFixed(2) ?? null),
+      csvField(tx.direction),
       csvField(tx.currency),
       csvText(tx.merchant),
       csvText(tx.category_id ? (categoryNameById.get(tx.category_id) ?? '') : null),

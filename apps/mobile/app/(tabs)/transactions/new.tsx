@@ -1,14 +1,24 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Button, Card, DateField, Field, Muted, TimeField, Title } from '@/components/ui';
+import { DirectionChips } from '@/components/direction';
+import { requiresCategory, keepsCategory } from '@/lib/direction';
 import { bruneiParts } from '@/lib/format';
 import { useCategories, useCreateManualTransaction } from '@/lib/queries';
 import { useReviewPrompt } from '@/lib/reviewPrompt';
 import { themedStyles } from '@/lib/theme';
+import type { TxDirection } from '@/lib/types';
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_RE = /^(\d{1,2}):(\d{2})$/;
+
+const PRESET_DIRECTIONS = new Set<TxDirection>(['out', 'in', 'refund', 'transfer']);
+
+function presetDirection(raw: string | string[] | undefined): TxDirection | null {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value && PRESET_DIRECTIONS.has(value as TxDirection) ? (value as TxDirection) : null;
+}
 
 function nowBrunei() {
   const p = bruneiParts(Date.now());
@@ -21,7 +31,9 @@ function nowBrunei() {
 
 export default function NewTransaction() {
   const styles = useStyles();
+  const params = useLocalSearchParams<{ direction?: string }>();
   const initial = nowBrunei();
+  const [direction, setDirection] = useState<TxDirection | null>(() => presetDirection(params.direction));
   const [merchant, setMerchant] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(initial.date);
@@ -43,6 +55,7 @@ export default function NewTransaction() {
     const t = TIME_RE.exec(time.trim());
     if (!t || Number(t[1]) > 23 || Number(t[2]) > 59) return 'Time must be HH:MM (24-hour).';
     if (cardLast4.trim() && !/^\d{4}$/.test(cardLast4.trim())) return 'Card must be the last 4 digits.';
+    if (requiresCategory(direction) && !categoryId) return 'Choose the category this refund reduces.';
     return null;
   }
 
@@ -58,9 +71,10 @@ export default function NewTransaction() {
         amount: Math.round(Number(amount) * 100) / 100,
         currency: 'BND',
         occurredAt,
-        categoryId,
+        categoryId: keepsCategory(direction) ? categoryId : null,
         cardLast4: cardLast4.trim() || null,
         notes: notes.trim() || null,
+        direction,
       },
       {
         onSuccess: () => {
@@ -83,7 +97,12 @@ export default function NewTransaction() {
         <Title>Add a transaction manually</Title>
         <Muted>For cash spends or anything that never produced a bank message.</Muted>
         <View style={{ marginTop: 12 }}>
-          <Field label="Merchant" placeholder="e.g. Pasar Gadong" value={merchant} onChangeText={setMerchant} />
+          <Field
+            label={direction === 'in' || direction === 'refund' ? 'From' : 'Merchant'}
+            placeholder="e.g. Pasar Gadong"
+            value={merchant}
+            onChangeText={setMerchant}
+          />
           <Field
             label="Amount (BND)"
             placeholder="0.00"
@@ -113,19 +132,29 @@ export default function NewTransaction() {
       </Card>
 
       <Card>
-        <Title>Category</Title>
-        <View style={styles.chips}>
-          {(categories.data ?? []).map((c) => (
-            <Pressable
-              key={c.id}
-              onPress={() => setCategoryId(categoryId === c.id ? null : c.id)}
-              style={[styles.chip, categoryId === c.id && styles.chipActive]}
-            >
-              <Text style={categoryId === c.id ? styles.chipActiveText : styles.chipText}>{c.name}</Text>
-            </Pressable>
-          ))}
+        <Title>Direction</Title>
+        <Muted>Optional. Not set counts as money out in your totals.</Muted>
+        <View style={{ marginTop: 10 }}>
+          <DirectionChips value={direction} onChange={setDirection} />
         </View>
       </Card>
+
+      {keepsCategory(direction) ? (
+        <Card>
+          <Title>Category</Title>
+          <View style={styles.chips}>
+            {(categories.data ?? []).map((c) => (
+              <Pressable
+                key={c.id}
+                onPress={() => setCategoryId(categoryId === c.id ? null : c.id)}
+                style={[styles.chip, categoryId === c.id && styles.chipActive]}
+              >
+                <Text style={categoryId === c.id ? styles.chipActiveText : styles.chipText}>{c.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </Card>
+      ) : null}
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button label="Save transaction" onPress={submit} busy={create.isPending} />

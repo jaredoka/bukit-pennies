@@ -44,6 +44,7 @@ const AGGREGATE_FIELDS = new Set([
   'parse_status',
   'merchant',
   'merchant_normalized',
+  'direction',
 ]);
 
 const FACET_FIELDS = new Set(['bank', 'card_last4', 'currency']);

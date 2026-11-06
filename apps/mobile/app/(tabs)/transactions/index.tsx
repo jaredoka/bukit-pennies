@@ -26,6 +26,8 @@ import {
   useSheetPresence,
 } from '@/components/ui';
 import { DAY_KEY_RE, dayKeyOf, monthGrid, stepMonth } from '@/lib/calendar';
+import { amountSign, DIRECTION_CHOICES, effectiveDirection } from '@/lib/direction';
+import { directionBadge } from '@/components/direction';
 import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
 import { emptyFxTable, rowConversion, type FxTable } from '@/lib/fx';
 import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
@@ -40,7 +42,7 @@ import {
 } from '@/lib/queries';
 import { useReviewPrompt } from '@/lib/reviewPrompt';
 import { DEFAULT_FILTERS, hasAnyFilter, type TxFilters } from '@/lib/txFilters';
-import type { CategoryRow, TransactionRow } from '@/lib/types';
+import type { CategoryRow, TransactionRow, TxDirection } from '@/lib/types';
 import { themedStyles, useTheme } from '@/lib/theme';
 import { usePrivacy } from '@/lib/privacy';
 import { usePrimaryCurrency } from '@/lib/primaryCurrency';
@@ -52,7 +54,7 @@ const BANK_LABELS: Record<string, string> = {
   unknown: 'Other',
 };
 
-type SheetKey = 'bank' | 'card' | 'category' | 'currency' | 'date' | 'recipient';
+type SheetKey = 'bank' | 'card' | 'category' | 'currency' | 'date' | 'recipient' | 'direction';
 
 function toggleItem<T>(arr: T[], item: T): T[] {
   return arr.includes(item) ? arr.filter((x) => x !== item) : [...arr, item];
@@ -452,6 +454,33 @@ function CardSheet({
 
 // ---- Filter bar chip -------------------------------------------------------
 
+function DirectionSheet({
+  visible,
+  selected,
+  onChange,
+  onClose,
+}: {
+  visible: boolean;
+  selected: (TxDirection | null)[];
+  onChange: (v: (TxDirection | null)[]) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet visible={visible} title="Direction" onClose={onClose} onClear={() => onChange([])}>
+      <View style={{ marginBottom: 8 }}>
+        {DIRECTION_CHOICES.map((choice) => (
+          <SelectRow
+            key={choice.value ?? 'unset'}
+            label={choice.value === null ? 'Not set' : choice.label}
+            selected={selected.includes(choice.value)}
+            onPress={() => onChange(toggleItem<TxDirection | null>(selected, choice.value))}
+          />
+        ))}
+      </View>
+    </Sheet>
+  );
+}
+
 function FBarChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   const styles = useStyles();
   return (
@@ -550,6 +579,14 @@ export default function TransactionsList() {
     : filters.dateTo ? `To ${filters.dateTo}`
     : 'Date';
   const recipLabel = filters.recipient.trim() || 'Recipient';
+  const dirLabel =
+    filters.directions.length === 1
+      ? (filters.directions[0] === null
+          ? 'Not set'
+          : DIRECTION_CHOICES.find((c) => c.value === filters.directions[0])?.label ?? 'Direction')
+      : filters.directions.length > 1
+        ? `${filters.directions.length} directions`
+        : 'Direction';
 
   const anyFilter = hasAnyFilter(filters);
 
@@ -567,7 +604,14 @@ export default function TransactionsList() {
       .sort(([a], [b]) => (a === 'unknown' ? 1 : b === 'unknown' ? -1 : b.localeCompare(a)))
       .map(([day, items]) => ({
         title: day === 'unknown' ? 'Unknown date' : formatDayHeading(day),
-        total: items.reduce((s, t) => s + Number(t.amount ?? 0), 0),
+        // Spending only, net of refunds: transfers change no total and money in
+        // is not spending.
+        total: items.reduce((s, t) => {
+          const d = effectiveDirection(t.direction);
+          if (d === 'in' || d === 'transfer') return s;
+          const amount = Number(t.amount ?? 0);
+          return s + (d === 'refund' ? -amount : amount);
+        }, 0),
         data: items,
       }));
   }, [data]);
@@ -655,6 +699,7 @@ export default function TransactionsList() {
             <FBarChip label={currLabel} active={filters.currencies.length > 0} onPress={() => setActiveSheet('currency')} />
           ) : null}
           <FBarChip label={dateLabel} active={!!(filters.dateFrom || filters.dateTo)} onPress={() => setActiveSheet('date')} />
+          <FBarChip label={dirLabel} active={filters.directions.length > 0} onPress={() => setActiveSheet('direction')} />
           <FBarChip label={recipLabel} active={!!filters.recipient.trim()} onPress={() => setActiveSheet('recipient')} />
           {anyFilter ? (
             <>
@@ -726,6 +771,7 @@ export default function TransactionsList() {
       <CurrencySheet visible={activeSheet === 'currency'} available={availCurrencies} selected={filters.currencies} onChange={(v) => patch({ currencies: v })} onClose={() => setActiveSheet(null)} />
       <CalendarSheet visible={activeSheet === 'date'} dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={(p) => patch(p)} onClose={() => setActiveSheet(null)} />
       <RecipientSheet visible={activeSheet === 'recipient'} value={filters.recipient} onChange={(v) => patch({ recipient: v })} onClose={() => setActiveSheet(null)} />
+      <DirectionSheet visible={activeSheet === 'direction'} selected={filters.directions} onChange={(v) => patch({ directions: v })} onClose={() => setActiveSheet(null)} />
     </>
   );
 }
@@ -746,17 +792,43 @@ function AddSheet({ visible, onClose }: { visible: boolean; onClose: () => void 
     <SheetShell visible={visible} onClose={onClose}>
         <View style={styles.sheet}>
           <View style={styles.sheetHandle} />
-          <Text style={styles.sheetTitle}>Add transaction manually</Text>
+          <Text style={styles.sheetTitle}>Add transaction</Text>
           <Pressable
             style={styles.addRow}
-            onPress={() => { onClose(); router.push('/(tabs)/transactions/new'); }}
+            onPress={() => { onClose(); router.push('/(tabs)/transactions/new?direction=out'); }}
           >
             <View style={[styles.addIcon, { backgroundColor: colors.primary + '18' }]}>
               <Ionicons name="cash-outline" size={22} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.addRowTitle}>Cash</Text>
-              <Muted>Manually enter a cash or card spend</Muted>
+              <Text style={styles.addRowTitle}>Money out</Text>
+              <Muted>A cash or card spend</Muted>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Pressable>
+          <Pressable
+            style={styles.addRow}
+            onPress={() => { onClose(); router.push('/(tabs)/transactions/new?direction=in'); }}
+          >
+            <View style={[styles.addIcon, { backgroundColor: colors.primary + '18' }]}>
+              <Ionicons name="arrow-down-circle-outline" size={22} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.addRowTitle}>Money in</Text>
+              <Muted>Money arriving: a salary, a gift, a repayment</Muted>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Pressable>
+          <Pressable
+            style={styles.addRow}
+            onPress={() => { onClose(); router.push('/(tabs)/transactions/new?direction=transfer'); }}
+          >
+            <View style={[styles.addIcon, { backgroundColor: colors.primary + '18' }]}>
+              <Ionicons name="swap-horizontal-outline" size={22} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.addRowTitle}>Transfer</Text>
+              <Muted>Move your own money; left out of every total</Muted>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.muted} />
           </Pressable>
@@ -941,6 +1013,8 @@ const TxRow = memo(function TxRow({ tx, fxTable }: { tx: TransactionRow; fxTable
         fxTable,
       )
     : null;
+  const sign = amountSign(tx.direction);
+  const badge = directionBadge(tx.direction);
   return (
     <Link href={{ pathname: '/(tabs)/transactions/[id]', params: { id: tx.id } }} asChild>
       <Pressable style={styles.row}>
@@ -954,11 +1028,15 @@ const TxRow = memo(function TxRow({ tx, fxTable }: { tx: TransactionRow; fxTable
               {tx.card_last4 ? `  ·  •${tx.card_last4}` : ''}
             </Muted>
             {tx.parse_status === 'needs_review' ? <Badge label="review" tone="warning" /> : null}
+            {badge ? <Badge label={badge} tone={tx.direction === 'refund' ? 'success' : 'muted'} /> : null}
             {tx.notes ? <Badge label="note" /> : null}
           </View>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={styles.amount}>{money(tx.amount === null ? null : Number(tx.amount), tx.currency)}</Text>
+          <Text style={styles.amount}>
+            {sign ? `${sign === '-' ? '−' : sign} ` : ''}
+            {money(tx.amount === null ? null : Number(tx.amount), tx.currency)}
+          </Text>
           {/* The "≈" is load-bearing: it says this is the month's average rate,
               not what the card was actually charged. */}
           {approx ? (

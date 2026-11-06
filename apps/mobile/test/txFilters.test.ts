@@ -112,6 +112,27 @@ describe('hasAnyFilter', () => {
     expect(hasAnyFilter(f({ banks: ['baiduri'] }))).toBe(true);
     expect(hasAnyFilter(f({ categoryIds: [null] }))).toBe(true);
     expect(hasAnyFilter(f({ dateTo: '2026-01-01' }))).toBe(true);
+    expect(hasAnyFilter(f({ directions: [null] }))).toBe(true);
+  });
+});
+
+describe('directions', () => {
+  it('uses `in` for explicit choices', () => {
+    expect(buildTransactionOps(f({ directions: ['out', 'refund'] }), '')).toEqual([
+      { op: 'in', column: 'direction', values: ['out', 'refund'] },
+    ]);
+  });
+
+  it('uses `is null` when only Not set is selected', () => {
+    expect(buildTransactionOps(f({ directions: [null] }), '')).toEqual([
+      { op: 'isNull', column: 'direction' },
+    ]);
+  });
+
+  it('ors NULL together with explicit choices', () => {
+    expect(buildTransactionOps(f({ directions: [null, 'in'] }), '')).toEqual([
+      { op: 'or', expr: 'direction.is.null,direction.in.(in)' },
+    ]);
   });
 });
 

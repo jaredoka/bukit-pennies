@@ -9,10 +9,11 @@ import {
   View,
 } from 'react-native';
 import { Badge, Button, Card, Centered, DateField, Field, Muted, TimeField, Title } from '@/components/ui';
+import { DirectionChips } from '@/components/direction';
 import { formatTime, bruneiDayKey, formatDayHeading } from '@/lib/format';
 import { useDeleteTransaction, usePullToRefresh, useReviewItems, useUpdateTransaction } from '@/lib/queries';
 import { useReviewPrompt } from '@/lib/reviewPrompt';
-import type { TransactionRow } from '@/lib/types';
+import type { TransactionRow, TxDirection } from '@/lib/types';
 import { themedStyles } from '@/lib/theme';
 import { usePrivacy } from '@/lib/privacy';
 
@@ -64,6 +65,7 @@ function FixItem({ tx }: { tx: TransactionRow }) {
   // either way; the stored value is already +08:00.
   const [date, setDate] = useState(tx.occurred_at ? bruneiDayKey(tx.occurred_at) : '');
   const [time, setTime] = useState(tx.occurred_at ? formatTime(tx.occurred_at) : '');
+  const [direction, setDirection] = useState<TxDirection | null>(tx.direction);
 
   const parsedAmount = Number.parseFloat(amount.replace(/,/g, ''));
   const amountOk = Number.isFinite(parsedAmount) && parsedAmount > 0;
@@ -87,6 +89,7 @@ function FixItem({ tx }: { tx: TransactionRow }) {
         occurred_at: occurredAt,
         parse_status: 'parsed',
         confidence: 1, // human-confirmed
+        direction,
       },
     }, {
       onSuccess: () => { void maybePrompt(); },
@@ -102,6 +105,10 @@ function FixItem({ tx }: { tx: TransactionRow }) {
       <Text style={styles.raw}>{tx.raw_text}</Text>
       <Field label="Amount (BND)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" />
       <Field label="Merchant" value={merchant} onChangeText={setMerchant} placeholder="MERCHANT NAME" />
+      <Muted>Direction (optional)</Muted>
+      <View style={{ marginTop: 6, marginBottom: 12 }}>
+        <DirectionChips value={direction} onChange={setDirection} includeRefund={false} />
+      </View>
       <View style={styles.dateRow}>
         <View style={{ flex: 1 }}>
           <DateField

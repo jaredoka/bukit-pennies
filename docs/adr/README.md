@@ -44,3 +44,4 @@ and **Consequences** (what it means to live with it).
 | [0030](0030-docs-reframe-and-adr-split.md) | Public docs reframe + ADR split | 2026-08-05 | Accepted |
 | [0031](0031-cloudflare-pages-for-web-demo.md) | Cloudflare Pages hosts the web demo | 2026-08-05 | Accepted |
 | [0032](0032-freemium-later.md) | Freemium later; core and shipped features stay free | 2026-08-10 | Accepted |
+| [0034](0034-transaction-directions.md) | Optional transaction directions with refunds and transfers | 2026-11-06 | Accepted (supersedes [0014](0014-remove-direction-filter.md)) |

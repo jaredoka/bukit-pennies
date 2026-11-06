@@ -36,6 +36,8 @@ export interface TransactionInsert {
   confidence: number | null;
   raw_text: string;
   raw_hash: string;
+  /** The parser only understands debit messages, so every captured row is out. */
+  direction: 'out';
 }
 
 export interface TransactionRow extends TransactionInsert {
@@ -189,6 +191,7 @@ export async function handleIngest(
     confidence: tx?.confidence ?? 0,
     raw_text: body.text,
     raw_hash: rawHash,
+    direction: 'out',
   };
 
   const { inserted, existingId } = await store.insertTransaction(insert);

@@ -60,6 +60,10 @@ describe('invalidationForPatch', () => {
     expect(keysFor(invalidationForPatch(['amount']))).toEqual([...ROWS, ...AGGREGATES]);
   });
 
+  it('refreshes the rollups for a direction change', () => {
+    expect(keysFor(invalidationForPatch(['direction']))).toEqual([...ROWS, ...AGGREGATES]);
+  });
+
   it('keeps recurring detection current when the merchant changes', () => {
     expect(keysFor(invalidationForPatch(['merchant_normalized']))).toEqual([...ROWS, ...AGGREGATES]);
   });

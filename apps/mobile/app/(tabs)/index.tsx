@@ -189,6 +189,18 @@ export default function Dashboard() {
   const income = profile.data?.monthly_income == null ? null : Number(profile.data.monthly_income);
   // Income comparison only makes sense for BND
   const effectiveIncome = primaryCurrency === 'BND' ? income : null;
+  // Money actually recorded this period. Refunds are deliberately not included
+  // — they already reduce spending, and counting them here would improve the
+  // figure twice.
+  const recordedMoneyIn = Number(snapshot.data?.period.money_in ?? 0);
+  const monthRecordedMoneyIn = Number(thisMonthData?.money_in ?? 0);
+  // Remaining/Saved uses recorded money in when there is any, and falls back to
+  // the static monthly income for months where the user has not recorded any.
+  const incomeBase = !isYearMode
+    ? recordedMoneyIn > 0
+      ? recordedMoneyIn
+      : effectiveIncome
+    : null;
 
   // Currencies recorded in the period that the donut leaves out because they
   // are not the primary one. The RPC reports their presence without totalling
@@ -237,7 +249,7 @@ export default function Dashboard() {
         isRemaining: false,
       });
     }
-    const remaining = effectiveIncome !== null && !isYearMode ? effectiveIncome - spent : null;
+    const remaining = incomeBase !== null ? incomeBase - spent : null;
     if (remaining !== null && remaining > 0) {
       slices.push({
         key: REMAINING_KEY,
@@ -248,10 +260,10 @@ export default function Dashboard() {
       });
     }
     return { slices, spent, remaining };
-  }, [snapshot.data, categories.data, colors, effectiveIncome, isYearMode]);
+  }, [snapshot.data, categories.data, colors, incomeBase, isYearMode]);
 
   const selectedSlice = donut.slices.find((s) => s.key === selected) ?? null;
-  const pctBase = effectiveIncome !== null && !isYearMode ? effectiveIncome : donut.spent;
+  const pctBase = incomeBase !== null ? incomeBase : donut.spent;
 
   function toggleSelect(key: string) {
     setSelected((cur) => (cur === key ? null : key));
@@ -307,9 +319,9 @@ export default function Dashboard() {
     void syncScheduledNotifications({
       userId,
       spentThisMonth: Number(thisMonthData?.total ?? 0),
-      income,
+      income: monthRecordedMoneyIn > 0 ? monthRecordedMoneyIn : income,
     });
-  }, [userId, thisMonthData, income, snapshot.isLoading]);
+  }, [userId, thisMonthData, income, monthRecordedMoneyIn, snapshot.isLoading]);
 
   useEffect(() => {
     if (!userId || budgetProgress.items.length === 0) return;
@@ -317,7 +329,7 @@ export default function Dashboard() {
   }, [userId, budgetProgress]);
 
   const periodLabel = isYearMode ? 'this year' : 'this month';
-  const saved = effectiveIncome !== null && !isYearMode ? effectiveIncome - donut.spent : null;
+  const saved = incomeBase !== null ? incomeBase - donut.spent : null;
 
   return (
     <>
@@ -400,17 +412,17 @@ export default function Dashboard() {
                       {(() => { const s = money(selectedSlice.value, primaryCurrency); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }]} numberOfLines={1} adjustsFontSizeToFit>{s}</Text>; })()}
                       <Muted>
                         {pctBase > 0
-                          ? `${Math.round((selectedSlice.value / pctBase) * 100)}% of ${effectiveIncome !== null && !isYearMode ? 'income' : 'spending'}`
+                          ? `${Math.round((selectedSlice.value / pctBase) * 100)}% of ${incomeBase !== null ? 'money in' : 'spending'}`
                           : ''}
                       </Muted>
                     </>
-                  ) : effectiveIncome !== null && !isYearMode ? (
+                  ) : incomeBase !== null ? (
                     <>
                       <Text style={styles.centerLabel}>
-                        {donut.remaining !== null && donut.remaining < 0 ? 'Over income' : 'Remaining'}
+                        {donut.remaining !== null && donut.remaining < 0 ? 'Over money in' : 'Remaining'}
                       </Text>
                       {(() => { const s = money(Math.abs(donut.remaining ?? 0), primaryCurrency); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }, donut.remaining !== null && donut.remaining < 0 && { color: colors.danger }]} numberOfLines={1} adjustsFontSizeToFit>{s}</Text>; })()}
-                      <Muted>{`of ${money(effectiveIncome, primaryCurrency)}`}</Muted>
+                      <Muted>{`of ${money(incomeBase, primaryCurrency)}`}</Muted>
                     </>
                   ) : (
                     <>
@@ -440,10 +452,10 @@ export default function Dashboard() {
                 </Pressable>
               ))}
             </View>
-            {income === null && !isYearMode && primaryCurrency === 'BND' ? (
+            {income === null && recordedMoneyIn === 0 && !isYearMode && primaryCurrency === 'BND' ? (
               <Link href="/(tabs)/settings" asChild>
                 <Pressable>
-                  <Muted>Set your monthly income in Settings to see what's remaining →</Muted>
+                  <Muted>Record money in, or set your monthly income in Settings, to see what's remaining →</Muted>
                 </Pressable>
               </Link>
             ) : null}
@@ -555,8 +567,12 @@ export default function Dashboard() {
         ) : null}
       </Card>
 
-      {/* ---- 2-stat strip ---- */}
+      {/* ---- 3-stat strip ---- */}
       <View style={styles.statRow}>
+        <Card style={styles.statCard}>
+          <Muted>{`Money in ${periodLabel}`}</Muted>
+          <Text style={styles.statValue}>{money(recordedMoneyIn, primaryCurrency)}</Text>
+        </Card>
         <Card style={styles.statCard}>
           <Muted>{`Saved ${periodLabel}`}</Muted>
           <Text style={[styles.statValue, saved !== null && saved < 0 && { color: colors.danger }]}>

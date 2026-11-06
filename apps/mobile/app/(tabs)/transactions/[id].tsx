@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { Badge, Button, Card, Centered, Field, Muted, Sheet, Title } from '@/components/ui';
+import { amountSign, DIRECTION_CHOICES, directionLabel, keepsCategory } from '@/lib/direction';
 import { formatTime, bruneiParts } from '@/lib/format';
 import { buildReparsePatch, canReparse } from '@/lib/reparse';
 import { themedStyles, useTheme } from '@/lib/theme';
@@ -69,6 +70,10 @@ export default function TransactionDetail() {
   const [reparseNote, setReparseNote] = useState<string | null>(null);
   const [newCategory, setNewCategory] = useState('');
   const [catSheetOpen, setCatSheetOpen] = useState(false);
+  const [dirSheetOpen, setDirSheetOpen] = useState(false);
+  // Choosing "Refund" without a category opens the category picker first; this
+  // remembers which flow the sheet is serving when it closes.
+  const [pendingRefund, setPendingRefund] = useState(false);
   useEffect(() => {
     if (tx) setNotes(tx.notes ?? '');
   }, [tx?.id]);
@@ -117,6 +122,26 @@ export default function TransactionDetail() {
   }
 
   const currentCategory = (categories.data ?? []).find((c) => c.id === tx.category_id);
+  const sign = amountSign(tx.direction);
+
+  function chooseDirection(next: (typeof DIRECTION_CHOICES)[number]['value']) {
+    if (!tx) return;
+    setDirSheetOpen(false);
+    if (next === 'refund' && !tx.category_id) {
+      setPendingRefund(true);
+      setCatSheetOpen(true);
+      return;
+    }
+    update.mutate({
+      id: tx.id,
+      patch: {
+        direction: next,
+        // Money in and transfers have no spending category; leaving a stale
+        // one behind would still show in the row's category label.
+        ...(keepsCategory(next) ? {} : { category_id: null }),
+      },
+    });
+  }
 
   return (
     <ScrollView
@@ -133,22 +158,37 @@ export default function TransactionDetail() {
           </Text>
 
           {/* Category pill — tapping opens dropdown sheet */}
-          <Pressable style={styles.categoryPill} onPress={() => setCatSheetOpen(true)}>
-            <Text style={styles.categoryPillText}>
-              {currentCategory ? currentCategory.name : 'No category'}
-            </Text>
-            <Ionicons name="chevron-down" size={13} color={colors.muted} />
-          </Pressable>
+          {keepsCategory(tx.direction) ? (
+            <Pressable style={styles.categoryPill} onPress={() => setCatSheetOpen(true)}>
+              <Text style={styles.categoryPillText}>
+                {currentCategory ? currentCategory.name : 'No category'}
+              </Text>
+              <Ionicons name="chevron-down" size={13} color={colors.muted} />
+            </Pressable>
+          ) : null}
 
           <Text style={styles.amount}>
+            {sign ? `${sign === '-' ? '−' : sign} ` : ''}
             {money(tx.amount === null ? null : Number(tx.amount), tx.currency)}
           </Text>
+          {tx.direction && tx.direction !== 'out' ? (
+            <Badge label={directionLabel(tx.direction)} tone={tx.direction === 'refund' ? 'success' : 'muted'} />
+          ) : null}
         </View>
       </Card>
 
       {/* Details card */}
       <Card>
         <Title>Details</Title>
+        <View style={styles.detailRow}>
+          <Muted>Direction</Muted>
+          <Pressable onPress={() => setDirSheetOpen(true)} style={styles.directionValue}>
+            <Text style={[styles.detailValue, { marginLeft: 0 }]}>
+              {tx.direction ? directionLabel(tx.direction) : 'Not set'}
+            </Text>
+            <Ionicons name="chevron-down" size={13} color={colors.muted} />
+          </Pressable>
+        </View>
         <View style={styles.detailRow}>
           <Muted>Date</Muted>
           <Text style={styles.detailValue}>
@@ -208,14 +248,42 @@ export default function TransactionDetail() {
 
       <Button label="Delete transaction" variant="danger" onPress={remove} busy={del.isPending} />
 
+      {/* Direction dropdown sheet. */}
+      <Sheet visible={dirSheetOpen} title="Direction" onClose={() => setDirSheetOpen(false)}>
+        {DIRECTION_CHOICES.map((choice) => {
+          const active = (tx.direction ?? null) === choice.value;
+          return (
+            <Pressable
+              key={choice.value ?? 'unset'}
+              style={styles.catRow}
+              onPress={() => chooseDirection(choice.value)}
+            >
+              <View style={{ flex: 1, marginRight: 12 }}>
+                <Text style={[styles.catRowText, active && { color: colors.primary, fontWeight: '600' }]}>
+                  {choice.label}
+                </Text>
+                {choice.value === 'refund' ? (
+                  <Muted>Reduces the spending category it names.</Muted>
+                ) : choice.value === 'transfer' ? (
+                  <Muted>Left out of spending, money in and budgets.</Muted>
+                ) : choice.value === null ? (
+                  <Muted>Counted as money out in every total.</Muted>
+                ) : null}
+              </View>
+              {active ? <Ionicons name="checkmark" size={18} color={colors.primary} /> : null}
+            </Pressable>
+          );
+        })}
+      </Sheet>
+
       {/* Category dropdown sheet. Kept mounted and toggled via `visible` so
           reopening is a fast re-present — see SheetShell. */}
       <Sheet
         visible={catSheetOpen}
-        title="Category"
-        onClose={() => setCatSheetOpen(false)}
+        title={pendingRefund ? 'Refund category' : 'Category'}
+        onClose={() => { setCatSheetOpen(false); setPendingRefund(false); }}
         onClear={
-          tx.category_id
+          tx.category_id && tx.direction !== 'refund'
             ? () => { update.mutate({ id: tx.id, patch: { category_id: null } }); setCatSheetOpen(false); }
             : undefined
         }
@@ -225,7 +293,12 @@ export default function TransactionDetail() {
             key={c.id}
             style={styles.catRow}
             onPress={() => {
-              update.mutate({ id: tx.id, patch: { category_id: tx.category_id === c.id ? null : c.id } });
+              if (pendingRefund) {
+                update.mutate({ id: tx.id, patch: { category_id: c.id, direction: 'refund' } });
+                setPendingRefund(false);
+              } else {
+                update.mutate({ id: tx.id, patch: { category_id: tx.category_id === c.id ? null : c.id } });
+              }
               setCatSheetOpen(false);
             }}
           >
@@ -294,6 +367,7 @@ const useStyles = themedStyles((colors) => ({
     borderBottomColor: colors.border,
   },
   detailValue: { color: colors.text, fontWeight: '500', flexShrink: 1, textAlign: 'right', marginLeft: 16 },
+  directionValue: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   // Category sheet
   catRow: {
     flexDirection: 'row',

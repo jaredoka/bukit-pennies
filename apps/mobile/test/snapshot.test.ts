@@ -19,16 +19,16 @@ import {
  */
 
 const rows: AggregateRow[] = [
-  { occurred_at: '2026-10-05T04:00:00+08:00', amount: 10, currency: 'BND', category_id: 'A', merchant_normalized: 'KOPI' },
-  { occurred_at: '2026-10-06T04:00:00+08:00', amount: '5.50', currency: 'BND', category_id: 'A', merchant_normalized: 'KOPI' },
-  { occurred_at: '2026-10-07T04:00:00+08:00', amount: 7, currency: 'BND', category_id: null, merchant_normalized: 'SHELL' },
-  { occurred_at: '2026-10-08T04:00:00+08:00', amount: 3, currency: 'USD', category_id: 'A', merchant_normalized: 'SHOP' },
+  { occurred_at: '2026-10-05T04:00:00+08:00', amount: 10, currency: 'BND', category_id: 'A', merchant_normalized: 'KOPI', direction: null },
+  { occurred_at: '2026-10-06T04:00:00+08:00', amount: '5.50', currency: 'BND', category_id: 'A', merchant_normalized: 'KOPI', direction: null },
+  { occurred_at: '2026-10-07T04:00:00+08:00', amount: 7, currency: 'BND', category_id: null, merchant_normalized: 'SHELL', direction: null },
+  { occurred_at: '2026-10-08T04:00:00+08:00', amount: 3, currency: 'USD', category_id: 'A', merchant_normalized: 'SHOP', direction: null },
   // 2026-10-31T16:30Z is 1 Nov 00:30 in Brunei.
-  { occurred_at: '2026-10-31T16:30:00Z', amount: 2, currency: 'BND', category_id: 'B', merchant_normalized: 'LATE' },
+  { occurred_at: '2026-10-31T16:30:00Z', amount: 2, currency: 'BND', category_id: 'B', merchant_normalized: 'LATE', direction: null },
   // 2026-09-30T15:59Z is 30 Sep 23:59 in Brunei — still September.
-  { occurred_at: '2026-09-30T15:59:00Z', amount: 1, currency: 'BND', category_id: 'A', merchant_normalized: 'EARLY' },
-  { occurred_at: null, amount: 4, currency: 'BND', category_id: 'A', merchant_normalized: 'NODATE' },
-  { occurred_at: '2026-10-09T04:00:00+08:00', amount: null, currency: 'BND', category_id: 'A', merchant_normalized: 'FREE' },
+  { occurred_at: '2026-09-30T15:59:00Z', amount: 1, currency: 'BND', category_id: 'A', merchant_normalized: 'EARLY', direction: null },
+  { occurred_at: null, amount: 4, currency: 'BND', category_id: 'A', merchant_normalized: 'NODATE', direction: null },
+  { occurred_at: '2026-10-09T04:00:00+08:00', amount: null, currency: 'BND', category_id: 'A', merchant_normalized: 'FREE', direction: null },
 ];
 
 /** What `insights_year(2026, 'BND')` returns for the same rows. */
@@ -97,7 +97,7 @@ describe('insightsFromSnapshot', () => {
   it('fills the months the RPC omits, so the chart always has twelve bars', () => {
     const insights = insightsFromSnapshot(rawYear);
     expect(insights.months).toHaveLength(12);
-    expect(insights.months[0]).toEqual({ total: 0, byCategory: new Map() });
+    expect(insights.months[0]).toEqual({ total: 0, moneyIn: 0, byCategory: new Map() });
     expect(insights.months[11]!.total).toBe(0);
   });
 
@@ -157,17 +157,70 @@ describe('monthSnapshotFromRows', () => {
     expect(month).toEqual({
       total: 25.5,
       tx_count: 5,
+      money_in: 0,
+      money_in_tx_count: 0,
       by_category: periodSnapshotFromRows(rows, 'BND').by_category,
     });
     expect('currencies' in month).toBe(false);
   });
 });
 
+describe('direction-aware totals', () => {
+  const directed: AggregateRow[] = [
+    { occurred_at: '2026-10-01T04:00:00+08:00', amount: 100, currency: 'BND', category_id: 'A', merchant_normalized: 'SHOP', direction: 'out' },
+    { occurred_at: '2026-10-02T04:00:00+08:00', amount: 20, currency: 'BND', category_id: 'A', merchant_normalized: 'SHOP', direction: 'refund' },
+    { occurred_at: '2026-10-03T04:00:00+08:00', amount: 500, currency: 'BND', category_id: null, merchant_normalized: 'EMPLOYER', direction: 'in' },
+    { occurred_at: '2026-10-04T04:00:00+08:00', amount: 50, currency: 'BND', category_id: null, merchant_normalized: 'BANK', direction: 'transfer' },
+    { occurred_at: '2026-10-05T04:00:00+08:00', amount: 10, currency: 'BND', category_id: null, merchant_normalized: 'MARKET', direction: null },
+    // A refund larger than its category's spending must not draw a negative slice.
+    { occurred_at: '2026-10-06T04:00:00+08:00', amount: 30, currency: 'BND', category_id: 'B', merchant_normalized: 'RETURN', direction: 'refund' },
+  ];
+
+  it('treats Not set as money out, nets refunds, and keeps transfers out', () => {
+    const period = periodSnapshotFromRows(directed, 'BND');
+    expect(period.total).toBe(90); // 100 out + 10 not set − 20 refund
+    expect(period.tx_count).toBe(4); // out, two refunds, not set
+    expect(period.money_in).toBe(500);
+    expect(period.money_in_tx_count).toBe(1);
+    expect(period.by_category).toEqual([
+      { category_id: 'A', total: 80 },
+      // The Not-set row counts as money out but has no category.
+      { category_id: null, total: 10 },
+    ]);
+  });
+
+  it('floors a category whose refunds exceed its spending', () => {
+    const period = periodSnapshotFromRows(directed, 'BND');
+    expect(period.by_category.some((c) => c.category_id === 'B')).toBe(false);
+  });
+
+  it('nets refunds and skips transfers in the year series', () => {
+    const insights = insightsFromRows(directed, 'BND');
+    expect(insights.months[9]!.total).toBe(60); // 100 out + 10 not set − 20 − 30 refunds
+    expect(insights.months[9]!.moneyIn).toBe(500);
+    expect(insights.moneyInTotal).toBe(500);
+    expect(insights.categoryTotals).toEqual([
+      { id: 'A', total: 80 },
+      { id: null, total: 10 },
+    ]);
+    // Refunds and transfers never enter the merchant ranking, but an untagged
+    // spend does — it is money out like any other.
+    expect(insights.merchantTotals.map((m) => m.name)).toEqual(['SHOP', 'MARKET']);
+  });
+});
+
 describe('normalizeDashboardSnapshot', () => {
   it('survives a payload with missing keys', () => {
     expect(normalizeDashboardSnapshot({})).toEqual({
-      period: { total: 0, tx_count: 0, by_category: [], currencies: [] },
-      this_month: { total: 0, tx_count: 0, by_category: [] },
+      period: {
+        total: 0,
+        tx_count: 0,
+        money_in: 0,
+        money_in_tx_count: 0,
+        by_category: [],
+        currencies: [],
+      },
+      this_month: { total: 0, tx_count: 0, money_in: 0, money_in_tx_count: 0, by_category: [] },
       // Conversion off, nothing converted, nothing reported as unconvertible.
       fx: {
         enabled: false,

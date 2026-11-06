@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { Card, Muted, Title } from '@/components/ui';
+import { ToggleRow } from '@/components/toggle';
 import { BUILD_NUMBER, GIT_SHA, VERSION_LABEL } from '@/lib/buildInfo';
 import { getDiagnosticsConsent, setDiagnosticsConsent } from '@/lib/diagnostics';
 import { themedStyles, useTheme } from '@/lib/theme';
@@ -27,21 +28,12 @@ export default function Privacy() {
           Diagnostics help fix crashes and bugs. They are off by default and only ever sent
           while this switch is on.
         </Muted>
-        <Pressable
-          style={styles.switchRow}
-          onPress={() => toggle(!enabled)}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: enabled }}
+        <ToggleRow
+          label="Send diagnostics"
+          value={enabled}
+          onValueChange={toggle}
           accessibilityLabel="Send crash and diagnostic reports"
-        >
-          <Text style={[styles.switchLabel, { color: colors.text }]}>Send diagnostics</Text>
-          <Switch
-            value={enabled}
-            onValueChange={toggle}
-            trackColor={{ false: colors.switchOff, true: colors.primary }}
-            ios_backgroundColor={colors.switchOff}
-          />
-        </Pressable>
+        />
       </Card>
 
       <Card>
@@ -84,19 +76,6 @@ export default function Privacy() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center', gap: 16 },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.inputBorder,
-    backgroundColor: colors.inputBg,
-  },
-  switchLabel: { fontSize: 15, fontWeight: '500' },
   list: { marginTop: 12, gap: 6 },
   item: { fontSize: 14, lineHeight: 20 },
 }));

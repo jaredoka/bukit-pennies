@@ -148,7 +148,7 @@ jobs:
         if: env.SENTRY_AUTH_TOKEN != ''
         working-directory: apps/mobile
         run: |
-          npx --yes @sentry/cli@2 sourcemaps upload \
+          pnpm dlx @sentry/cli@2 sourcemaps upload \
             --org "$SENTRY_ORG" \
             --project "$SENTRY_PROJECT" \
             build/main.jsbundle.map

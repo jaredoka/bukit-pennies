@@ -6,18 +6,20 @@ import { kvGetSync, kvSetSync } from './kvStore';
 //
 // Two rules, and they are the whole design:
 //
-// 1. Opt-in, default off. Nothing is sent until the switch on
-//    Settings > Privacy & diagnostics is on. The value is read synchronously
-//    at module load because Sentry's `beforeSend` can fire during startup,
-//    before React has rendered a single frame.
+// 1. Two separate choices. The global "Send diagnostics" switch controls
+//    automatic crash reports and is off by default. A report's own "Attach
+//    diagnostics" toggle controls that one payload and is on by default: the
+//    act of submitting a report with the toggle visible is the consent.
 // 2. Strict allowlist. This file is the only place a diagnostics payload is
 //    built, and it builds exactly the keys the server accepts. Amounts,
 //    merchant names, notes, raw SMS text and card digits are not in the list,
 //    so they cannot be collected by accident — there is no generic "attach the
 //    last screen state" escape hatch.
 //
-// Breadcrumbs are route names only. They live in memory, are capped, and are
-// cleared when consent is switched off.
+// Breadcrumbs are route names only. They are collected only while automatic
+// diagnostics consent is on, live in memory, are capped, and are cleared when
+// that switch is turned off. A report submitted with automatic diagnostics off
+// still carries the current route, build identity and device details.
 
 const CONSENT_KEY = 'bukit.diagnostics_consent';
 
@@ -77,16 +79,15 @@ function locale(): string | undefined {
 }
 
 /**
- * Null when consent is off. `route` is the screen the user was on when they
- * opened the report form; `sentryEventId` is only set when the report follows
- * an error the app already sent.
+ * Null when the caller chooses not to attach diagnostics. The report form owns
+ * that choice per submission; the global Sentry consent is separate and only
+ * gates automatic crash reports. A report toggle that says "on" must actually
+ * attach data, so this builder deliberately does not re-check the global flag.
  */
 export function buildDiagnostics(
   route: string | null | undefined,
   sentryEventId: string | null = null,
 ): DiagnosticsPayload | null {
-  if (!consented) return null;
-
   const { width, height } = Dimensions.get('window');
   const extra: DiagnosticsExtra = {};
   const loc = locale();

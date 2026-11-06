@@ -141,6 +141,18 @@ jobs:
           ls -lh build/main.jsbundle.map
           test -s build/main.jsbundle.map
 
+      # The Sentry Expo plugin's build phase runs, but its JS upload did not
+      # produce an artifact on build 139. Upload the generated map explicitly;
+      # it carries the debug id that matches the JS bundle.
+      - name: Upload JS source map to Sentry
+        if: env.SENTRY_AUTH_TOKEN != ''
+        working-directory: apps/mobile
+        run: |
+          npx --yes @sentry/cli@2 sourcemaps upload \
+            --org "$SENTRY_ORG" \
+            --project "$SENTRY_PROJECT" \
+            build/main.jsbundle.map
+
       - name: Upload source map artifact
         if: always()
         uses: actions/upload-artifact@v4

@@ -4,11 +4,7 @@ import { usePathname } from 'expo-router';
 import { Button, Card, Field, Muted, Title } from '@/components/ui';
 import { ToggleRow } from '@/components/toggle';
 import { APP_VERSION, VERSION_LABEL } from '@/lib/buildInfo';
-import {
-  buildDiagnostics,
-  getDiagnosticsConsent,
-  setDiagnosticsConsent,
-} from '@/lib/diagnostics';
+import { buildDiagnostics } from '@/lib/diagnostics';
 import { MAX_FEEDBACK_DESCRIPTION, useSubmitBugReport } from '@/lib/queries';
 import { useSession } from '@/lib/session';
 import { themedStyles, useTheme } from '@/lib/theme';
@@ -21,9 +17,10 @@ export default function ReportBug() {
   const submit = useSubmitBugReport();
   const [description, setDescription] = useState('');
   const [sent, setSent] = useState(false);
-  // Mirrors the device preference. Turning it on here is a real opt-in — the
-  // same switch lives in Settings > Privacy & diagnostics.
-  const [withDiagnostics, setWithDiagnostics] = useState(getDiagnosticsConsent());
+  // Per-report diagnostics are on by default. This is separate from the global
+  // automatic crash-report switch: submitting a report with this visible toggle
+  // on is the consent for this payload, and turning it off sends nothing.
+  const [withDiagnostics, setWithDiagnostics] = useState(true);
 
   const userId = session?.user.id ?? '';
   const shortId = userId
@@ -32,7 +29,6 @@ export default function ReportBug() {
 
   function toggleDiagnostics(on: boolean) {
     setWithDiagnostics(on);
-    setDiagnosticsConsent(on);
   }
 
   async function handleSubmit() {

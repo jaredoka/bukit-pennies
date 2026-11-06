@@ -25,8 +25,10 @@ export default function Privacy() {
       <Card>
         <Title>Privacy & diagnostics</Title>
         <Muted>
-          Diagnostics help fix crashes and bugs. They are off by default and only ever sent
-          while this switch is on.
+          Diagnostics help fix crashes and bugs. Automatic crash reports are off by
+          default and only ever sent while this switch is on. Reports you submit can
+          attach diagnostics separately — that option is on the report form and can
+          be turned off for each report.
         </Muted>
         <ToggleRow
           label="Send diagnostics"

@@ -15,6 +15,7 @@ import {
   View,
   useWindowDimensions,
   type LayoutChangeEvent,
+  type ScrollViewInstance,
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
@@ -127,12 +128,10 @@ export function Field(props: TextInputProps & { label?: string }) {
  * Screen root that dismisses the keyboard when you tap anything that is not an
  * input or a control.
  *
- * The auth screens deliberately do not use KeyboardAvoidingView: their card is
- * vertically centred, so padding the screen for the keyboard re-centred the
- * card and the whole form visibly slid upward the moment a field was focused.
- * The keyboard overlays the card instead — which on a short screen can cover
- * the submit button, so there has to be a way to put the keyboard away that
- * does not involve reaching for the button hiding behind it.
+ * The auth screens pair this with a KeyboardAvoidingView + ScrollView holding a
+ * top-anchored card, so the keyboard covers empty space below the form rather
+ * than a focused field; the tap-to-dismiss here is the way to put the keyboard
+ * away without reaching for a button hidden behind it.
  *
  * Taps on children are unaffected: Pressable only fires for touches its
  * children did not handle. `accessible={false}` stops VoiceOver collapsing the
@@ -307,7 +306,7 @@ export function Chip({
 }
 
 function snapScroll(
-  ref: RefObject<ScrollView | null>,
+  ref: RefObject<ScrollViewInstance | null>,
   y: number,
   count: number,
   lastIdx: React.MutableRefObject<number>,
@@ -338,7 +337,7 @@ export function WheelPicker({
   visibleCount?: number;
 }) {
   const { colors } = useTheme();
-  const ref = useRef<ScrollView>(null);
+  const ref = useRef<ScrollViewInstance>(null);
   const lastIdx = useRef(selectedIndex);
   // Debounce timer — fires 120ms after the last scroll event on any platform.
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -483,9 +482,12 @@ export function useSheetPresence<T>(value: T | null): T | null {
  * slides it exactly its own height, on the native driver — no dead distance,
  * and the dim is at full strength on the first frame.
  *
- * `visible` going false animates out and *then* unmounts the Modal, so callers
- * get the exit animation whether or not they gate rendering with
- * `useSheetPresence` (which exists to reset sheet state, not to animate).
+ * `visible` going false animates out and *then* dismisses. The Modal stays
+ * mounted after its first open and is re-presented via its own `visible` prop
+ * on later opens — a fast native re-present instead of a fresh mount + measure
+ * + paint, which is what made every filter sheet feel slow to arrive. Parents
+ * that gate rendering on `useSheetPresence` (Add/Capture) still unmount the
+ * whole SheetShell, so their reset-on-close behaviour is unchanged.
  */
 export function SheetShell({
   visible,
@@ -503,13 +505,22 @@ export function SheetShell({
   // instead of letting the RN Modal's full-viewport layer spill across the
   // whole browser.
   const webFramed = Platform.OS === 'web' && width > WEB_FRAME_BREAKPOINT;
-  // Held open across the exit animation, then released.
+  // Flips to true on the first open and stays: the Modal is never torn down
+  // again, so reopening is a re-present rather than a remount.
   const [mounted, setMounted] = useState(visible);
+  // The Modal's `visible` prop. Held true across the exit animation, then
+  // released — the panel has to stay presented while it slides away.
+  const [shown, setShown] = useState(visible);
   // Starts a full screen down: wherever the panel turns out to sit, it is
   // offscreen until the first layout tells us its real height.
   const y = useRef(new Animated.Value(screenH)).current;
   const dim = useRef(new Animated.Value(visible ? 1 : 0)).current;
   const panelH = useRef(screenH);
+  // True once the panel has measured at least once, so a reopen can slide in
+  // from the cached height instead of waiting for the Modal to re-layout.
+  const panelReady = useRef(false);
+  // True once the entrance has started for this presentation, so a later
+  // layout event (the sheet growing, a re-present) cannot restart the slide.
   const entered = useRef(false);
   // Read by the exit callback, which can land after a reopen.
   const visibleRef = useRef(visible);
@@ -519,12 +530,27 @@ export function SheetShell({
     y.stopAnimation();
     dim.stopAnimation();
     if (visible) {
-      entered.current = false;
-      y.setValue(screenH);
-      dim.setValue(1);
       setMounted(true);
+      setShown(true);
+      dim.setValue(1);
+      if (panelReady.current) {
+        // Reopen: the height is already known, so start sliding immediately.
+        entered.current = true;
+        y.setValue(panelH.current);
+        Animated.timing(y, {
+          toValue: 0,
+          duration: SHEET_ANIM_MS,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start();
+      } else {
+        // First open: wait for the panel to measure itself (onPanelLayout).
+        entered.current = false;
+        y.setValue(screenH);
+      }
       return;
     }
+    if (!mounted) return;
     Animated.parallel([
       Animated.timing(y, {
         toValue: panelH.current,
@@ -538,11 +564,11 @@ export function SheetShell({
         useNativeDriver: true,
       }),
     ]).start(({ finished }) => {
-      // Reopening within the 300ms exit interrupts this; unmounting then would
-      // tear down the sheet the user just asked for.
-      if (finished && !visibleRef.current) setMounted(false);
+      // Reopening within the 300ms exit interrupts this; dismissing then would
+      // hide the sheet the user just asked for.
+      if (finished && !visibleRef.current) setShown(false);
     });
-  }, [visible, screenH, y, dim]);
+  }, [visible, screenH, y, dim, mounted]);
 
   // Every layout updates the exit distance (a sheet can grow — the capture
   // sheet sprouts results); only the first one starts the entrance.
@@ -550,6 +576,7 @@ export function SheetShell({
     const h = e.nativeEvent.layout.height;
     if (h <= 0) return;
     panelH.current = h;
+    panelReady.current = true;
     if (entered.current) return;
     entered.current = true;
     y.setValue(h);
@@ -561,10 +588,10 @@ export function SheetShell({
     }).start();
   }
 
-  if (!mounted && !visible) return null;
+  if (!mounted) return null;
 
   return (
-    <Modal visible transparent animationType="none" onRequestClose={onClose}>
+    <Modal visible={shown} transparent animationType="none" onRequestClose={onClose}>
       <View style={webFramed ? styles.sheetViewport : styles.sheetFill}>
         <View style={webFramed ? styles.sheetFrame : styles.sheetFill}>
           <View style={styles.sheetSlide}>

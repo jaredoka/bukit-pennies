@@ -125,7 +125,12 @@ function Detail({ goal }: { goal: SavingsGoalWithProgress }) {
   return (
     <>
       <Stack.Screen options={{ title: goal.name }} />
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <ScrollView
+          style={styles.screen}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
         <Card>
           <View style={styles.amountsRow}>
             <Text style={styles.amounts} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>

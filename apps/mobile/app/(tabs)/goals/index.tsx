@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Text, View, type ScrollViewInstance } from 'react-native';
+import { Stack, router, useScrollToTop } from 'expo-router';
 import { Button, Card, Centered, Field, Muted, Title } from '@/components/ui';
 import { useAddSavingsGoalEntry, useSavingsGoals } from '@/lib/queries';
 import { usePrivacy } from '@/lib/privacy';
@@ -11,6 +11,11 @@ import type { SavingsGoalWithProgress } from '@/lib/types';
 export default function GoalsTab() {
   const styles = useStyles();
   const { colors } = useTheme();
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  // Re-tapping the active Goals tab returns to the top.
+  // expo-router 58 still types this against the ScrollView component rather
+  // than its instance, so bridge the two here.
+  useScrollToTop(scrollRef as unknown as Parameters<typeof useScrollToTop>[0]);
   const { data, isLoading } = useSavingsGoals();
 
   if (isLoading) {
@@ -40,7 +45,13 @@ export default function GoalsTab() {
           ),
         }}
       />
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <ScrollView
+          ref={scrollRef}
+          style={styles.screen}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
         {goals.length === 0 ? (
           <Card>
             <Title>No goals yet</Title>

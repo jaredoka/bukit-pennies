@@ -158,7 +158,12 @@ function Form({
   return (
     <>
       <Stack.Screen options={{ title: existing ? 'Edit subscription' : 'Add subscription' }} />
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <ScrollView
+          style={styles.screen}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
         <Card>
           <Title>{existing ? 'Edit subscription' : 'New subscription'}</Title>
           <Muted>

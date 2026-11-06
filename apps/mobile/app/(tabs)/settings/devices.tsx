@@ -96,7 +96,12 @@ export default function Devices() {
   const atCap = usedFull || unusedFull;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+    >
       <Card>
         <Title>New capture device</Title>
         <Muted>

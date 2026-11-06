@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Platform, StyleSheet, useColorScheme } from 'react-native';
+import type { ImageStyle, TextStyle, ViewStyle } from 'react-native';
 import { isFreshInstall } from './installMarker';
 
 // Default category colours per theme. User-chosen colours stored in the DB
@@ -65,6 +66,13 @@ export interface Palette {
    */
   inputBg: string;
   inputBorder: string;
+  /**
+   * Off-state track for a Switch. `border` cannot do this job: in light mode it
+   * is a pale yellow line that disappears on the card, so an off switch read as
+   * an empty gap rather than a control. This is deliberately a mid-tone in both
+   * themes — the thumb is what shows the state, the track just has to be visible.
+   */
+  switchOff: string;
   chartCategories: string[];
   chartOther: string;
 }
@@ -82,6 +90,7 @@ export const palettes: Record<'light' | 'dark', Palette> = {
     border: '#F5F0CC',        // very faint yellow-tinted border
     inputBg: '#FFFFFF',       // white against the pale yellow card
     inputBorder: '#DDD5B4',   // warm greige; carries the edge on white too
+    switchOff: '#BFC7D1',     // visible on the pale card, still reads as "off"
     chartCategories: CATEGORY_COLORS.light,
     chartOther: CATEGORY_COLOR_OTHER.light,
   },
@@ -97,6 +106,7 @@ export const palettes: Record<'light' | 'dark', Palette> = {
     border: '#263240',
     inputBg: '#1F2A37',       // lifted off the card, as white is in light mode
     inputBorder: '#3A4A5C',
+    switchOff: '#41505F',
     chartCategories: CATEGORY_COLORS.dark,
     chartOther: CATEGORY_COLOR_OTHER.dark,
   },
@@ -193,6 +203,10 @@ export function useStackTheme() {
   const { colors } = useTheme();
   return {
     headerStyle: { backgroundColor: colors.card },
+    // SDK 58's iOS 26+ default is a transparent Liquid Glass header. The app's
+    // screens use their own card-coloured header and assume content starts
+    // below it, so keep the header opaque.
+    headerTransparent: false,
     headerTintColor: colors.primary,
     headerTitleStyle: { fontWeight: '700' as const, color: colors.text },
     headerTitleAlign: 'center' as const,
@@ -212,7 +226,13 @@ export function useStackTheme() {
  *   const useStyles = themedStyles((colors) => ({ ... }));
  *   ...inside the component: const styles = useStyles();
  */
-export function themedStyles<T extends StyleSheet.NamedStyles<T>>(
+
+// `StyleSheet.NamedStyles` was removed from React Native's strict TypeScript
+// API in 0.87. This is the same shape, kept local so the style factories keep
+// their contextual literal types.
+type NamedStyles<T> = { [P in keyof T]: ViewStyle | TextStyle | ImageStyle };
+
+export function themedStyles<T extends NamedStyles<T>>(
   factory: (colors: Palette) => T,
 ): () => T {
   return function useStyles(): T {

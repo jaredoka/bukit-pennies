@@ -1,6 +1,7 @@
 import { parseBankMessage } from '@bukit/parsers';
 import { describe, expect, it } from 'vitest';
-import { buildCsv, csvField, csvText, type CsvTransaction } from '@/lib/csv';
+import { buildCsv, CSV_FX_HEADER, csvField, csvText, type CsvTransaction } from '@/lib/csv';
+import { buildFxTable } from '@/lib/fx';
 
 const fmt = { day: () => '2026-07-31', time: () => '17:37' };
 
@@ -17,6 +18,7 @@ function tx(overrides: Partial<CsvTransaction> = {}): CsvTransaction {
     parse_status: 'parsed',
     notes: null,
     raw_text: 'Card No.: 4x0213 Amount: BND 21.00',
+    direction: null,
     ...overrides,
   };
 }
@@ -103,9 +105,12 @@ describe('buildCsv', () => {
       new Map(),
       fmt,
     );
-    // No cell may begin with a formula trigger, quoted or not.
+    // No cell may begin with a formula trigger, quoted or not. The amount and
+    // signed_amount columns are allowed to be negative numbers; neutralising
+    // them would break every sum in the sheet.
     for (const row of cells(csv).slice(1)) {
-      for (const cell of row) {
+      for (const [i, cell] of row.entries()) {
+        if (i === 2 || i === 3) continue;
         expect(cell.replace(/^"/, '')).not.toMatch(/^[=+\-@\t\r]/);
       }
     }
@@ -122,10 +127,28 @@ describe('buildCsv', () => {
     expect(csv).toContain("'@SUM(A1:A9)");
   });
 
-  // Regression guard for the split: the amount column must stay numeric.
   it('keeps a negative amount numeric', () => {
     const csv = buildCsv([tx({ amount: -12.5 })], new Map(), fmt);
     expect(cells(csv)[1]![2]).toBe('-12.50');
+  });
+
+  it('exports a blank direction for Not set and a negative signed amount', () => {
+    const row = cells(buildCsv([tx()], new Map(), fmt))[1]!;
+    expect(row[3]).toBe('-21.00');
+    expect(row[4]).toBe('');
+  });
+
+  it('signs money in positive and leaves transfers with no signed amount', () => {
+    const rows = cells(
+      buildCsv(
+        [tx({ direction: 'in' }), tx({ direction: 'refund' }), tx({ direction: 'transfer' })],
+        new Map(),
+        fmt,
+      ),
+    );
+    expect(rows[1]!.slice(3, 5)).toEqual(['21.00', 'in']);
+    expect(rows[2]!.slice(3, 5)).toEqual(['21.00', 'refund']);
+    expect(rows[3]!.slice(3, 5)).toEqual(['', 'transfer']);
   });
 
   /**
@@ -151,7 +174,8 @@ describe('buildCsv', () => {
       fmt,
     );
 
-    for (const cell of cells(csv)[1]!) {
+    for (const [i, cell] of cells(csv)[1]!.entries()) {
+      if (i === 2 || i === 3) continue;
       expect(cell.replace(/^"/, '')).not.toMatch(/^[=+\-@\t\r]/);
     }
     expect(csv).toContain("'=HYPERLINK");
@@ -167,5 +191,40 @@ describe('buildCsv', () => {
     expect(row[0]).toBe('');
     expect(row[1]).toBe('');
     expect(row[2]).toBe('');
+  });
+});
+
+describe('buildCsv — converted columns', () => {
+  const rates = buildFxTable([{ month: '2026-07-01', currency: 'USD', rate_to_bnd: '1.40' }]);
+
+  it('adds no columns when no rates are supplied', () => {
+    const header = cells(buildCsv([tx()], new Map(), fmt))[0]!;
+    expect(header).not.toContain('converted_amount');
+    expect(header).toHaveLength(14);
+  });
+
+  it('appends the fx columns and converts only foreign rows', () => {
+    const rows = cells(
+      buildCsv(
+        [tx(), tx({ currency: 'USD', amount: 100, occurred_at: '2026-07-15T04:00:00.000Z' })],
+        new Map(),
+        fmt,
+        { currency: 'BND', table: rates },
+      ),
+    );
+    expect(rows[0]!.slice(14)).toEqual(CSV_FX_HEADER);
+    // Already in the primary currency: named, but no duplicated amount.
+    expect(rows[1]!.slice(14)).toEqual(['BND', '', '', '']);
+    expect(rows[2]!.slice(14)).toEqual(['BND', '140.00', '2026-07-01', 'false']);
+  });
+
+  it('leaves the converted amount blank when the currency has no rate', () => {
+    const rows = cells(
+      buildCsv([tx({ currency: 'EUR', amount: 10 })], new Map(), fmt, {
+        currency: 'BND',
+        table: rates,
+      }),
+    );
+    expect(rows[1]!.slice(14)).toEqual(['BND', '', '', '']);
   });
 });

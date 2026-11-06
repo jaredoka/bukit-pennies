@@ -51,6 +51,37 @@ export async function kvSet(key: string, value: string): Promise<void> {
   }
 }
 
+/**
+ * Blocking reads/writes, for the handful of preferences that must be known
+ * before the first frame — diagnostics consent gates Sentry's `beforeSend`,
+ * which can fire during startup. SecureStore's sync API blocks the JS thread,
+ * so these are for single small flags only; everything else uses the async
+ * pair above.
+ */
+export function kvGetSync(key: string): string | null {
+  try {
+    if (Platform.OS === 'web') return globalThis.localStorage?.getItem(safeKey(key)) ?? null;
+    const SecureStore = require('expo-secure-store') as typeof import('expo-secure-store');
+    return SecureStore.getItem(safeKey(key));
+  } catch (err) {
+    warn('kvGetSync', key, err);
+    return null;
+  }
+}
+
+export function kvSetSync(key: string, value: string): void {
+  try {
+    if (Platform.OS === 'web') {
+      globalThis.localStorage?.setItem(safeKey(key), value);
+      return;
+    }
+    const SecureStore = require('expo-secure-store') as typeof import('expo-secure-store');
+    SecureStore.setItem(safeKey(key), value);
+  } catch (err) {
+    warn('kvSetSync', key, err);
+  }
+}
+
 export async function kvGetJson<T>(key: string, fallback: T): Promise<T> {
   const raw = await kvGet(key);
   if (raw === null) return fallback;

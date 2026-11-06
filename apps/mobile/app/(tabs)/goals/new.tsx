@@ -25,7 +25,12 @@ export default function NewGoal() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+    >
       <Card>
         <Title>New goal</Title>
         <Muted>Set a target and add to it whenever you put money aside.</Muted>

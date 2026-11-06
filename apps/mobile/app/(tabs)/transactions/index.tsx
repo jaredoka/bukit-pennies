@@ -1,8 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { MAX_TEXT_BYTES, parseBankMessage, splitBankMessages } from '@bukit/parsers';
 import { useQueryClient } from '@tanstack/react-query';
-import { Link, Stack, useRouter } from 'expo-router';
-import { useEffect, useRef, useMemo, useState } from 'react';
+import { Link, Stack, useRouter, useScrollToTop } from 'expo-router';
+import { memo, useEffect, useRef, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -26,11 +26,23 @@ import {
   useSheetPresence,
 } from '@/components/ui';
 import { DAY_KEY_RE, dayKeyOf, monthGrid, stepMonth } from '@/lib/calendar';
+import { amountSign, DIRECTION_CHOICES, effectiveDirection } from '@/lib/direction';
+import { directionBadge } from '@/components/direction';
 import { bruneiDayKey, formatDayHeading, formatMoney, formatTime } from '@/lib/format';
+import { emptyFxTable, rowConversion, type FxTable } from '@/lib/fx';
 import { postIngest, postIngestMany, type BulkItemResult, type IngestResponse } from '@/lib/ingest';
-import { invalidateTransactionQueries, useCategories, useFilteredTransactions, usePullToRefresh, useReviewCount, useTransactionFacets } from '@/lib/queries';
+import {
+  invalidateTransactionQueries,
+  useCategories,
+  useFilteredTransactions,
+  useFxRates,
+  usePullToRefresh,
+  useReviewCount,
+  useTransactionFacets,
+} from '@/lib/queries';
+import { useReviewPrompt } from '@/lib/reviewPrompt';
 import { DEFAULT_FILTERS, hasAnyFilter, type TxFilters } from '@/lib/txFilters';
-import type { CategoryRow, TransactionRow } from '@/lib/types';
+import type { CategoryRow, TransactionRow, TxDirection } from '@/lib/types';
 import { themedStyles, useTheme } from '@/lib/theme';
 import { usePrivacy } from '@/lib/privacy';
 import { usePrimaryCurrency } from '@/lib/primaryCurrency';
@@ -42,7 +54,7 @@ const BANK_LABELS: Record<string, string> = {
   unknown: 'Other',
 };
 
-type SheetKey = 'bank' | 'card' | 'category' | 'currency' | 'date' | 'recipient';
+type SheetKey = 'bank' | 'card' | 'category' | 'currency' | 'date' | 'recipient' | 'direction';
 
 function toggleItem<T>(arr: T[], item: T): T[] {
   return arr.includes(item) ? arr.filter((x) => x !== item) : [...arr, item];
@@ -442,6 +454,33 @@ function CardSheet({
 
 // ---- Filter bar chip -------------------------------------------------------
 
+function DirectionSheet({
+  visible,
+  selected,
+  onChange,
+  onClose,
+}: {
+  visible: boolean;
+  selected: (TxDirection | null)[];
+  onChange: (v: (TxDirection | null)[]) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet visible={visible} title="Direction" onClose={onClose} onClear={() => onChange([])}>
+      <View style={{ marginBottom: 8 }}>
+        {DIRECTION_CHOICES.map((choice) => (
+          <SelectRow
+            key={choice.value ?? 'unset'}
+            label={choice.value === null ? 'Not set' : choice.label}
+            selected={selected.includes(choice.value)}
+            onPress={() => onChange(toggleItem<TxDirection | null>(selected, choice.value))}
+          />
+        ))}
+      </View>
+    </Sheet>
+  );
+}
+
 function FBarChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   const styles = useStyles();
   return (
@@ -461,6 +500,12 @@ export default function TransactionsList() {
   const categories = useCategories();
   const facets = useTransactionFacets();
   const reviewCount = useReviewCount();
+  // One rate query for the whole list. Rows receive the table as a prop rather
+  // than each subscribing to the query: a list can mount dozens of rows, and
+  // the conversion is the same table for all of them.
+  const { convertOthers } = usePrimaryCurrency();
+  const fxRates = useFxRates(convertOthers);
+  const fxTable = fxRates.data ?? NO_RATES;
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<TxFilters>(DEFAULT_FILTERS);
   const debouncedSearch = useDebounced(search, 300);
@@ -471,14 +516,18 @@ export default function TransactionsList() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    // With kept-previous-data the rows on screen can still belong to the
+    // previous filter, and their cursors point into that result. Paging from
+    // them would continue the old list, so wait for the real first page.
+    isPlaceholderData,
   } = useFilteredTransactions(filters, debouncedSearch);
   const [activeSheet, setActiveSheet] = useState<SheetKey | null>(null);
-  // The sheet that is actually rendered: lags activeSheet on the way out so
-  // the panel can slide away before it unmounts.
-  const renderedSheet = useSheetPresence(activeSheet);
   const [showAdd, setShowAdd] = useState(false);
   const addSheetPresent = useSheetPresence(showAdd ? 'add' : null) !== null;
   const { refreshing, onRefresh } = usePullToRefresh();
+  const listRef = useRef<SectionList<TransactionRow>>(null);
+  // Re-tapping the active Transactions tab returns to the top of the list.
+  useScrollToTop(listRef as unknown as Parameters<typeof useScrollToTop>[0]);
 
   function patch(p: Partial<TxFilters>) {
     setFilters((prev) => ({ ...prev, ...p }));
@@ -530,6 +579,14 @@ export default function TransactionsList() {
     : filters.dateTo ? `To ${filters.dateTo}`
     : 'Date';
   const recipLabel = filters.recipient.trim() || 'Recipient';
+  const dirLabel =
+    filters.directions.length === 1
+      ? (filters.directions[0] === null
+          ? 'Not set'
+          : DIRECTION_CHOICES.find((c) => c.value === filters.directions[0])?.label ?? 'Direction')
+      : filters.directions.length > 1
+        ? `${filters.directions.length} directions`
+        : 'Direction';
 
   const anyFilter = hasAnyFilter(filters);
 
@@ -547,7 +604,14 @@ export default function TransactionsList() {
       .sort(([a], [b]) => (a === 'unknown' ? 1 : b === 'unknown' ? -1 : b.localeCompare(a)))
       .map(([day, items]) => ({
         title: day === 'unknown' ? 'Unknown date' : formatDayHeading(day),
-        total: items.reduce((s, t) => s + Number(t.amount ?? 0), 0),
+        // Spending only, net of refunds: transfers change no total and money in
+        // is not spending.
+        total: items.reduce((s, t) => {
+          const d = effectiveDirection(t.direction);
+          if (d === 'in' || d === 'transfer') return s;
+          const amount = Number(t.amount ?? 0);
+          return s + (d === 'refund' ? -amount : amount);
+        }, 0),
         data: items,
       }));
   }, [data]);
@@ -635,6 +699,7 @@ export default function TransactionsList() {
             <FBarChip label={currLabel} active={filters.currencies.length > 0} onPress={() => setActiveSheet('currency')} />
           ) : null}
           <FBarChip label={dateLabel} active={!!(filters.dateFrom || filters.dateTo)} onPress={() => setActiveSheet('date')} />
+          <FBarChip label={dirLabel} active={filters.directions.length > 0} onPress={() => setActiveSheet('direction')} />
           <FBarChip label={recipLabel} active={!!filters.recipient.trim()} onPress={() => setActiveSheet('recipient')} />
           {anyFilter ? (
             <>
@@ -646,19 +711,27 @@ export default function TransactionsList() {
         </View>
 
         <SectionList
+          ref={listRef}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           sections={sections}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.content}
+          // Rows are 50/page and cheap, but the default window renders a lot
+          // more than a phone screen needs on every filter change. These keep
+          // the first paint and each filter swap to roughly one screenful.
+          initialNumToRender={12}
+          maxToRenderPerBatch={12}
+          updateCellsBatchingPeriod={50}
+          windowSize={7}
           renderSectionHeader={({ section }) => (
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{section.title}</Text>
               <Muted>{money(section.total)}</Muted>
             </View>
           )}
-          renderItem={({ item }) => <TxRow tx={item} />}
+          renderItem={({ item }) => <TxRow tx={item} fxTable={fxTable} />}
           onEndReached={() => {
-            if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+            if (hasNextPage && !isFetchingNextPage && !isPlaceholderData) void fetchNextPage();
           }}
           onEndReachedThreshold={0.5}
           ListFooterComponent={
@@ -666,7 +739,7 @@ export default function TransactionsList() {
               <View style={{ paddingVertical: 20 }}>
                 <ActivityIndicator />
               </View>
-            ) : null
+            ) : undefined
           }
           ListEmptyComponent={
             anyFilter || search ? (
@@ -685,24 +758,20 @@ export default function TransactionsList() {
         />
       </View>
 
-      {/* Per-filter sheets */}
+      {/* Per-filter sheets. Kept mounted and toggled via `visible` rather than
+          conditionally rendered, so reopening is a fast native re-present of
+          the same Modal instead of a fresh mount — see SheetShell. */}
       {addSheetPresent ? (
         <AddSheet visible={showAdd} onClose={() => setShowAdd(false)} />
       ) : null}
 
-      {renderedSheet === 'bank' ? (
-        <BankSheet visible={activeSheet === 'bank'} available={availBanks} selected={filters.banks} onChange={(v) => patch({ banks: v })} onClose={() => setActiveSheet(null)} />
-      ) : renderedSheet === 'card' ? (
-        <CardSheet visible={activeSheet === 'card'} available={availCards} selected={filters.cards} onChange={(v) => patch({ cards: v })} onClose={() => setActiveSheet(null)} />
-      ) : renderedSheet === 'category' ? (
-        <CategorySheet visible={activeSheet === 'category'} categories={categories.data ?? []} selected={filters.categoryIds} onChange={(v) => patch({ categoryIds: v })} onClose={() => setActiveSheet(null)} />
-      ) : renderedSheet === 'currency' ? (
-        <CurrencySheet visible={activeSheet === 'currency'} available={availCurrencies} selected={filters.currencies} onChange={(v) => patch({ currencies: v })} onClose={() => setActiveSheet(null)} />
-      ) : renderedSheet === 'date' ? (
-        <CalendarSheet visible={activeSheet === 'date'} dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={(p) => patch(p)} onClose={() => setActiveSheet(null)} />
-      ) : renderedSheet === 'recipient' ? (
-        <RecipientSheet visible={activeSheet === 'recipient'} value={filters.recipient} onChange={(v) => patch({ recipient: v })} onClose={() => setActiveSheet(null)} />
-      ) : null}
+      <BankSheet visible={activeSheet === 'bank'} available={availBanks} selected={filters.banks} onChange={(v) => patch({ banks: v })} onClose={() => setActiveSheet(null)} />
+      <CardSheet visible={activeSheet === 'card'} available={availCards} selected={filters.cards} onChange={(v) => patch({ cards: v })} onClose={() => setActiveSheet(null)} />
+      <CategorySheet visible={activeSheet === 'category'} categories={categories.data ?? []} selected={filters.categoryIds} onChange={(v) => patch({ categoryIds: v })} onClose={() => setActiveSheet(null)} />
+      <CurrencySheet visible={activeSheet === 'currency'} available={availCurrencies} selected={filters.currencies} onChange={(v) => patch({ currencies: v })} onClose={() => setActiveSheet(null)} />
+      <CalendarSheet visible={activeSheet === 'date'} dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={(p) => patch(p)} onClose={() => setActiveSheet(null)} />
+      <RecipientSheet visible={activeSheet === 'recipient'} value={filters.recipient} onChange={(v) => patch({ recipient: v })} onClose={() => setActiveSheet(null)} />
+      <DirectionSheet visible={activeSheet === 'direction'} selected={filters.directions} onChange={(v) => patch({ directions: v })} onClose={() => setActiveSheet(null)} />
     </>
   );
 }
@@ -723,17 +792,43 @@ function AddSheet({ visible, onClose }: { visible: boolean; onClose: () => void 
     <SheetShell visible={visible} onClose={onClose}>
         <View style={styles.sheet}>
           <View style={styles.sheetHandle} />
-          <Text style={styles.sheetTitle}>Add transaction manually</Text>
+          <Text style={styles.sheetTitle}>Add transaction</Text>
           <Pressable
             style={styles.addRow}
-            onPress={() => { onClose(); router.push('/(tabs)/transactions/new'); }}
+            onPress={() => { onClose(); router.push('/(tabs)/transactions/new?direction=out'); }}
           >
             <View style={[styles.addIcon, { backgroundColor: colors.primary + '18' }]}>
               <Ionicons name="cash-outline" size={22} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.addRowTitle}>Cash</Text>
-              <Muted>Manually enter a cash or card spend</Muted>
+              <Text style={styles.addRowTitle}>Money out</Text>
+              <Muted>A cash or card spend</Muted>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Pressable>
+          <Pressable
+            style={styles.addRow}
+            onPress={() => { onClose(); router.push('/(tabs)/transactions/new?direction=in'); }}
+          >
+            <View style={[styles.addIcon, { backgroundColor: colors.primary + '18' }]}>
+              <Ionicons name="arrow-down-circle-outline" size={22} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.addRowTitle}>Money in</Text>
+              <Muted>Money arriving: a salary, a gift, a repayment</Muted>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Pressable>
+          <Pressable
+            style={styles.addRow}
+            onPress={() => { onClose(); router.push('/(tabs)/transactions/new?direction=transfer'); }}
+          >
+            <View style={[styles.addIcon, { backgroundColor: colors.primary + '18' }]}>
+              <Ionicons name="swap-horizontal-outline" size={22} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.addRowTitle}>Transfer</Text>
+              <Muted>Move your own money; left out of every total</Muted>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.muted} />
           </Pressable>
@@ -767,6 +862,7 @@ function CaptureSheet({ visible, onClose }: { visible: boolean; onClose: () => v
   const styles = useStyles();
   const { colors } = useTheme();
   const qc = useQueryClient();
+  const maybePrompt = useReviewPrompt();
   const [text, setText] = useState('');
   const [result, setResult] = useState<IngestResponse | null>(null);
   const [bulkResults, setBulkResults] = useState<BulkItemResult[] | null>(null);
@@ -788,7 +884,9 @@ function CaptureSheet({ visible, onClose }: { visible: boolean; onClose: () => v
   const transactionalCount = bulkPreview.filter((p) => p.parsed.tx !== null).length;
 
   function invalidate() {
-    invalidateTransactionQueries(qc);
+    // A paste can add a card, fill the review queue and move the earliest
+    // year, so this is one of the places where the coarse scope is correct.
+    invalidateTransactionQueries(qc, { all: true });
   }
   function reset() { setResult(null); setBulkResults(null); setProgress(null); setCaptureError(null); }
 
@@ -797,7 +895,7 @@ function CaptureSheet({ visible, onClose }: { visible: boolean; onClose: () => v
     try {
       const res = await postIngest(messages[0] ?? text.trim(), 'paste');
       setResult(res);
-      if (res.status === 'created') { setText(''); invalidate(); }
+      if (res.status === 'created') { setText(''); invalidate(); void maybePrompt(); }
     } catch (e) { setCaptureError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
@@ -808,6 +906,7 @@ function CaptureSheet({ visible, onClose }: { visible: boolean; onClose: () => v
     try {
       const results = await postIngestMany(messages, 'paste', (done, total) => setProgress({ done, total }));
       setBulkResults(results); invalidate();
+      if (results.some((r) => r.response.status === 'created')) void maybePrompt();
     } catch (e) { setCaptureError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); setProgress(null); }
   }
@@ -895,9 +994,27 @@ function CaptureSheet({ visible, onClose }: { visible: boolean; onClose: () => v
 
 // ---- Transaction row --------------------------------------------------------
 
-function TxRow({ tx }: { tx: TransactionRow }) {
+/** Shared empty table, so a disabled or still-loading rate query does not
+ *  allocate a new Map on every row render. */
+const NO_RATES = emptyFxTable();
+
+const TxRow = memo(function TxRow({ tx, fxTable }: { tx: TransactionRow; fxTable: FxTable }) {
   const { money } = usePrivacy();
+  const { currency: primaryCurrency, convertOthers } = usePrimaryCurrency();
   const styles = useStyles();
+  const approx = convertOthers
+    ? rowConversion(
+        {
+          amount: tx.amount === null ? null : Number(tx.amount),
+          currency: tx.currency,
+          occurred_at: tx.occurred_at,
+        },
+        primaryCurrency,
+        fxTable,
+      )
+    : null;
+  const sign = amountSign(tx.direction);
+  const badge = directionBadge(tx.direction);
   return (
     <Link href={{ pathname: '/(tabs)/transactions/[id]', params: { id: tx.id } }} asChild>
       <Pressable style={styles.row}>
@@ -911,14 +1028,27 @@ function TxRow({ tx }: { tx: TransactionRow }) {
               {tx.card_last4 ? `  ·  •${tx.card_last4}` : ''}
             </Muted>
             {tx.parse_status === 'needs_review' ? <Badge label="review" tone="warning" /> : null}
+            {badge ? <Badge label={badge} tone={tx.direction === 'refund' ? 'success' : 'muted'} /> : null}
             {tx.notes ? <Badge label="note" /> : null}
           </View>
         </View>
-        <Text style={styles.amount}>{money(tx.amount === null ? null : Number(tx.amount), tx.currency)}</Text>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={styles.amount}>
+            {sign ? `${sign === '-' ? '−' : sign} ` : ''}
+            {money(tx.amount === null ? null : Number(tx.amount), tx.currency)}
+          </Text>
+          {/* The "≈" is load-bearing: it says this is the month's average rate,
+              not what the card was actually charged. */}
+          {approx ? (
+            <Text style={styles.approx}>
+              {`≈ ${money(approx.amount, primaryCurrency)}`}
+            </Text>
+          ) : null}
+        </View>
       </Pressable>
     </Link>
   );
-}
+});
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
@@ -1016,6 +1146,12 @@ const useStyles = themedStyles((colors) => ({
   },
   merchant: { fontWeight: '600', color: colors.text },
   amount: { fontWeight: '700', color: colors.text },
+  approx: {
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 2,
+    fontVariant: ['tabular-nums'],
+  },
   // Sheet
   sheet: {
     backgroundColor: colors.card,

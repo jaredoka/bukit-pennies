@@ -64,6 +64,7 @@ describe('keys the app actually builds', () => {
       `bukit.digest.${USER_ID}`,
       `bukit.alerted.${USER_ID}`,
       `bukit.ingest_token.${USER_ID}`,
+      `bukit.rate_prompted.${USER_ID}`,
       'bukit.theme',
       'bukit.privacy',
       'bukit.primary_currency',

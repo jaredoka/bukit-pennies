@@ -2,12 +2,21 @@ import type { BankId } from '@bukit/parsers';
 
 export type TxSource = 'android_listener' | 'ios_shortcut' | 'share' | 'paste' | 'manual';
 export type ParseStatus = 'parsed' | 'needs_review';
+/**
+ * Optional money-flow direction. `in` means money coming in (salary, a gift,
+ * someone sending money), not accounting income. `refund` is money in that
+ * reduces the original spending category and is not extra money in.
+ * `transfer` moves the user's own money and is excluded from every total.
+ */
+export type TxDirection = 'out' | 'in' | 'refund' | 'transfer';
 
 export interface ProfileRow {
   id: string;
   display_name: string | null;
   default_currency: string;
   monthly_income: number | string | null;
+  heard_about: string | null;
+  heard_about_detail: string | null;
 }
 
 export interface SavingsGoalRow {
@@ -81,6 +90,8 @@ export interface TransactionRow {
   confidence: number | null;
   raw_text: string;
   possible_duplicate_of: string | null;
+  /** NULL = not set. Every aggregate treats it as `out`. */
+  direction: TxDirection | null;
   created_at: string;
   updated_at: string;
 }
@@ -118,12 +129,4 @@ export interface BudgetRow {
   currency: string;
   created_at: string;
   updated_at: string;
-}
-
-export interface MonthlyTotalRow {
-  user_id: string;
-  month: string; // 'YYYY-MM-01'
-  currency: string;
-  total: number;
-  tx_count: number;
 }

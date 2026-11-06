@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useMemo, useState } from 'react';
+import { useScrollToTop } from 'expo-router';
+import { useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -8,6 +9,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type ScrollViewInstance,
 } from 'react-native';
 import { BarChart } from 'react-native-gifted-charts';
 import { Card, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
@@ -17,29 +19,25 @@ import { usePrimaryCurrency } from '@/lib/primaryCurrency';
 import {
   useCategories,
   useEarliestTransactionYear,
+  useInsightsSnapshot,
   usePullToRefresh,
-  useTransactionsForPeriod,
 } from '@/lib/queries';
+import { emptyYearInsights } from '@/lib/snapshot';
 import { themedStyles, useTheme } from '@/lib/theme';
 
 const STACK_CATEGORIES = 4; // top N categories get their own stack color
-const MERCHANT_ROWS = 10;
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // Gap between bars. Twelve months have to fit without scrolling — the point of
 // the chart is the shape of the whole year at a glance — so the bar width is
 // derived from the space left over rather than fixed.
 const BAR_SPACING = 6;
 
-type Tx = {
-  occurred_at: string | null;
-  amount: number | string | null;
-  category_id: string | null;
-  merchant_normalized: string | null;
-};
-
 export default function Insights() {
   const styles = useStyles();
   const { colors } = useTheme();
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  // Re-tapping the active Insights tab returns to the top.
+  useScrollToTop(scrollRef as unknown as Parameters<typeof useScrollToTop>[0]);
   const { width } = useWindowDimensions();
   // The chart used to be sized off the window width (capped at 720), which
   // overflows the desktop web phone frame. Measure the card it sits in instead
@@ -48,7 +46,7 @@ export default function Insights() {
   const chartWidth = (cardInnerWidth ?? Math.min(width, 720) - 64) - 24;
   const barWidth = Math.max(8, Math.floor((chartWidth - BAR_SPACING * 13) / 12));
   const { money } = usePrivacy();
-  const { currency: primaryCurrency } = usePrimaryCurrency();
+  const { currency: primaryCurrency, convertOthers } = usePrimaryCurrency();
 
   const currentYear = bruneiParts(Date.now()).year;
   const [year, setYear] = useState(currentYear);
@@ -63,16 +61,15 @@ export default function Insights() {
   }, [earliestYear.data, currentYear]);
   const yearIdx = Math.max(0, yearItems.indexOf(String(year)));
 
-  const yearTx = useTransactionsForPeriod(year, null);
+  const yearSnapshot = useInsightsSnapshot(year, primaryCurrency, convertOthers);
   const categories = useCategories();
   const { refreshing, onRefresh } = usePullToRefresh();
 
-  const filteredTx = useMemo(
-    () => (yearTx.data ?? []).filter((tx) => tx.currency === primaryCurrency),
-    [yearTx.data, primaryCurrency],
-  );
-
-  const insights = useMemo(() => buildYearInsights(filteredTx as Tx[]), [filteredTx]);
+  // Migration 27 answers this in one request from the maintained summary
+  // table. `emptyYearInsights` is the pre-migration fallback and the loading
+  // state both: twelve zeroed months, so the twelve-bar chart never changes
+  // shape between renders.
+  const insights = yearSnapshot.data ?? emptyYearInsights();
 
   const categoryName = (id: string | null) => {
     if (id === null) return 'Uncategorized';
@@ -103,11 +100,30 @@ export default function Insights() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [insights, categories.data, colors]);
 
-  const hasData = insights.months.some((m) => m.total > 0);
+  const hasData = insights.months.some((m) => m.total > 0 || m.moneyIn > 0);
+
+  // Incoming money plotted over the spending bars. The same month buckets, so
+  // a salary and the month's spending can be compared directly. Refunds are not
+  // in here: they already reduce the bars.
+  const moneyInLine = useMemo(
+    () => insights.months.map((m) => ({ value: m.moneyIn })),
+    [insights],
+  );
+
+  // Scale to the taller of the bars and the line, or a salary far above
+  // spending would draw off the top of the chart.
+  const chartMax = useMemo(() => {
+    const peak = insights.months.reduce(
+      (max, m) => Math.max(max, m.total, m.moneyIn),
+      0,
+    );
+    return peak > 0 ? peak : 10;
+  }, [insights]);
 
   return (
     <>
       <ScrollView
+        ref={scrollRef}
         style={styles.screen}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -139,6 +155,9 @@ export default function Insights() {
               >
                 <BarChart
                   stackData={stackedBars}
+                  lineData={moneyInLine}
+                  lineConfig={{ color: colors.primary, thickness: 2, hideDataPoints: true }}
+                  maxValue={chartMax}
                   width={chartWidth}
                   height={170}
                   barWidth={barWidth}
@@ -165,6 +184,10 @@ export default function Insights() {
                   <View style={[styles.legendDot, { backgroundColor: colors.chartOther }]} />
                   <Text style={styles.legendText}>Other</Text>
                 </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendLine, { backgroundColor: colors.primary }]} />
+                  <Text style={styles.legendText}>Money in</Text>
+                </View>
               </View>
             </>
           )}
@@ -172,6 +195,25 @@ export default function Insights() {
 
         {hasData ? (
           <>
+            {/* ---- Year totals ---- */}
+            <Card>
+              <Title>Year totals</Title>
+              <View style={styles.row}>
+                <Text style={styles.rowName}>Money in</Text>
+                <Text style={styles.rowValue}>{money(insights.moneyInTotal, primaryCurrency)}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.rowName}>Spent</Text>
+                <Text style={styles.rowValue}>
+                  {money(
+                    insights.months.reduce((sum, m) => sum + m.total, 0),
+                    primaryCurrency,
+                  )}
+                </Text>
+              </View>
+              <Muted>Transfers are left out of both figures. Refunds reduce spending.</Muted>
+            </Card>
+
             {/* ---- Category totals for the year ---- */}
             <Card>
               <Title>Categories</Title>
@@ -224,52 +266,6 @@ export default function Insights() {
   );
 }
 
-interface MonthBucket {
-  total: number;
-  byCategory: Map<string | null, number>;
-}
-
-function buildYearInsights(txs: Tx[]) {
-  const months: MonthBucket[] = Array.from({ length: 12 }, () => ({
-    total: 0,
-    byCategory: new Map<string | null, number>(),
-  }));
-  const categoryTotalsMap = new Map<string | null, number>();
-  const merchantTotalsMap = new Map<string, number>();
-
-  for (const tx of txs) {
-    if (!tx.occurred_at || tx.amount === null) continue;
-    const amount = Number(tx.amount);
-    const m = months[bruneiParts(tx.occurred_at).month - 1];
-    if (!m) continue;
-    m.total += amount;
-    m.byCategory.set(tx.category_id, (m.byCategory.get(tx.category_id) ?? 0) + amount);
-    categoryTotalsMap.set(tx.category_id, (categoryTotalsMap.get(tx.category_id) ?? 0) + amount);
-    if (tx.merchant_normalized) {
-      merchantTotalsMap.set(
-        tx.merchant_normalized,
-        (merchantTotalsMap.get(tx.merchant_normalized) ?? 0) + amount,
-      );
-    }
-  }
-
-  const categoryTotals = Array.from(categoryTotalsMap.entries())
-    .map(([id, total]) => ({ id, total }))
-    .filter((c) => c.total > 0.005)
-    .sort((a, b) => b.total - a.total);
-
-  // Ranked across the whole year, so a category keeps its stack colour from
-  // month to month.
-  const topCategoryIds = categoryTotals.map((c) => c.id);
-
-  const merchantTotals = Array.from(merchantTotalsMap.entries())
-    .map(([name, total]) => ({ name, total }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, MERCHANT_ROWS);
-
-  return { months, topCategoryIds, categoryTotals, merchantTotals };
-}
-
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, gap: 12, maxWidth: 720, width: '100%', alignSelf: 'center' },
@@ -285,6 +281,7 @@ const useStyles = themedStyles((colors) => ({
   legendWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendLine: { width: 14, height: 3, borderRadius: 2 },
   legendText: { color: colors.muted, fontSize: 12 },
   row: {
     flexDirection: 'row',

@@ -13,10 +13,10 @@ export default function Landing() {
   return (
     <View style={styles.screen}>
       <HexBackground />
-      <Text style={styles.brand} numberOfLines={1}>
-        Bukit Pennies
-      </Text>
       <View style={styles.inner}>
+        <Text style={styles.brand} numberOfLines={1}>
+          Bukit Pennies
+        </Text>
         <Text style={styles.pitch}>
           Your bank notification texts, turned into a spending dashboard automatically and privately.
         </Text>
@@ -32,6 +32,6 @@ export default function Landing() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   inner: { flex: 1, justifyContent: 'center', padding: 24, maxWidth: 480, width: '100%', alignSelf: 'center' },
-  brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
+  brand: { fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center', marginBottom: 24 },
   pitch: { fontSize: 17, lineHeight: 25, color: colors.text, marginBottom: 4 },
 }));

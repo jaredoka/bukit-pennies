@@ -11,7 +11,8 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Badge, Button, Card, Centered, Field, Muted, Sheet, Title, useSheetPresence } from '@/components/ui';
+import { Badge, Button, Card, Centered, Field, Muted, Sheet, Title } from '@/components/ui';
+import { amountSign, DIRECTION_CHOICES, directionLabel, keepsCategory } from '@/lib/direction';
 import { formatTime, bruneiParts } from '@/lib/format';
 import { buildReparsePatch, canReparse } from '@/lib/reparse';
 import { themedStyles, useTheme } from '@/lib/theme';
@@ -69,10 +70,19 @@ export default function TransactionDetail() {
   const [reparseNote, setReparseNote] = useState<string | null>(null);
   const [newCategory, setNewCategory] = useState('');
   const [catSheetOpen, setCatSheetOpen] = useState(false);
-  const catSheetPresent = useSheetPresence(catSheetOpen ? 'cat' : null) !== null;
+  const [dirSheetOpen, setDirSheetOpen] = useState(false);
+  // Choosing "Refund" without a category opens the category picker first; this
+  // remembers which flow the sheet is serving when it closes.
+  const [pendingRefund, setPendingRefund] = useState(false);
   useEffect(() => {
     if (tx) setNotes(tx.notes ?? '');
   }, [tx?.id]);
+  // The sheet used to unmount on close, which cleared a half-typed new
+  // category name. It stays mounted now for a fast reopen (see SheetShell),
+  // so the field is reset here instead.
+  useEffect(() => {
+    if (!catSheetOpen) setNewCategory('');
+  }, [catSheetOpen]);
 
   if (isLoading || !tx) {
     return (
@@ -112,9 +122,34 @@ export default function TransactionDetail() {
   }
 
   const currentCategory = (categories.data ?? []).find((c) => c.id === tx.category_id);
+  const sign = amountSign(tx.direction);
+
+  function chooseDirection(next: (typeof DIRECTION_CHOICES)[number]['value']) {
+    if (!tx) return;
+    setDirSheetOpen(false);
+    if (next === 'refund' && !tx.category_id) {
+      setPendingRefund(true);
+      setCatSheetOpen(true);
+      return;
+    }
+    update.mutate({
+      id: tx.id,
+      patch: {
+        direction: next,
+        // Money in and transfers have no spending category; leaving a stale
+        // one behind would still show in the row's category label.
+        ...(keepsCategory(next) ? {} : { category_id: null }),
+      },
+    });
+  }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+    >
       {/* Hero card: centered merchant → category pill → big amount */}
       <Card>
         <View style={styles.hero}>
@@ -123,22 +158,37 @@ export default function TransactionDetail() {
           </Text>
 
           {/* Category pill — tapping opens dropdown sheet */}
-          <Pressable style={styles.categoryPill} onPress={() => setCatSheetOpen(true)}>
-            <Text style={styles.categoryPillText}>
-              {currentCategory ? currentCategory.name : 'No category'}
-            </Text>
-            <Ionicons name="chevron-down" size={13} color={colors.muted} />
-          </Pressable>
+          {keepsCategory(tx.direction) ? (
+            <Pressable style={styles.categoryPill} onPress={() => setCatSheetOpen(true)}>
+              <Text style={styles.categoryPillText}>
+                {currentCategory ? currentCategory.name : 'No category'}
+              </Text>
+              <Ionicons name="chevron-down" size={13} color={colors.muted} />
+            </Pressable>
+          ) : null}
 
           <Text style={styles.amount}>
+            {sign ? `${sign === '-' ? '−' : sign} ` : ''}
             {money(tx.amount === null ? null : Number(tx.amount), tx.currency)}
           </Text>
+          {tx.direction && tx.direction !== 'out' ? (
+            <Badge label={directionLabel(tx.direction)} tone={tx.direction === 'refund' ? 'success' : 'muted'} />
+          ) : null}
         </View>
       </Card>
 
       {/* Details card */}
       <Card>
         <Title>Details</Title>
+        <View style={styles.detailRow}>
+          <Muted>Direction</Muted>
+          <Pressable onPress={() => setDirSheetOpen(true)} style={styles.directionValue}>
+            <Text style={[styles.detailValue, { marginLeft: 0 }]}>
+              {tx.direction ? directionLabel(tx.direction) : 'Not set'}
+            </Text>
+            <Ionicons name="chevron-down" size={13} color={colors.muted} />
+          </Pressable>
+        </View>
         <View style={styles.detailRow}>
           <Muted>Date</Muted>
           <Text style={styles.detailValue}>
@@ -198,54 +248,86 @@ export default function TransactionDetail() {
 
       <Button label="Delete transaction" variant="danger" onPress={remove} busy={del.isPending} />
 
-      {/* Category dropdown sheet */}
-      {catSheetPresent ? (
-        <Sheet
-          visible={catSheetOpen}
-          title="Category"
-          onClose={() => setCatSheetOpen(false)}
-          onClear={
-            tx.category_id
-              ? () => { update.mutate({ id: tx.id, patch: { category_id: null } }); setCatSheetOpen(false); }
-              : undefined
-          }
-        >
-                {(categories.data ?? []).map((c) => (
-                  <Pressable
-                    key={c.id}
-                    style={styles.catRow}
-                    onPress={() => {
-                      update.mutate({ id: tx.id, patch: { category_id: tx.category_id === c.id ? null : c.id } });
-                      setCatSheetOpen(false);
-                    }}
-                  >
-                    <Text style={[styles.catRowText, tx.category_id === c.id && { color: colors.primary, fontWeight: '600' }]}>
-                      {c.name}
-                    </Text>
-                    {tx.category_id === c.id ? <Ionicons name="checkmark" size={18} color={colors.primary} /> : null}
-                  </Pressable>
-                ))}
-                {categories.data?.length === 0 ? (
-                  <Muted>No categories yet. Add one below.</Muted>
+      {/* Direction dropdown sheet. */}
+      <Sheet visible={dirSheetOpen} title="Direction" onClose={() => setDirSheetOpen(false)}>
+        {DIRECTION_CHOICES.map((choice) => {
+          const active = (tx.direction ?? null) === choice.value;
+          return (
+            <Pressable
+              key={choice.value ?? 'unset'}
+              style={styles.catRow}
+              onPress={() => chooseDirection(choice.value)}
+            >
+              <View style={{ flex: 1, marginRight: 12 }}>
+                <Text style={[styles.catRowText, active && { color: colors.primary, fontWeight: '600' }]}>
+                  {choice.label}
+                </Text>
+                {choice.value === 'refund' ? (
+                  <Muted>Reduces the spending category it names.</Muted>
+                ) : choice.value === 'transfer' ? (
+                  <Muted>Left out of spending, money in and budgets.</Muted>
+                ) : choice.value === null ? (
+                  <Muted>Counted as money out in every total.</Muted>
                 ) : null}
-                <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginTop: 16 }}>
-                  <View style={{ flex: 1 }}>
-                    <Field
-                      placeholder="New category name"
-                      value={newCategory}
-                      onChangeText={setNewCategory}
-                      style={{ marginBottom: 0 }}
-                    />
-                  </View>
-                  <Button
-                    label="Add"
-                    variant="secondary"
-                    disabled={!newCategory.trim()}
-                    onPress={() => createCategory.mutate(newCategory.trim(), { onSuccess: () => setNewCategory('') })}
-                  />
-                </View>
-        </Sheet>
-      ) : null}
+              </View>
+              {active ? <Ionicons name="checkmark" size={18} color={colors.primary} /> : null}
+            </Pressable>
+          );
+        })}
+      </Sheet>
+
+      {/* Category dropdown sheet. Kept mounted and toggled via `visible` so
+          reopening is a fast re-present — see SheetShell. */}
+      <Sheet
+        visible={catSheetOpen}
+        title={pendingRefund ? 'Refund category' : 'Category'}
+        onClose={() => { setCatSheetOpen(false); setPendingRefund(false); }}
+        onClear={
+          tx.category_id && tx.direction !== 'refund'
+            ? () => { update.mutate({ id: tx.id, patch: { category_id: null } }); setCatSheetOpen(false); }
+            : undefined
+        }
+      >
+        {(categories.data ?? []).map((c) => (
+          <Pressable
+            key={c.id}
+            style={styles.catRow}
+            onPress={() => {
+              if (pendingRefund) {
+                update.mutate({ id: tx.id, patch: { category_id: c.id, direction: 'refund' } });
+                setPendingRefund(false);
+              } else {
+                update.mutate({ id: tx.id, patch: { category_id: tx.category_id === c.id ? null : c.id } });
+              }
+              setCatSheetOpen(false);
+            }}
+          >
+            <Text style={[styles.catRowText, tx.category_id === c.id && { color: colors.primary, fontWeight: '600' }]}>
+              {c.name}
+            </Text>
+            {tx.category_id === c.id ? <Ionicons name="checkmark" size={18} color={colors.primary} /> : null}
+          </Pressable>
+        ))}
+        {categories.data?.length === 0 ? (
+          <Muted>No categories yet. Add one below.</Muted>
+        ) : null}
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginTop: 16 }}>
+          <View style={{ flex: 1 }}>
+            <Field
+              placeholder="New category name"
+              value={newCategory}
+              onChangeText={setNewCategory}
+              style={{ marginBottom: 0 }}
+            />
+          </View>
+          <Button
+            label="Add"
+            variant="secondary"
+            disabled={!newCategory.trim()}
+            onPress={() => createCategory.mutate(newCategory.trim(), { onSuccess: () => setNewCategory('') })}
+          />
+        </View>
+      </Sheet>
     </ScrollView>
   );
 }
@@ -285,6 +367,7 @@ const useStyles = themedStyles((colors) => ({
     borderBottomColor: colors.border,
   },
   detailValue: { color: colors.text, fontWeight: '500', flexShrink: 1, textAlign: 'right', marginLeft: 16 },
+  directionValue: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   // Category sheet
   catRow: {
     flexDirection: 'row',

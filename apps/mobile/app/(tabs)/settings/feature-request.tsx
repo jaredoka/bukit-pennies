@@ -45,7 +45,12 @@ export default function FeatureRequest() {
 
   if (sent) {
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <ScrollView
+          style={styles.screen}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
         <Card>
           <Title>Thank you</Title>
           <Muted>
@@ -64,7 +69,12 @@ export default function FeatureRequest() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+          style={styles.screen}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
       <Card>
         <Title>Request a feature</Title>
         <Muted>

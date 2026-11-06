@@ -1,28 +1,48 @@
 import { useState } from 'react';
-import { Alert, ScrollView, View } from 'react-native';
-import Constants from 'expo-constants';
+import { Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { usePathname } from 'expo-router';
 import { Button, Card, Field, Muted, Title } from '@/components/ui';
+import { APP_VERSION, VERSION_LABEL } from '@/lib/buildInfo';
+import {
+  buildDiagnostics,
+  getDiagnosticsConsent,
+  setDiagnosticsConsent,
+} from '@/lib/diagnostics';
 import { MAX_FEEDBACK_DESCRIPTION, useSubmitBugReport } from '@/lib/queries';
 import { useSession } from '@/lib/session';
-import { themedStyles } from '@/lib/theme';
+import { themedStyles, useTheme } from '@/lib/theme';
 
 export default function ReportBug() {
   const styles = useStyles();
+  const { colors } = useTheme();
   const { session } = useSession();
+  const pathname = usePathname();
   const submit = useSubmitBugReport();
   const [description, setDescription] = useState('');
   const [sent, setSent] = useState(false);
+  // Mirrors the device preference. Turning it on here is a real opt-in — the
+  // same switch lives in Settings > Privacy & diagnostics.
+  const [withDiagnostics, setWithDiagnostics] = useState(getDiagnosticsConsent());
 
   const userId = session?.user.id ?? '';
   const shortId = userId
     ? `${userId.slice(0, 4).toUpperCase()}-${userId.slice(4, 8).toUpperCase()}`
     : '';
-  const appVersion = Constants.expoConfig?.version ?? '';
+
+  function toggleDiagnostics(on: boolean) {
+    setWithDiagnostics(on);
+    setDiagnosticsConsent(on);
+  }
 
   async function handleSubmit() {
     if (!description.trim()) return;
     submit.mutate(
-      { short_id: shortId, app_version: appVersion, description: description.trim() },
+      {
+        short_id: shortId,
+        app_version: APP_VERSION,
+        description: description.trim(),
+        diagnostics: withDiagnostics ? buildDiagnostics(pathname) : null,
+      },
       {
         onSuccess: () => {
           setSent(true);
@@ -35,7 +55,12 @@ export default function ReportBug() {
 
   if (sent) {
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <ScrollView
+          style={styles.screen}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
         <Card>
           <Title>Thank you</Title>
           <Muted>
@@ -50,7 +75,12 @@ export default function ReportBug() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+          style={styles.screen}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
       <Card>
         <Title>Report a bug</Title>
         <Muted>
@@ -66,12 +96,34 @@ export default function ReportBug() {
             maxLength={MAX_FEEDBACK_DESCRIPTION}
             style={{ minHeight: 120, textAlignVertical: 'top' }}
           />
+          <Pressable
+            style={styles.toggleRow}
+            onPress={() => toggleDiagnostics(!withDiagnostics)}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: withDiagnostics }}
+            accessibilityLabel="Attach diagnostics to this report"
+          >
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={[styles.toggleLabel, { color: colors.text }]}>Attach diagnostics</Text>
+              <Muted>
+                Build, screen, device model and recent screens. Never amounts, merchants, notes or
+                SMS text.
+              </Muted>
+            </View>
+            <Switch
+              value={withDiagnostics}
+              onValueChange={toggleDiagnostics}
+              trackColor={{ false: colors.switchOff, true: colors.primary }}
+              ios_backgroundColor={colors.switchOff}
+            />
+          </Pressable>
           <Button
             label="Submit report"
             onPress={handleSubmit}
             busy={submit.isPending}
             disabled={!description.trim()}
           />
+          <Text style={[styles.version, { color: colors.muted }]}>Version {VERSION_LABEL}</Text>
         </View>
       </Card>
     </ScrollView>
@@ -81,4 +133,17 @@ export default function ReportBug() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+    backgroundColor: colors.inputBg,
+  },
+  toggleLabel: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  version: { textAlign: 'center', fontSize: 12, marginTop: 12 },
 }));

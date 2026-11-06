@@ -17,8 +17,10 @@ your bank and cannot move money. Your bank's statements remain the
 authoritative record of your transactions, and nothing in the app is financial
 advice.
 
-Bukit Pennies is a free personal project, provided as-is. There are no paid
-tiers, subscriptions or adverts.
+Bukit Pennies is a personal project, provided as-is. The service is
+currently free. Paid features may be introduced in the future; the core
+features available today will remain available, and material changes will
+be announced in the app.
 
 ## 2. Your account
 

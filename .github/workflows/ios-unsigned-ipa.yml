@@ -17,21 +17,50 @@ on:
         description: "EXPO_PUBLIC_SUPABASE_ANON_KEY baked into the build (anon/publishable key — not a secret)"
         required: true
         type: string
+      sentry_dsn:
+        description: "Optional EXPO_PUBLIC_SENTRY_DSN. Leave empty to use the SENTRY_DSN repo variable; if neither exists, crash reporting stays off."
+        required: false
+        default: ""
+        type: string
 
 jobs:
   build-ipa:
-    # Expo SDK 57's codegen Swift package requires Swift tools 6.2 → Xcode 26;
-    # macos-15's default Xcode 16.4 ships Swift 6.1 and fails resolution.
-    runs-on: macos-26
+    # Expo SDK 58 targets iOS 27 and React Native 0.88's codegen needs a modern
+    # Swift toolchain. The xcode-27 image (macOS 27, arm64) is GitHub's GA
+    # runner for that toolchain; macos-26 still ships Xcode 26.6.
+    runs-on: xcode-27
     timeout-minutes: 60
     env:
       EXPO_PUBLIC_SUPABASE_URL: ${{ inputs.supabase_url }}
       EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ inputs.supabase_anon_key }}
-      # No Sentry auth token in CI — skip source-map upload or the Sentry
-      # build phase fails the archive.
-      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+      # The DSN is public by design; the repo variable keeps it in every build
+      # without a human retyping it, and the manual input still overrides it.
+      EXPO_PUBLIC_SENTRY_DSN: ${{ inputs.sentry_dsn || vars.SENTRY_DSN }}
+      SENTRY_ORG: ${{ vars.SENTRY_ORG || 'bukit-pennies' }}
+      SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT || 'mobile' }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      # Without a token the expo plugin's upload build phase fails the archive.
+      # With one, it uploads source maps and the stack traces are readable.
+      SENTRY_DISABLE_AUTO_UPLOAD: ${{ secrets.SENTRY_AUTH_TOKEN == '' && 'true' || 'false' }}
     steps:
+      # Full history: the build number is the commit count and the short SHA is
+      # the commit the binary was made from. A shallow clone would produce a
+      # build number that changes whenever the fetch depth does.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build identity
+        run: |
+          VERSION=$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' apps/mobile/app.json | head -1)
+          BUILD=$(git rev-list --count HEAD)
+          echo "BUKIT_BUILD_NUMBER=$BUILD" >> "$GITHUB_ENV"
+          echo "BUKIT_GIT_SHA=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+          # Sentry Cocoa's default release is "<bundle id>@<version>+<build>".
+          # Pinning it here keeps the app, the dSYM upload and the CLI release
+          # step on one exact string instead of three guesses.
+          echo "SENTRY_RELEASE=com.bukitpennies.app@${VERSION}+${BUILD}" >> "$GITHUB_ENV"
+          echo "SENTRY_DIST=$BUILD" >> "$GITHUB_ENV"
 
       - uses: pnpm/action-setup@v4
 
@@ -41,6 +70,18 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # A release is what turns "an error happened" into "this started in build
+      # 143". Without it Sentry groups crashes but cannot call a regression.
+      - name: Create Sentry release
+        if: env.SENTRY_AUTH_TOKEN != ''
+        run: |
+          npx --yes @sentry/cli@2 releases new "$SENTRY_RELEASE" \
+            --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" || true
+          npx --yes @sentry/cli@2 releases set-commits "$SENTRY_RELEASE" --auto \
+            --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" || true
+          npx --yes @sentry/cli@2 releases finalize "$SENTRY_RELEASE" \
+            --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" || true
 
       # Generates apps/mobile/ios (CocoaPods install included).
       - name: Expo prebuild (iOS)

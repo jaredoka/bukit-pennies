@@ -1,7 +1,8 @@
 ﻿import { Link } from 'expo-router';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { ScrollView, Text } from 'react-native';
 import { HexBackground } from '@/components/HexBackground';
+import { KeyboardGlide } from '@/components/KeyboardGlide';
 import { Button, Card, DismissKeyboardView, Field, Title } from '@/components/ui';
 import { describeRequestError, withNetworkRetry } from '@/lib/netError';
 import { supabase } from '@/lib/supabase';
@@ -25,55 +26,60 @@ export default function SignIn() {
     // On success the AuthGate redirects to the tabs.
   }
 
-  // Not KeyboardAvoidingView, deliberately. `behavior="padding"` shrinks the
-  // screen when the keyboard opens, and because the card is vertically centred
-  // inside it, tapping a field slid the whole form upward. The other auth
-  // screens (forgot-password, reset-password) never did this, so the form
-  // appeared to move on some screens and not others. Now the card stays put
-  // everywhere, the keyboard simply covers what it covers, and a tap on the
-  // background puts it away again.
+  // Centred layout: the brand and card sit as one vertically-centred group (the
+  // PayPal/Revolut look). When the keyboard opens, KeyboardGlide glides the
+  // group up to rest just above it and back down on dismiss — the whole block
+  // lifting is intentional-looking, unlike shrinking a centred container, which
+  // re-centres in the leftover space and reads as the page being pushed up. The
+  // ScrollView is the safety net for short screens where the card is taller
+  // than the space the keyboard leaves; `handled` keeps field and button taps
+  // working while the keyboard is up, and a tap on the background still
+  // dismisses it via DismissKeyboardView.
   return (
     <DismissKeyboardView style={styles.screen}>
       <HexBackground />
-      <Text style={styles.brand}>Bukit Pennies</Text>
-      <View style={styles.inner}>
-        <Card>
-          <Title>Sign in</Title>
-          <Field
-            label="Email"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            autoComplete="email"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-          />
-          <Field
-            label="Password"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Password"
-            onSubmitEditing={submit}
-          />
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          <Button label="Sign in" onPress={submit} busy={busy} disabled={!email || !password} />
-          <Link href="/(auth)/forgot-password" style={styles.link}>
-            Forgot password?
-          </Link>
-          <Link href="/(auth)/sign-up" style={styles.link}>
-            No account? Sign up
-          </Link>
-        </Card>
-      </View>
-    </DismissKeyboardView>
-  );
-}
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <KeyboardGlide style={styles.glide}>
+          <Text style={styles.brand}>Bukit Pennies</Text>
+          <Card>
+              <Title>Sign in</Title>
+              <Field
+                label="Email"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="email"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@example.com"
+              />
+              <Field
+                label="Password"
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Password"
+                onSubmitEditing={submit}
+              />
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+              <Button label="Sign in" onPress={submit} busy={busy} disabled={!email || !password} />
+              <Link href="/(auth)/forgot-password" style={styles.link}>
+                Forgot password?
+              </Link>
+              <Link href="/(auth)/sign-up" style={styles.link}>
+                No account? Sign up
+              </Link>
+            </Card>
+          </KeyboardGlide>
+        </ScrollView>
+      </DismissKeyboardView>
+    );
+  }
 
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
-  inner: { flex: 1, justifyContent: 'center', padding: 20, maxWidth: 480, width: '100%', alignSelf: 'center' },
-  brand: { position: 'absolute', top: 72, left: 0, right: 0, fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center' },
+  scrollContent: { flexGrow: 1, padding: 20 },
+  glide: { flexGrow: 1, justifyContent: 'center' },
+  brand: { fontSize: 34, fontWeight: '800', color: colors.primary, textAlign: 'center', marginBottom: 24 },
   error: { color: colors.danger, marginBottom: 8 },
   link: { color: colors.primary, textAlign: 'center', marginTop: 12 },
 }));

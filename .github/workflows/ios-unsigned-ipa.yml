@@ -105,6 +105,11 @@ jobs:
       # resolve under `-sdk iphoneos`.
       - name: Archive without code signing
         working-directory: apps/mobile
+        env:
+          # Force a stable map path instead of $DERIVED_FILE_DIR, which Xcode
+          # cleans up. The Sentry build phase reads this variable, generates the
+          # map and uploads it against SENTRY_RELEASE/SENTRY_DIST.
+          SOURCEMAP_FILE: ${{ github.workspace }}/apps/mobile/build/main.jsbundle.map
         run: |
           set -o pipefail
           mkdir -p build
@@ -126,6 +131,23 @@ jobs:
         with:
           name: xcodebuild-log
           path: apps/mobile/build/xcodebuild.log
+          retention-days: 7
+
+      # Proves the JS map was generated, not just assumed. A map that is absent
+      # or empty means sourcemaps were never uploaded, even if the build passed.
+      - name: Verify JS source map
+        working-directory: apps/mobile
+        run: |
+          ls -lh build/main.jsbundle.map
+          test -s build/main.jsbundle.map
+
+      - name: Upload source map artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: main.jsbundle-map
+          path: apps/mobile/build/main.jsbundle.map
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Package unsigned .ipa

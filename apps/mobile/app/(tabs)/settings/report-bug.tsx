@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { Alert, ScrollView, Text, View } from 'react-native';
 import { usePathname } from 'expo-router';
 import { Button, Card, Field, Muted, Title } from '@/components/ui';
+import { ToggleRow } from '@/components/toggle';
 import { APP_VERSION, VERSION_LABEL } from '@/lib/buildInfo';
 import {
   buildDiagnostics,
@@ -96,27 +97,14 @@ export default function ReportBug() {
             maxLength={MAX_FEEDBACK_DESCRIPTION}
             style={{ minHeight: 120, textAlignVertical: 'top' }}
           />
-          <Pressable
-            style={styles.toggleRow}
-            onPress={() => toggleDiagnostics(!withDiagnostics)}
-            accessibilityRole="switch"
-            accessibilityState={{ checked: withDiagnostics }}
+          <ToggleRow
+            label="Attach diagnostics"
+            description="Build, screen, device model and recent screens. Never amounts, merchants, notes or SMS text."
+            value={withDiagnostics}
+            onValueChange={toggleDiagnostics}
             accessibilityLabel="Attach diagnostics to this report"
-          >
-            <View style={{ flex: 1, paddingRight: 12 }}>
-              <Text style={[styles.toggleLabel, { color: colors.text }]}>Attach diagnostics</Text>
-              <Muted>
-                Build, screen, device model and recent screens. Never amounts, merchants, notes or
-                SMS text.
-              </Muted>
-            </View>
-            <Switch
-              value={withDiagnostics}
-              onValueChange={toggleDiagnostics}
-              trackColor={{ false: colors.switchOff, true: colors.primary }}
-              ios_backgroundColor={colors.switchOff}
-            />
-          </Pressable>
+            style={{ marginBottom: 16 }}
+          />
           <Button
             label="Submit report"
             onPress={handleSubmit}
@@ -133,17 +121,5 @@ export default function ReportBug() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.inputBorder,
-    backgroundColor: colors.inputBg,
-  },
-  toggleLabel: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
   version: { textAlign: 'center', fontSize: 12, marginTop: 12 },
 }));

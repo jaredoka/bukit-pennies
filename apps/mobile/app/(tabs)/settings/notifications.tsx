@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card, Centered, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
+import { ToggleRow } from '@/components/toggle';
 import {
   ensureNotificationPermission,
   getDigestPrefs,
@@ -17,19 +18,6 @@ const HOUR_ITEMS = Array.from({ length: 24 }, (_, h) => {
   const display = h % 12 === 0 ? 12 : h % 12;
   return `${display}:00 ${suffix}`;
 });
-
-function Toggle({ label, value, onPress }: { label: string; value: boolean; onPress: () => void }) {
-  const styles = useStyles();
-  const { colors } = useTheme();
-  return (
-    <Pressable style={styles.toggleRow} onPress={onPress}>
-      <Text style={styles.toggleLabel}>{label}</Text>
-      <View style={[styles.pill, value && { backgroundColor: colors.primary }]}>
-        <View style={[styles.thumb, value && styles.thumbOn]} />
-      </View>
-    </Pressable>
-  );
-}
 
 export default function Notifications() {
   const styles = useStyles();
@@ -71,10 +59,10 @@ export default function Notifications() {
             A weekly update on money spent and percentage of budget used so far in the month.
             Fires once a week at your chosen day and time.
           </Muted>
-          <Toggle
+          <ToggleRow
             label="Enable weekly summary"
             value={prefs.on}
-            onPress={() => update({ on: !prefs.on })}
+            onValueChange={(on) => update({ on })}
           />
         </Card>
 
@@ -129,32 +117,6 @@ export default function Notifications() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 14,
-  },
-  toggleLabel: { fontWeight: '600', color: colors.text, fontSize: 15 },
-  pill: {
-    width: 44,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.border,
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  thumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.card,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-  },
-  thumbOn: { alignSelf: 'flex-end' },
   pickerCard: { paddingVertical: 0, paddingHorizontal: 0, overflow: 'hidden' },
   pickerRow: {
     flexDirection: 'row',

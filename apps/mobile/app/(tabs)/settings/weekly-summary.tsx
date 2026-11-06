@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card, Centered, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
+import { ToggleRow } from '@/components/toggle';
 import {
   ensureNotificationPermission,
   getDigestPrefs,
@@ -8,7 +9,7 @@ import {
   type DigestPrefs,
 } from '@/lib/notifications';
 import { useSession } from '@/lib/session';
-import { themedStyles, useTheme } from '@/lib/theme';
+import { themedStyles } from '@/lib/theme';
 
 const DAY_ITEMS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -20,7 +21,6 @@ const HOUR_ITEMS = Array.from({ length: 24 }, (_, h) => {
 
 export default function WeeklySummary() {
   const styles = useStyles();
-  const { colors } = useTheme();
   const [prefs, setPrefs] = useState<DigestPrefs | null>(null);
   const [dayOpen, setDayOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
@@ -58,12 +58,11 @@ export default function WeeklySummary() {
             The notification fires once a week at your chosen day and time.
           </Muted>
 
-          <Pressable style={styles.toggleRow} onPress={() => update({ on: !prefs.on })}>
-            <Text style={styles.toggleLabel}>Enable weekly summary</Text>
-            <View style={[styles.pill, prefs.on && { backgroundColor: colors.primary }]}>
-              <View style={[styles.thumb, prefs.on && styles.thumbOn]} />
-            </View>
-          </Pressable>
+          <ToggleRow
+            label="Enable weekly summary"
+            value={prefs.on}
+            onValueChange={(on) => update({ on })}
+          />
         </Card>
 
         {prefs.on ? (
@@ -113,32 +112,6 @@ export default function WeeklySummary() {
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 14,
-  },
-  toggleLabel: { fontWeight: '600', color: colors.text, fontSize: 15 },
-  pill: {
-    width: 44,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.border,
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  thumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.card,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-  },
-  thumbOn: { alignSelf: 'flex-end' },
   pickerCard: { paddingVertical: 0, paddingHorizontal: 0, overflow: 'hidden' },
   pickerRow: {
     flexDirection: 'row',

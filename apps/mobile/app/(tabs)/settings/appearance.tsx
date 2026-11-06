@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card, Chip, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
+import { ToggleRow } from '@/components/toggle';
 import { themedStyles, useTheme } from '@/lib/theme';
 import { CURRENCY_OPTIONS, usePrimaryCurrency } from '@/lib/primaryCurrency';
 
@@ -64,16 +65,12 @@ export default function Appearance() {
             Include transactions in other currencies in the Dashboard and Insights, converted into
             your primary currency at monthly reference rates.
           </Muted>
-          <View style={styles.switchRow}>
-            <Text style={[styles.dropdownValue, { color: colors.text }]}>
-              Include converted spending
-            </Text>
-            <Switch
-              value={convertOthers}
-              onValueChange={setConvertOthers}
-              accessibilityLabel="Include spending in other currencies, converted"
-            />
-          </View>
+          <ToggleRow
+            label="Include converted spending"
+            value={convertOthers}
+            onValueChange={setConvertOthers}
+            accessibilityLabel="Include spending in other currencies, converted"
+          />
           <Muted>
             These are estimates: a monthly average will not match what your card was charged to
             the cent. Rows keep their original amount, with an approximate converted figure
@@ -113,12 +110,4 @@ const useStyles = themedStyles((colors) => ({
     borderWidth: StyleSheet.hairlineWidth,
   },
   dropdownValue: { fontSize: 15, fontWeight: '500' },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    marginBottom: 8,
-    paddingVertical: 4,
-  },
 }));

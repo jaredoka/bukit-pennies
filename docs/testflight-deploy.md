@@ -68,16 +68,96 @@ user-facing `version` in `app.json` for feature releases.
 
 ## App Store review submission (after TestFlight is stable)
 
-- App Store Connect → the app → Distribution: screenshots (6.7" and 5.5"),
-  description, keywords, support URL
-  (`https://github.com/jaredoka/bukit-pennies/issues`), privacy policy
-  URL: `https://jaredoka.github.io/bukit-pennies/privacy-policy`.
-- App Privacy questionnaire: data collected = email (account), financial
-  info (user-provided transaction text) — linked to identity, not used for
-  tracking.
-- Review notes: explain the SMS-paste model — the app never connects to
-  bank accounts; users paste/forward notification text. Provide a demo
-  account with seeded data for the reviewer.
+App Store Connect → the app → the version → App Store section. Draft
+metadata lives below; adjust copy as needed but keep the facts (no bank
+connectivity, demo account, paste/Shortcut capture) intact.
+
+### Screenshots (already prepared, 2026-08-12)
+
+5 PNGs at **1320×2868** (the 6.9" master — Apple auto-scales to every
+smaller iPhone) in `store-assets/ios-screenshots/master/`:
+01-dashboard, 02-transactions, 03-insights, 04-goals, 05-settings. Light
+theme, demo-account data, no overlays. Resized from iPhone 17 native
+captures (1206×2622); originals in `store-assets/ios-screenshots/source/`.
+Upload to the 6.9" slot. This folder is local-only and not committed to the
+repo.
+
+### Description
+
+> Bukit Pennies logs your card spending in Brunei — automatically, from the
+> SMS and bank-app notification text your bank already sends you.
+>
+> Paste any bank message (Baiduri, BIBD, Standard Chartered) and Bukit
+> Pennies reads the amount, merchant, date, and card for you. Set up the
+> optional iOS Shortcut and new purchases appear in your dashboard as they
+> happen.
+>
+> See where your money goes: a spending donut, daily and monthly charts,
+> insights, budgets, savings goals, subscriptions, and per-transaction notes.
+> Duplicate captures are caught before they double-count.
+>
+> **Bukit Pennies never connects to your bank.** No bank passwords, no
+> account linking, no open banking — it only ever reads notification text you
+> choose to share. Anything it can't confidently parse waits in your Review
+> inbox for a quick fix instead of being guessed.
+>
+> Free. No ads. No analytics. Made for Brunei.
+
+### Keywords
+
+(≤ 100 characters, comma-separated)
+
+`brunei, spending, budget, bank, SMS, Baiduri, BIBD, expense tracker, personal finance, money`
+
+### Support URL
+
+`https://jaredoka.github.io/bukit-pennies` (the Pages landing page — a
+plain HTTPS page with contact info is all Apple requires; the
+`bukitpennies.com` domain remains an option for later).
+
+### Review notes (paste into the "App Review Information" section)
+
+> Bukit Pennies parses bank **notification text** the user provides — it
+> never connects to a bank account or app. No credentials, no account
+> linking, no open banking, no scraping. Capture paths: paste SMS/notification
+> text into the app (a live offline preview shows what was parsed before it is
+> saved), or an optional iOS Shortcut that forwards messages from the user's
+> bank sender to a private per-user ingest endpoint. Nothing is read
+> automatically without the user setting the Shortcut up themselves.
+>
+> Demo account with realistic seeded data (dashboard, transactions, budgets,
+> goals, insights): `demo@bukitpennies.test` / `demo12345`. The reviewer can
+> also paste a sample Baiduri SMS (Settings shows a built-in example) to watch
+> a transaction parse end to end.
+>
+> iPhone-only (no iPad), portrait orientation, minimum iOS 16.4. Password
+> reset is the only account-recovery path; privacy policy and terms are
+> linked in-app and in this listing. The app is free and contains no
+> in-app purchases.
+
+### App Privacy questionnaire
+
+| Question | Answer |
+|---|---|
+| Collects data? | Yes |
+| Email address | **Account management** — linked to the user's identity, **not** used for tracking |
+| Financial info (transaction text, amount, merchant, card last four) | **App functionality** — linked to the user's identity, **not** used for tracking |
+| Contact info / names / other | No |
+| Identifiers / usage data / diagnostics | No |
+| Third-party advertising / tracking | No (no ad or analytics SDK; Sentry is wired in but disabled until a DSN is set) |
+
+## Pre-build drift check (do this before the first EAS production build)
+
+`pnpm exec supabase migration list --linked` must show local and remote in
+step. As of 2026-08-12 there is **one known drift**: remote has migration
+`26_heard_about.sql` applied (it was pushed from the unmerged
+`phase-8-launch-marketing` branch / PR #117), but `main` has no migration 26.
+The columns are nullable and the `main` app never writes them, so it is
+functionally harmless — but `supabase db reset` locally produces 25
+migrations while hosted has 26. **Resolve before launch:** merge PR #117
+(which carries migration 26 + the gated rate-me prompt + the `0.2.0`
+version bump already made on `main`), or explicitly abandon it and clean the
+remote. Do not ship with the drift.
 
 ## Share extension (post-launch enhancement)
 

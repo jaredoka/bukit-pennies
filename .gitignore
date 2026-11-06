@@ -15,6 +15,10 @@ builds/
 supabase/.temp/
 supabase/.branches/
 
+# App Store screenshot masters and source captures: local-only binaries, not
+# part of the app or the public repo. See docs/testflight-deploy.md.
+store-assets/
+
 # Private working files — the repo is public and permanent, so these must
 # never be committed.
 HANDOFF.md

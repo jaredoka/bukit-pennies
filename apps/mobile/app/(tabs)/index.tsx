@@ -334,15 +334,9 @@ export default function Dashboard() {
     void maybeOverspendAlert(userId, budgetProgress.items);
   }, [userId, budgetProgress]);
 
-  // The strip follows the wheel, so an older month is named rather than called
-  // "this month". The period pill above the donut carries the same name.
-  const periodName = isYearMode
-    ? selectedYear === nowYear
-      ? 'this year'
-      : periodTitle
-    : selectedYear === nowYear && periodMonthIdx === nowMonth
-      ? 'this month'
-      : periodTitle;
+  // The cards carry the period on its own line, so they name the month rather
+  // than saying "this month": the wheel can be parked on an older month, and a
+  // card that says "this month" while showing August is simply wrong.
   const saved = incomeBase !== null ? incomeBase - donut.spent : null;
   // Nothing left means nothing left, including when the overage is large, so
   // the percentage is clamped rather than allowed to go negative.
@@ -444,17 +438,16 @@ export default function Dashboard() {
                         const s = money(amount, primaryCurrency);
                         return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }]} numberOfLines={1} adjustsFontSizeToFit>{s}</Text>;
                       })()}
-                      <Muted>
-                        {overBudget
-                          ? `of ${money(incomeBase, primaryCurrency)} · ${money(Math.abs(donut.remaining ?? 0), primaryCurrency)} over`
-                          : `of ${money(incomeBase, primaryCurrency)}`}
-                      </Muted>
+                      {/* The overage is not repeated here: the Remaining card
+                          carries it, and two places saying "over" made the
+                          centre read as a warning instead of a total. */}
+                      <Muted>{`of ${money(incomeBase, primaryCurrency)}`}</Muted>
                     </>
                   ) : (
                     <>
                       <Text style={styles.centerLabel}>Spent</Text>
                       {(() => { const s = money(donut.spent, primaryCurrency); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }]} numberOfLines={1} adjustsFontSizeToFit>{s}</Text>; })()}
-                      <Muted>{periodName}</Muted>
+                      <Muted>{periodTitle}</Muted>
                     </>
                   )}
                 </Pressable>
@@ -593,11 +586,12 @@ export default function Dashboard() {
         ) : null}
       </Card>
 
-      {/* ---- 3-stat strip: month is budget-focused, year falls back to In/Out ---- */}
+      {/* ---- 3-stat strip: label, period, amount on separate lines ---- */}
       <View style={styles.statRow}>
         <Card style={styles.statCard}>
-          <Muted>{`${isYearMode ? 'In' : 'Budget'} · ${periodName}`}</Muted>
-          <Text style={styles.statValue}>
+          <Muted>{isYearMode ? 'In' : 'Budget'}</Muted>
+          <Text style={styles.statPeriod}>{periodTitle}</Text>
+          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
             {isYearMode
               ? money(recordedMoneyIn, primaryCurrency)
               : incomeBase !== null
@@ -606,20 +600,33 @@ export default function Dashboard() {
           </Text>
         </Card>
         <Card style={styles.statCard}>
-          <Muted>{`${isYearMode ? 'Out' : 'Spent'} · ${periodName}`}</Muted>
-          <Text style={styles.statValue}>{money(donut.spent, primaryCurrency)}</Text>
+          <Muted>{isYearMode ? 'Out' : 'Spent'}</Muted>
+          <Text style={styles.statPeriod}>{periodTitle}</Text>
+          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
+            {money(donut.spent, primaryCurrency)}
+          </Text>
         </Card>
         <Card style={styles.statCard}>
-          <Muted>{`Left · ${periodName}`}</Muted>
+          <Muted>Remaining</Muted>
+          <Text style={styles.statPeriod}>{periodTitle}</Text>
           {!isYearMode && saved !== null ? (
             <>
-              <Text style={[styles.statValue, saved < 0 && { color: colors.danger }]}>
+              <Text
+                style={[styles.statValue, saved < 0 && { color: colors.danger }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
                 {saved < 0
                   ? `${money(Math.abs(saved), primaryCurrency)} over`
                   : money(saved, primaryCurrency)}
               </Text>
               {budgetLeftPct !== null ? (
-                <Muted>{`${budgetLeftPct}% of budget left`}</Muted>
+                // One line at a smaller size: at the value's size the phrase
+                // wraps in a third of the screen and makes this card taller
+                // than its neighbours.
+                <Text style={styles.statNote} numberOfLines={1} adjustsFontSizeToFit>
+                  {`${budgetLeftPct}% of budget left`}
+                </Text>
               ) : null}
             </>
           ) : (
@@ -799,7 +806,9 @@ const useStyles = themedStyles((colors) => ({
   legendValue: { color: colors.muted, fontSize: 13, fontVariant: ['tabular-nums'] },
   statRow: { flexDirection: 'row', gap: 10 },
   statCard: { flex: 1, paddingVertical: 12, paddingHorizontal: 12 },
-  statValue: { fontSize: 17, fontWeight: '800', color: colors.text, marginTop: 2 },
+  statPeriod: { fontSize: 11, color: colors.muted, marginTop: 1 },
+  statValue: { fontSize: 16, fontWeight: '800', color: colors.text, marginTop: 2 },
+  statNote: { fontSize: 11, color: colors.muted, marginTop: 2 },
   budgetRow: { marginBottom: 12 },
   budgetHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   budgetAmounts: { color: colors.text, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] },

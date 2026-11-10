@@ -702,7 +702,7 @@ export default function Dashboard() {
         </Card>
       </View>
 
-      <Card style={[styles.statCard, styles.statCardWide]}>
+      <Card style={styles.statCard}>
         <View onLayout={(e) => setRemainingCardW(Math.round(e.nativeEvent.layout.width))}>
           <Muted>Remaining</Muted>
           <Text style={styles.statPeriod}>{periodTitle}</Text>
@@ -939,7 +939,6 @@ const useStyles = themedStyles((colors) => ({
   legendValue: { color: colors.muted, fontSize: 13, fontVariant: ['tabular-nums'] },
   statRow: { flexDirection: 'row', gap: 10 },
   statCard: { flex: 1, paddingVertical: 12, paddingHorizontal: 12 },
-  statCardWide: { marginTop: 10 },
   statPeriod: { fontSize: 11, color: colors.muted, marginTop: 1 },
   statValue: { fontSize: 16, fontWeight: '800', color: colors.text, marginTop: 2 },
   statNote: { fontSize: 11, color: colors.muted, marginTop: 2 },

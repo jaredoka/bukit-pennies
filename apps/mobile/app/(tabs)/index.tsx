@@ -23,7 +23,6 @@ import {
   useCategories,
   useDashboardSnapshot,
   useProfile,
-  useRecentMonthsTransactions,
   useSubscriptions,
   usePullToRefresh,
 } from '@/lib/queries';
@@ -38,7 +37,6 @@ import {
 } from '@/lib/onboarding';
 import { usePrivacy } from '@/lib/privacy';
 import { usePrimaryCurrency } from '@/lib/primaryCurrency';
-import { detectRecurring } from '@/lib/recurring';
 import { useSession } from '@/lib/session';
 import {
   cycleLabel,
@@ -134,10 +132,6 @@ export default function Dashboard() {
   const profile = useProfile();
   const categories = useCategories();
   const budgets = useBudgets();
-  // Kept only for recurring detection, which clusters individual amounts and so
-  // cannot be answered from a month x merchant total (see lib/recurring.ts).
-  // Everything else numeric on this screen comes from one snapshot request.
-  const recentTx = useRecentMonthsTransactions(6);
   const subscriptions = useSubscriptions();
   const { refreshing, onRefresh } = usePullToRefresh();
   const { hidden, toggle, money, pair } = usePrivacy();
@@ -303,20 +297,17 @@ export default function Dashboard() {
     return { items, hiddenCurrencies };
   }, [budgets.data, snapshot.data, categories.data, colors, primaryCurrency]);
 
-  const recurring = useMemo(() => detectRecurring(recentTx.data ?? []).slice(0, 6), [recentTx.data]);
-
-  // The subscriptions card shows both halves at once: rows the user declared,
-  // each carrying whichever detected cluster it matches, then the clusters
-  // nobody has claimed as suggestions. Display-only — see lib/subscriptions.ts.
+  // Declared subscriptions only. Detected clusters are not subscriptions — see
+  // the Subscriptions screen for the same decision.
   // Cancelled rows are dropped here rather than at the total: they are excluded
   // from the figure either way, and listing what you no longer pay for under a
   // monthly cost reads as a contradiction. They stay on the full screen.
   const subscriptionItems = useMemo(
     () =>
-      mergeSubscriptions(subscriptions.data ?? [], recurring, bruneiDayKey(Date.now())).filter(
+      mergeSubscriptions(subscriptions.data ?? [], [], bruneiDayKey(Date.now())).filter(
         (i) => i.status !== 'cancelled',
       ),
-    [subscriptions.data, recurring],
+    [subscriptions.data],
   );
   const subsMonthlyTotal = monthlyTotal(subscriptionItems, primaryCurrency);
 
@@ -679,7 +670,7 @@ export default function Dashboard() {
         </Card>
       ) : null}
 
-      {/* ---- Subscriptions: what you declared, merged with what we detected ---- */}
+      {/* ---- Subscriptions: what the user declared ---- */}
       <Card>
         <Pressable onPress={() => router.push('/subscriptions')} style={styles.subsHeader}>
           <View style={{ flex: 1 }}>
@@ -702,15 +693,13 @@ export default function Dashboard() {
                     {item.name}
                   </Text>
                   <Muted>
-                    {item.kind === 'suggestion'
-                      ? `Detected · ${item.detected!.months.length} months`
-                      : // No due date is the common case for something you
-                        // recorded without knowing its billing day — saying so
-                        // adds nothing, so the cycle stands alone.
-                        [
-                          cycleLabel(item.cycle, item.cycleDays),
-                          ...(item.nextDueOn ? [`due ${dueLabel(item.daysUntilDue)}`] : []),
-                        ].join(' · ')}
+                    {/* No due date is the common case for something you
+                        recorded without knowing its billing day — saying so
+                        adds nothing, so the cycle stands alone. */}
+                    {[
+                      cycleLabel(item.cycle, item.cycleDays),
+                      ...(item.nextDueOn ? [`due ${dueLabel(item.daysUntilDue)}`] : []),
+                    ].join(' · ')}
                   </Muted>
                 </View>
                 <Text style={styles.legendValue}>{money(item.amount, item.currency)}</Text>

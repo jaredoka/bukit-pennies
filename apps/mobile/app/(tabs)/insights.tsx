@@ -102,6 +102,12 @@ export default function Insights() {
 
   const hasData = insights.months.some((m) => m.total > 0 || m.moneyIn > 0);
 
+  // Year totals read as one equation: In - Out = Remaining. The monthly
+  // version has a budget to subtract from; a year has none, so the "budget" in
+  // this subtraction is whatever came in.
+  const yearOut = insights.months.reduce((sum, m) => sum + m.total, 0);
+  const yearRemaining = insights.moneyInTotal - yearOut;
+
   // Incoming money plotted over the spending bars. The same month buckets, so
   // a salary and the month's spending can be compared directly. Refunds are not
   // in here: they already reduce the bars.
@@ -203,15 +209,16 @@ export default function Insights() {
                 <Text style={styles.rowValue}>{money(insights.moneyInTotal, primaryCurrency)}</Text>
               </View>
               <View style={styles.row}>
-                <Text style={styles.rowName}>Spent</Text>
-                <Text style={styles.rowValue}>
-                  {money(
-                    insights.months.reduce((sum, m) => sum + m.total, 0),
-                    primaryCurrency,
-                  )}
-                </Text>
+                <Text style={styles.rowName}>Out</Text>
+                <Text style={styles.rowValue}>{money(yearOut, primaryCurrency)}</Text>
               </View>
-              <Muted>Transfers are left out of both figures. Refunds reduce spending.</Muted>
+              <View style={styles.row}>
+                <Text style={styles.rowName}>Remaining</Text>
+                <Text style={styles.rowValue}>{money(yearRemaining, primaryCurrency)}</Text>
+              </View>
+              <Muted>
+                In minus Out. Transfers are left out of both figures; refunds reduce Out.
+              </Muted>
             </Card>
 
             {/* ---- Category totals for the year ---- */}

@@ -11,7 +11,8 @@ import {
   type ScrollViewInstance,
 } from 'react-native';
 import { PieChart } from 'react-native-gifted-charts';
-import { Card, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
+import { Card, Button, Field, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
+import { monthKeyOf, resolveBudget } from '@/lib/budget';
 import {
   bruneiDayKey,
   bruneiMonthKey,
@@ -22,7 +23,11 @@ import {
   useBudgets,
   useCategories,
   useDashboardSnapshot,
+  useDeleteMonthBudget,
+  useFxRates,
+  useMonthBudgets,
   useProfile,
+  useSaveMonthBudget,
   useSubscriptions,
   usePullToRefresh,
 } from '@/lib/queries';
@@ -171,6 +176,8 @@ export default function Dashboard() {
 
   // ---- Data queries -------------------------------------------------------
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [budgetOpen, setBudgetOpen] = useState(false);
+  const [budgetDraft, setBudgetDraft] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   // The multi-currency note below the donut. Collapsed by default: it is
   // standing context, not news, and three lines of it under the chart pulled
@@ -181,20 +188,55 @@ export default function Dashboard() {
 
   const thisMonthData = snapshot.data?.this_month;
   const income = profile.data?.monthly_income == null ? null : Number(profile.data.monthly_income);
-  // Income comparison only makes sense for BND
-  const effectiveIncome = primaryCurrency === 'BND' ? income : null;
+  const incomeCurrency = profile.data?.monthly_income_currency ?? 'BND';
   // Money actually recorded this period. Refunds are deliberately not included
   // — they already reduce spending, and counting them here would improve the
   // figure twice.
   const recordedMoneyIn = Number(snapshot.data?.period.money_in ?? 0);
   const monthRecordedMoneyIn = Number(thisMonthData?.money_in ?? 0);
-  // Remaining/Saved uses recorded money in when there is any, and falls back to
-  // the static monthly income for months where the user has not recorded any.
-  const incomeBase = !isYearMode
-    ? recordedMoneyIn > 0
-      ? recordedMoneyIn
-      : effectiveIncome
-    : null;
+
+  // ---- Budget for the selected month --------------------------------------
+  // The wheel selects the month, so the budget follows it. A year view has no
+  // annual budget: recorded In and the monthly default are both month-shaped.
+  const budgetMonth = monthKeyOf(selectedYear, isYearMode ? 1 : periodMonthIdx);
+  const monthBudgets = useMonthBudgets();
+  const monthOverride = isYearMode
+    ? null
+    : (monthBudgets.data ?? []).find((row) => row.month.slice(0, 10) === budgetMonth) ?? null;
+  // Rates are only needed when a budget was entered in another currency; the
+  // table is small but there is no reason to fetch it for the common case.
+  const budgetNeedsFx = [...(monthBudgets.data ?? []).map((r) => r.currency), incomeCurrency].some(
+    (c) => c.toUpperCase() !== primaryCurrency.toUpperCase(),
+  );
+  const budgetFx = useFxRates(budgetNeedsFx);
+  const budget = useMemo(
+    () =>
+      isYearMode
+        ? { source: 'none' as const, amount: null, currency: primaryCurrency, unconverted: null, approximate: false }
+        : resolveBudget({
+            month: budgetMonth,
+            override: monthOverride,
+            recordedIn: recordedMoneyIn,
+            defaultAmount: income,
+            defaultCurrency: incomeCurrency,
+            primaryCurrency,
+            fx: budgetFx.data ?? new Map(),
+          }),
+    [isYearMode, budgetMonth, monthOverride, recordedMoneyIn, income, incomeCurrency, primaryCurrency, budgetFx.data],
+  );
+  const incomeBase = budget.amount;
+
+  const saveMonthBudget = useSaveMonthBudget();
+  const deleteMonthBudget = useDeleteMonthBudget();
+  function openBudgetSheet() {
+    setBudgetDraft(monthOverride === null ? '' : String(Number(monthOverride.amount)));
+    saveMonthBudget.reset();
+    deleteMonthBudget.reset();
+    setBudgetOpen(true);
+  }
+  const budgetDraftValue = Number(budgetDraft);
+  const budgetDraftValid =
+    budgetDraft.trim() !== '' && Number.isFinite(budgetDraftValue) && budgetDraftValue > 0;
 
   // Currencies recorded in the period that the donut leaves out because they
   // are not the primary one. The RPC reports their presence without totalling
@@ -580,15 +622,34 @@ export default function Dashboard() {
       {/* ---- 3-stat strip: label, period, amount on separate lines ---- */}
       <View style={styles.statRow}>
         <Card style={styles.statCard}>
-          <Muted>{isYearMode ? 'In' : 'Budget'}</Muted>
-          <Text style={styles.statPeriod}>{periodTitle}</Text>
-          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
-            {isYearMode
-              ? money(recordedMoneyIn, primaryCurrency)
-              : incomeBase !== null
-                ? money(incomeBase, primaryCurrency)
-                : 'Not set'}
-          </Text>
+          <Pressable
+            onPress={isYearMode ? undefined : openBudgetSheet}
+            disabled={isYearMode}
+            accessibilityRole={isYearMode ? undefined : 'button'}
+            accessibilityLabel={isYearMode ? undefined : `Set the budget for ${periodTitle}`}
+          >
+            <Muted>{isYearMode ? 'In' : 'Budget'}</Muted>
+            <Text style={styles.statPeriod}>{periodTitle}</Text>
+            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
+              {isYearMode
+                ? money(recordedMoneyIn, primaryCurrency)
+                : budget.amount !== null
+                  ? money(budget.amount, primaryCurrency)
+                  : budget.unconverted !== null
+                    ? money(budget.unconverted.amount, budget.unconverted.currency)
+                    : 'Not set'}
+            </Text>
+            {!isYearMode && budget.source === 'month' ? (
+              <Text style={styles.statNote} numberOfLines={1} adjustsFontSizeToFit>
+                Set for this month
+              </Text>
+            ) : null}
+            {!isYearMode && budget.source !== 'month' && budget.amount === null ? (
+              <Text style={styles.statNote} numberOfLines={1} adjustsFontSizeToFit>
+                Tap to set
+              </Text>
+            ) : null}
+          </Pressable>
         </Card>
         <Card style={styles.statCard}>
           <Muted>{isYearMode ? 'Out' : 'Spent'}</Muted>
@@ -735,6 +796,48 @@ export default function Dashboard() {
             onSelect={setPeriodYearIdx}
           />
         </View>
+      </View>
+    </Sheet>
+
+    {/* Budget for the month the wheel is showing */}
+    <Sheet visible={budgetOpen} onClose={() => setBudgetOpen(false)} title={`Budget · ${periodTitle}`}>
+      <Muted>
+        {monthOverride !== null
+          ? `Set for ${periodTitle}. Months without their own figure use money recorded In, then the Settings monthly budget.`
+          : `Without a figure here, ${periodTitle} uses money recorded In, then the Settings monthly budget.`}
+      </Muted>
+      <View style={{ marginTop: 12 }}>
+        <Field
+          label={`Amount (${primaryCurrency})`}
+          value={budgetDraft}
+          onChangeText={setBudgetDraft}
+          placeholder={income !== null ? `e.g. ${Number(income)}` : 'e.g. 500'}
+          keyboardType="decimal-pad"
+        />
+        <Button
+          label="Save for this month"
+          onPress={() =>
+            saveMonthBudget.mutate(
+              { month: budgetMonth, amount: budgetDraftValue, currency: primaryCurrency },
+              { onSuccess: () => setBudgetOpen(false) },
+            )
+          }
+          disabled={!budgetDraftValid}
+          busy={saveMonthBudget.isPending}
+        />
+        {monthOverride !== null ? (
+          <Pressable
+            onPress={() =>
+              deleteMonthBudget.mutate(budgetMonth, { onSuccess: () => setBudgetOpen(false) })
+            }
+            hitSlop={8}
+            style={{ marginTop: 12 }}
+          >
+            <Muted>Use the Settings monthly budget instead</Muted>
+          </Pressable>
+        ) : null}
+        {saveMonthBudget.error ? <Muted>{saveMonthBudget.error.message}</Muted> : null}
+        {deleteMonthBudget.error ? <Muted>{deleteMonthBudget.error.message}</Muted> : null}
       </View>
     </Sheet>
     </>

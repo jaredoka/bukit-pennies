@@ -15,8 +15,18 @@ export interface ProfileRow {
   display_name: string | null;
   default_currency: string;
   monthly_income: number | string | null;
+  /** Currency `monthly_income` was entered in (migration 33). */
+  monthly_income_currency: string | null;
   heard_about: string | null;
   heard_about_detail: string | null;
+}
+
+/** One row of `public.month_budgets` (migration 33). */
+export interface MonthBudgetRow {
+  /** 'YYYY-MM-01'. */
+  month: string;
+  amount: number | string;
+  currency: string;
 }
 
 export interface SavingsGoalRow {

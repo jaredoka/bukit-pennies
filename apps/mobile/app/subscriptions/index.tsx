@@ -7,7 +7,6 @@ import { bruneiDayKey, bruneiMonthKey, formatDayDate } from '@/lib/format';
 import { usePrimaryCurrency } from '@/lib/primaryCurrency';
 import { usePrivacy } from '@/lib/privacy';
 import { useCategories, useRecentMonthsTransactions, useSubscriptions } from '@/lib/queries';
-import { detectRecurring } from '@/lib/recurring';
 import {
   chargeInMonth,
   cycleLabel,
@@ -37,13 +36,16 @@ export default function SubscriptionsScreen() {
   const todayKey = bruneiDayKey(Date.now());
   const thisMonthKey = bruneiMonthKey(Date.now());
 
+  // Only what the user declared. A detected cluster (same merchant, similar
+  // amount, 3+ months) is a repeating purchase, not a subscription: a weekly
+  // coffee habit qualified, and listing those made the screen read as guesses.
+  // The detector still exists in lib/recurring.ts for whoever wants it back.
   const items = useMemo(
-    () => mergeSubscriptions(subs.data ?? [], detectRecurring(recentTx.data ?? []), todayKey),
-    [subs.data, recentTx.data, todayKey],
+    () => mergeSubscriptions(subs.data ?? [], [], todayKey),
+    [subs.data, todayKey],
   );
 
   const active = items.filter((i) => i.kind === 'declared' && i.status === 'active');
-  const suggestions = items.filter((i) => i.kind === 'suggestion');
   const cancelled = items.filter((i) => i.status === 'cancelled');
 
   const total = monthlyTotal(items, primaryCurrency);
@@ -125,47 +127,6 @@ export default function SubscriptionsScreen() {
             recentTx={recentTx.data ?? []}
           />
         ))}
-
-        {suggestions.length > 0 ? (
-          <Card>
-            <Title>Spotted in your spending</Title>
-            <Muted>
-              Same merchant, similar amount, seen in 3 or more months. Add one and it becomes a
-              subscription you can price and date.
-            </Muted>
-            <View style={{ marginTop: 4 }}>
-              {suggestions.map((s) => (
-                <View key={s.key} style={styles.suggestionRow}>
-                  <View style={{ flex: 1, marginRight: 8 }}>
-                    <Text style={styles.suggestionName} numberOfLines={1}>
-                      {s.name}
-                    </Text>
-                    <Muted>{`${s.detected?.months.length} months · ~${money(s.amount, s.currency)}/month`}</Muted>
-                  </View>
-                  <Pressable
-                    onPress={() =>
-                      router.push({
-                        pathname: '/subscriptions/edit',
-                        params: {
-                          name: s.name,
-                          amount: String(s.amount),
-                          currency: s.currency,
-                          merchant: s.detected?.merchant ?? s.name,
-                        },
-                      })
-                    }
-                    hitSlop={8}
-                    accessibilityLabel={`Add ${s.name} as a subscription`}
-                    style={styles.addPill}
-                  >
-                    <Ionicons name="add" size={16} color={colors.onPrimary} />
-                    <Text style={styles.addPillText}>Add</Text>
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          </Card>
-        ) : null}
 
         {cancelled.length > 0 ? <CancelledSection items={cancelled} /> : null}
       </ScrollView>
@@ -257,7 +218,7 @@ function CancelledSection({ items }: { items: SubscriptionListItem[] }) {
     <Card>
       <CollapsibleSection title={`Cancelled (${items.length})`}>
         <View>
-          <Muted>Kept so they stay out of the suggestions above, and so you can restore one.</Muted>
+          <Muted>Kept so you can restore one. Cancelled rows never count towards the total.</Muted>
           {items.map((item) => (
             <Pressable
               key={item.key}
@@ -307,14 +268,4 @@ const useStyles = themedStyles((colors) => ({
     borderBottomColor: colors.border,
   },
   suggestionName: { color: colors.text, fontWeight: '600' },
-  addPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    backgroundColor: colors.primary,
-    borderRadius: 999,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-  },
-  addPillText: { color: colors.onPrimary, fontWeight: '700', fontSize: 13 },
 }));

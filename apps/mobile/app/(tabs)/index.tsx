@@ -334,8 +334,22 @@ export default function Dashboard() {
     void maybeOverspendAlert(userId, budgetProgress.items);
   }, [userId, budgetProgress]);
 
-  const periodLabel = isYearMode ? 'this year' : 'this month';
+  // The strip follows the wheel, so an older month is named rather than called
+  // "this month". The period pill above the donut carries the same name.
+  const periodName = isYearMode
+    ? selectedYear === nowYear
+      ? 'this year'
+      : periodTitle
+    : selectedYear === nowYear && periodMonthIdx === nowMonth
+      ? 'this month'
+      : periodTitle;
   const saved = incomeBase !== null ? incomeBase - donut.spent : null;
+  // Nothing left means nothing left, including when the overage is large, so
+  // the percentage is clamped rather than allowed to go negative.
+  const budgetLeftPct =
+    saved !== null && incomeBase !== null && incomeBase > 0
+      ? Math.max(0, Math.round((saved / incomeBase) * 100))
+      : null;
 
   return (
     <>
@@ -440,7 +454,7 @@ export default function Dashboard() {
                     <>
                       <Text style={styles.centerLabel}>Spent</Text>
                       {(() => { const s = money(donut.spent, primaryCurrency); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }]} numberOfLines={1} adjustsFontSizeToFit>{s}</Text>; })()}
-                      <Muted>{periodLabel}</Muted>
+                      <Muted>{periodName}</Muted>
                     </>
                   )}
                 </Pressable>
@@ -579,22 +593,38 @@ export default function Dashboard() {
         ) : null}
       </Card>
 
-      {/* ---- 3-stat strip ---- */}
+      {/* ---- 3-stat strip: month is budget-focused, year falls back to In/Out ---- */}
       <View style={styles.statRow}>
         <Card style={styles.statCard}>
-          <Muted>{`In · ${periodLabel}`}</Muted>
-          <Text style={styles.statValue}>{money(recordedMoneyIn, primaryCurrency)}</Text>
-        </Card>
-        <Card style={styles.statCard}>
-          <Muted>{`Left over · ${periodLabel}`}</Muted>
-          <Text style={[styles.statValue, saved !== null && saved < 0 && { color: colors.danger }]}>
-            {saved !== null ? money(Math.abs(saved), primaryCurrency) : '—'}
+          <Muted>{`${isYearMode ? 'In' : 'Budget'} · ${periodName}`}</Muted>
+          <Text style={styles.statValue}>
+            {isYearMode
+              ? money(recordedMoneyIn, primaryCurrency)
+              : incomeBase !== null
+                ? money(incomeBase, primaryCurrency)
+                : 'Not set'}
           </Text>
-          {saved !== null && saved < 0 ? <Muted>over budget</Muted> : null}
         </Card>
         <Card style={styles.statCard}>
-          <Muted>{`Out · ${periodLabel}`}</Muted>
+          <Muted>{`${isYearMode ? 'Out' : 'Spent'} · ${periodName}`}</Muted>
           <Text style={styles.statValue}>{money(donut.spent, primaryCurrency)}</Text>
+        </Card>
+        <Card style={styles.statCard}>
+          <Muted>{`Left · ${periodName}`}</Muted>
+          {!isYearMode && saved !== null ? (
+            <>
+              <Text style={[styles.statValue, saved < 0 && { color: colors.danger }]}>
+                {saved < 0
+                  ? `${money(Math.abs(saved), primaryCurrency)} over`
+                  : money(saved, primaryCurrency)}
+              </Text>
+              {budgetLeftPct !== null ? (
+                <Muted>{`${budgetLeftPct}% of budget left`}</Muted>
+              ) : null}
+            </>
+          ) : (
+            <Text style={styles.statValue}>—</Text>
+          )}
         </Card>
       </View>
 

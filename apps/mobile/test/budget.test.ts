@@ -13,7 +13,6 @@ const fx = buildFxTable([
 const base = {
   month: MONTH,
   override: null,
-  recordedIn: 0,
   defaultAmount: null,
   defaultCurrency: 'BND',
   primaryCurrency: 'BND',
@@ -21,24 +20,17 @@ const base = {
 };
 
 describe('resolveBudget', () => {
-  it('prefers a budget set for the month over recorded In', () => {
+  it('prefers a budget set for the month over the Settings default', () => {
     const r = resolveBudget({
       ...base,
       override: { month: MONTH, amount: 500, currency: 'BND' },
-      recordedIn: 2000,
       defaultAmount: 300,
     });
     expect(r.source).toBe('month');
     expect(r.amount).toBe(500);
   });
 
-  it('falls back to recorded In when the month has no budget', () => {
-    const r = resolveBudget({ ...base, recordedIn: 2000, defaultAmount: 300 });
-    expect(r.source).toBe('income');
-    expect(r.amount).toBe(2000);
-  });
-
-  it('falls back to the Settings default when nothing was recorded', () => {
+  it('falls back to the Settings default when the month has no figure', () => {
     const r = resolveBudget({ ...base, defaultAmount: 300 });
     expect(r.source).toBe('default');
     expect(r.amount).toBe(300);
@@ -49,11 +41,6 @@ describe('resolveBudget', () => {
     expect(r.source).toBe('none');
     expect(r.amount).toBeNull();
     expect(r.unconverted).toBeNull();
-  });
-
-  it('ignores a zero recorded In rather than treating it as a budget', () => {
-    const r = resolveBudget({ ...base, recordedIn: 0, defaultAmount: 300 });
-    expect(r.source).toBe('default');
   });
 
   it('leaves a same-currency override untouched', () => {

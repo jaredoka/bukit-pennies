@@ -197,7 +197,9 @@ export default function Dashboard() {
 
   // ---- Budget for the selected month --------------------------------------
   // The wheel selects the month, so the budget follows it. A year view has no
-  // annual budget: recorded In and the monthly default are both month-shaped.
+  // annual budget. Recorded In is deliberately not consulted: a salary is not a
+  // spending cap, and showing one in a card labelled "Budget" was the confusing
+  // part of the old fallback.
   const budgetMonth = monthKeyOf(selectedYear, isYearMode ? 1 : periodMonthIdx);
   const monthBudgets = useMonthBudgets();
   const monthOverride = isYearMode
@@ -216,30 +218,27 @@ export default function Dashboard() {
         : resolveBudget({
             month: budgetMonth,
             override: monthOverride,
-            recordedIn: recordedMoneyIn,
             defaultAmount: income,
             defaultCurrency: incomeCurrency,
             primaryCurrency,
             fx: budgetFx.data ?? new Map(),
           }),
-    [isYearMode, budgetMonth, monthOverride, recordedMoneyIn, income, incomeCurrency, primaryCurrency, budgetFx.data],
+    [isYearMode, budgetMonth, monthOverride, income, incomeCurrency, primaryCurrency, budgetFx.data],
   );
   const incomeBase = budget.amount;
 
   // One short line saying where the Budget card's figure came from. Without it
-  // the card said "Budget" whether the number was the user's own figure for the
-  // month, their recorded income, or a default set three screens away.
+  // the card said "Budget" whether the number was a figure set for the month or
+  // a default set three screens away.
   const budgetHint = isYearMode
     ? null
     : budget.unconverted !== null
       ? 'Not converted'
       : budget.source === 'month'
         ? 'Set by you'
-        : budget.source === 'income'
-          ? 'Using money in'
-          : budget.source === 'default'
-            ? 'From Settings'
-            : 'Tap to set one';
+        : budget.source === 'default'
+          ? 'From Settings'
+          : 'Tap to set one';
 
   const saveMonthBudget = useSaveMonthBudget();
   const deleteMonthBudget = useDeleteMonthBudget();
@@ -813,8 +812,12 @@ export default function Dashboard() {
     <Sheet visible={budgetOpen} onClose={() => setBudgetOpen(false)} title={`Budget · ${periodTitle}`}>
       <Muted>
         {monthOverride !== null
-          ? `Set for ${periodTitle}. Months without their own figure use money recorded In, then the Settings monthly budget.`
-          : `Without a figure here, ${periodTitle} uses money recorded In, then the Settings monthly budget.`}
+          ? `${periodTitle} has its own budget. Remove it to go back to your monthly budget.`
+          : budget.unconverted !== null
+            ? `Your monthly budget of ${money(budget.unconverted.amount, budget.unconverted.currency)} from Settings can't be converted to ${primaryCurrency} yet.`
+            : budget.amount !== null
+              ? `${periodTitle} uses your monthly budget of ${money(budget.amount, primaryCurrency)} from Settings.`
+              : `No budget for ${periodTitle} yet. Set one here, or add a monthly budget in Settings.`}
       </Muted>
       <View style={{ marginTop: 12 }}>
         <Field
@@ -836,15 +839,15 @@ export default function Dashboard() {
           busy={saveMonthBudget.isPending}
         />
         {monthOverride !== null ? (
-          <Pressable
+          <Button
+            label="Use the monthly budget instead"
+            variant="secondary"
             onPress={() =>
               deleteMonthBudget.mutate(budgetMonth, { onSuccess: () => setBudgetOpen(false) })
             }
-            hitSlop={8}
-            style={{ marginTop: 12 }}
-          >
-            <Muted>Use the Settings monthly budget instead</Muted>
-          </Pressable>
+            busy={deleteMonthBudget.isPending}
+            style={{ marginTop: 8 }}
+          />
         ) : null}
         {saveMonthBudget.error ? <Muted>{saveMonthBudget.error.message}</Muted> : null}
         {deleteMonthBudget.error ? <Muted>{deleteMonthBudget.error.message}</Muted> : null}

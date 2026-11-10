@@ -70,8 +70,8 @@ export default function Budget() {
       <Card>
         <Title>Monthly budget</Title>
         <Muted>
-          The figure used for a month with no budget of its own. Money recorded In for a month
-          takes priority over this, and a budget set for a specific month takes priority over both.
+          Used for any month that doesn't have its own budget. Set a figure for one month below to
+          override it.
         </Muted>
         <View style={{ marginTop: 12 }}>
           <Field

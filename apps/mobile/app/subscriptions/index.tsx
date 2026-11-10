@@ -108,7 +108,7 @@ export default function SubscriptionsScreen() {
               ) : null}
               <Muted>
                 This is a record, not a budget. The real charge arrives as a transaction and is
-                already counted against your monthly limit, so nothing here is added on top.
+                already counted against your budget, so nothing here is added on top.
               </Muted>
             </View>
           ) : null}

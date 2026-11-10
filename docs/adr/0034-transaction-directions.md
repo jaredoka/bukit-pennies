@@ -64,3 +64,12 @@ Add a nullable `transactions.direction` with values `out`, `in`, `refund` and
   that period's breakdown rather than drawing a negative slice.
 - Money in is not the same as accounting income; reports that later need an
   income concept will have to define it separately.
+
+## Amendment (2026-11-10)
+
+The visible labels are now **In / Out** rather than "Money in / Money out", the
+Settings screen is **Monthly budget** rather than "Monthly limit", and the
+dashboard's third stat is **Left over** rather than "Saved". The stored values
+(`in`, `out`, `refund`, `transfer`, `null`), column names and the distinction
+between In and a refund are unchanged. Where this document says "money in", it
+names the concept, not a visible label.

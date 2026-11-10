@@ -44,7 +44,7 @@ export default function Spending() {
           href="/(tabs)/settings/weekly-summary"
           icon="notifications"
           label="Weekly summary"
-          note="Weekly update on money spent, and percent of money used so far in the month"
+          note="Weekly update on money spent, and percent of budget used so far in the month"
         />
         <NavRow
           href="/(tabs)/settings/reset-transactions"

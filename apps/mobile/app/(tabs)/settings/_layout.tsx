@@ -12,7 +12,7 @@ export default function SettingsLayout() {
       <Stack.Screen name="index" options={{ title: 'Settings' }} />
       <Stack.Screen name="account" options={{ title: 'Account' }} />
       <Stack.Screen name="appearance" options={{ title: 'Appearance' }} />
-      <Stack.Screen name="budget" options={{ title: 'Monthly limit' }} />
+      <Stack.Screen name="budget" options={{ title: 'Monthly budget' }} />
       <Stack.Screen name="spending" options={{ title: 'Spending & data' }} />
       <Stack.Screen name="capture" options={{ title: 'Capture' }} />
       <Stack.Screen name="about" options={{ title: 'About' }} />

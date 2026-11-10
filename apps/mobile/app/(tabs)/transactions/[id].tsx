@@ -265,9 +265,9 @@ export default function TransactionDetail() {
                 {choice.value === 'refund' ? (
                   <Muted>Reduces the spending category it names.</Muted>
                 ) : choice.value === 'transfer' ? (
-                  <Muted>Left out of spending, money in and budgets.</Muted>
+                  <Muted>Doesn&apos;t count as In or Out, or against budgets.</Muted>
                 ) : choice.value === null ? (
-                  <Muted>Counted as money out in every total.</Muted>
+                  <Muted>Counted as Out in every total.</Muted>
                 ) : null}
               </View>
               {active ? <Ionicons name="checkmark" size={18} color={colors.primary} /> : null}

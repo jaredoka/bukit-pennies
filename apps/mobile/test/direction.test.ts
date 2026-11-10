@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   amountSign,
+  DIRECTION_CHOICES,
   directionLabel,
   effectiveDirection,
   isMoneyIn,
@@ -81,9 +82,19 @@ describe('display helpers', () => {
 
   it('labels Not set explicitly', () => {
     expect(directionLabel(null)).toBe('Not set');
-    expect(directionLabel('out')).toBe('Money out');
-    expect(directionLabel('in')).toBe('Money in');
+    expect(directionLabel('out')).toBe('Out');
+    expect(directionLabel('in')).toBe('In');
     expect(directionLabel('refund')).toBe('Refund');
     expect(directionLabel('transfer')).toBe('Transfer');
+  });
+
+  it('offers the five choices in display order', () => {
+    expect(DIRECTION_CHOICES.map((choice) => choice.label)).toEqual([
+      'Out',
+      'In',
+      'Refund',
+      'Transfer',
+      'Not set',
+    ]);
   });
 });

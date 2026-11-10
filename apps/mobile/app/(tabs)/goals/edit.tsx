@@ -168,8 +168,8 @@ function Detail({ goal }: { goal: SavingsGoalWithProgress }) {
         <Card>
           <Title>Log money</Title>
           <View style={styles.chips}>
-            <Chip label="Money in" active={direction === 'in'} onPress={() => setDirection('in')} />
-            <Chip label="Money out" active={direction === 'out'} onPress={() => setDirection('out')} />
+            <Chip label="Deposit" active={direction === 'in'} onPress={() => setDirection('in')} />
+            <Chip label="Withdraw" active={direction === 'out'} onPress={() => setDirection('out')} />
           </View>
           <Muted>
             {direction === 'in'
@@ -398,8 +398,8 @@ function EntryRow({ entry, currency }: { entry: SavingsGoalEntryRow; currency: s
       {mode === 'editing' ? (
         <View style={styles.editBox}>
           <View style={styles.chips}>
-            <Chip label="Money in" active={!editOut} onPress={() => setEditOut(false)} />
-            <Chip label="Money out" active={editOut} onPress={() => setEditOut(true)} />
+            <Chip label="Deposit" active={!editOut} onPress={() => setEditOut(false)} />
+            <Chip label="Withdraw" active={editOut} onPress={() => setEditOut(true)} />
           </View>
           <Field
             label={`Amount (${currency})`}

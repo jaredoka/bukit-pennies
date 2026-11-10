@@ -133,7 +133,7 @@ export default function NewTransaction() {
 
       <Card>
         <Title>Direction</Title>
-        <Muted>Optional. Not set counts as money out in your totals.</Muted>
+        <Muted>Optional. Not set counts as Out in your totals.</Muted>
         <View style={{ marginTop: 10 }}>
           <DirectionChips value={direction} onChange={setDirection} />
         </View>

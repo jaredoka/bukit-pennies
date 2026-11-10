@@ -226,6 +226,21 @@ export default function Dashboard() {
   );
   const incomeBase = budget.amount;
 
+  // One short line saying where the Budget card's figure came from. Without it
+  // the card said "Budget" whether the number was the user's own figure for the
+  // month, their recorded income, or a default set three screens away.
+  const budgetHint = isYearMode
+    ? null
+    : budget.unconverted !== null
+      ? 'Not converted'
+      : budget.source === 'month'
+        ? 'Set by you'
+        : budget.source === 'income'
+          ? 'Using money in'
+          : budget.source === 'default'
+            ? 'From Settings'
+            : 'Tap to set one';
+
   const saveMonthBudget = useSaveMonthBudget();
   const deleteMonthBudget = useDeleteMonthBudget();
   function openBudgetSheet() {
@@ -639,14 +654,9 @@ export default function Dashboard() {
                     ? money(budget.unconverted.amount, budget.unconverted.currency)
                     : 'Not set'}
             </Text>
-            {!isYearMode && budget.source === 'month' ? (
+            {budgetHint !== null ? (
               <Text style={styles.statNote} numberOfLines={1} adjustsFontSizeToFit>
-                Set for this month
-              </Text>
-            ) : null}
-            {!isYearMode && budget.source !== 'month' && budget.amount === null ? (
-              <Text style={styles.statNote} numberOfLines={1} adjustsFontSizeToFit>
-                Tap to set
+                {budgetHint}
               </Text>
             ) : null}
           </Pressable>

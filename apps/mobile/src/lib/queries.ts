@@ -40,6 +40,7 @@ import type {
   BudgetRow,
   CategoryRow,
   IngestDeviceRow,
+  MonthBudgetRow,
   ProfileRow,
   SavingsGoalEntryRow,
   SavingsGoalRow,
@@ -602,13 +603,26 @@ export function useFxRates(enabled: boolean) {
     enabled,
     queryFn: async (): Promise<FxTable> => {
       try {
-        const rows = await unwrap<FxRateRow[]>(
-          supabase
-            .from('fx_rates')
-            .select('month,currency,rate_to_bnd')
-            .order('month', { ascending: true }),
-        );
-        return buildFxTable(rows ?? []);
+        // PostgREST caps a response (1000 rows on the hosted project). One
+        // unpaged read therefore returns the *oldest* rows of an ascending
+        // table and silently loses the newest months, which is exactly what a
+        // conversion needs for a recent month. Page until a short page arrives.
+        const PAGE = 1000;
+        const rows: FxRateRow[] = [];
+        for (let from = 0; ; from += PAGE) {
+          const page = await unwrap<FxRateRow[]>(
+            supabase
+              .from('fx_rates')
+              .select('month,currency,rate_to_bnd')
+              .order('month', { ascending: true })
+              .order('currency', { ascending: true })
+              .range(from, from + PAGE - 1),
+          );
+          const batch = page ?? [];
+          rows.push(...batch);
+          if (batch.length < PAGE) break;
+        }
+        return buildFxTable(rows);
       } catch (error) {
         if (isMissingTable(error)) return emptyFxTable();
         throw error;
@@ -680,6 +694,61 @@ export function useCategories() {
     queryFn: () =>
       unwrap<CategoryRow[]>(supabase.from('categories').select('*').order('name')),
     staleTime: REFERENCE_STALE_MS,
+  });
+}
+
+/**
+ * Budgets set for individual months (migration 33). The table holds only the
+ * months that differ from the Settings default, so it is a handful of rows even
+ * for someone who has overridden every month for years. A missing table means
+ * the migration has not been applied yet: every month then simply inherits the
+ * default, which is exactly the pre-migration behaviour.
+ */
+export function useMonthBudgets() {
+  return useQuery({
+    queryKey: ['month_budgets'],
+    queryFn: async (): Promise<MonthBudgetRow[]> => {
+      try {
+        const rows = await unwrap<MonthBudgetRow[]>(
+          supabase.from('month_budgets').select('month,amount,currency').order('month'),
+        );
+        return rows ?? [];
+      } catch (error) {
+        if (isMissingTable(error)) return [];
+        throw error;
+      }
+    },
+    staleTime: REFERENCE_STALE_MS,
+  });
+}
+
+export function useSaveMonthBudget() {
+  const qc = useQueryClient();
+  const userId = useUserId();
+  return useMutation({
+    mutationFn: async (input: { month: string; amount: number; currency: string }) => {
+      if (!userId) throw new Error('Not signed in');
+      return unwrap<MonthBudgetRow>(
+        supabase
+          .from('month_budgets')
+          .upsert(
+            { user_id: userId, month: input.month, amount: input.amount, currency: input.currency },
+            { onConflict: 'user_id,month' },
+          )
+          .select()
+          .single(),
+      );
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['month_budgets'] }),
+  });
+}
+
+export function useDeleteMonthBudget() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (month: string) =>
+      unwrap(supabase.from('month_budgets').delete().eq('month', month)),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['month_budgets'] }),
   });
 }
 
@@ -931,7 +1000,7 @@ export function useUpdateProfile() {
   const userId = useUserId();
   return useMutation({
     mutationFn: async (
-      patch: Partial<Pick<ProfileRow, 'display_name' | 'monthly_income' | 'heard_about' | 'heard_about_detail'>>,
+      patch: Partial<Pick<ProfileRow, 'display_name' | 'monthly_income' | 'monthly_income_currency' | 'heard_about' | 'heard_about_detail'>>,
     ) => {
       if (!userId) throw new Error('Not signed in');
       return unwrap<ProfileRow>(

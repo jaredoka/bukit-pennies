@@ -13,6 +13,7 @@ import {
 import { PieChart } from 'react-native-gifted-charts';
 import { Card, Button, Field, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
 import { monthKeyOf, resolveBudget } from '@/lib/budget';
+import { fitFontSize } from '@/lib/fitText';
 import {
   bruneiDayKey,
   bruneiMonthKey,
@@ -178,6 +179,11 @@ export default function Dashboard() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [budgetDraft, setBudgetDraft] = useState('');
+  // Measured card widths, so the amounts are sized to the space they actually
+  // have rather than assuming a screen width.
+  const [budgetCardW, setBudgetCardW] = useState(0);
+  const [spentCardW, setSpentCardW] = useState(0);
+  const [remainingCardW, setRemainingCardW] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   // The multi-currency note below the donut. Collapsed by default: it is
   // standing context, not news, and three lines of it under the chart pulled
@@ -391,6 +397,26 @@ export default function Dashboard() {
     saved !== null && incomeBase !== null && incomeBase > 0
       ? Math.max(0, Math.round((saved / incomeBase) * 100))
       : null;
+
+  // ---- Stat strip text and sizes ------------------------------------------
+  // The amount has to read in full: "BND 99,999.99", five figures plus cents.
+  // Sizing is computed from the measured card width (see lib/fitText.ts), not
+  // from adjustsFontSizeToFit, which react-native-web ignores.
+  const budgetValueText = isYearMode
+    ? money(recordedMoneyIn, primaryCurrency)
+    : budget.amount !== null
+      ? money(budget.amount, primaryCurrency)
+      : budget.unconverted !== null
+        ? money(budget.unconverted.amount, budget.unconverted.currency)
+        : 'Not set';
+  const spentValueText = money(donut.spent, primaryCurrency);
+  const remainingValueText =
+    !isYearMode && saved !== null
+      ? saved < 0
+        ? `${money(Math.abs(saved), primaryCurrency)} over`
+        : money(saved, primaryCurrency)
+      : '—';
+  const valueFit = (text: string, width: number) => fitFontSize(text, width, { base: 16, min: 12 });
 
   return (
     <>
@@ -633,7 +659,10 @@ export default function Dashboard() {
         ) : null}
       </Card>
 
-      {/* ---- 3-stat strip: label, period, amount on separate lines ---- */}
+      {/* ---- Stat strip: Budget and Spent side by side, Remaining full width.
+              Remaining needs the extra room for "% of budget left", and the
+              half-width cards give the amounts enough space to stay at 16px
+              even for BND 99,999.99. ---- */}
       <View style={styles.statRow}>
         <Card style={styles.statCard}>
           <Pressable
@@ -642,59 +671,58 @@ export default function Dashboard() {
             accessibilityRole={isYearMode ? undefined : 'button'}
             accessibilityLabel={isYearMode ? undefined : `Set the budget for ${periodTitle}`}
           >
-            <Muted>{isYearMode ? 'In' : 'Budget'}</Muted>
-            <Text style={styles.statPeriod}>{periodTitle}</Text>
-            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
-              {isYearMode
-                ? money(recordedMoneyIn, primaryCurrency)
-                : budget.amount !== null
-                  ? money(budget.amount, primaryCurrency)
-                  : budget.unconverted !== null
-                    ? money(budget.unconverted.amount, budget.unconverted.currency)
-                    : 'Not set'}
-            </Text>
-            {budgetHint !== null ? (
-              <Text style={styles.statNote} numberOfLines={1} adjustsFontSizeToFit>
-                {budgetHint}
+            <View onLayout={(e) => setBudgetCardW(Math.round(e.nativeEvent.layout.width))}>
+              <Muted>{isYearMode ? 'In' : 'Budget'}</Muted>
+              <Text style={styles.statPeriod}>{periodTitle}</Text>
+              <Text
+                style={[styles.statValue, { fontSize: valueFit(budgetValueText, budgetCardW) }]}
+                numberOfLines={1}
+              >
+                {budgetValueText}
               </Text>
-            ) : null}
+              {budgetHint !== null ? (
+                <Text style={styles.statNote} numberOfLines={1}>
+                  {budgetHint}
+                </Text>
+              ) : null}
+            </View>
           </Pressable>
         </Card>
         <Card style={styles.statCard}>
-          <Muted>{isYearMode ? 'Out' : 'Spent'}</Muted>
-          <Text style={styles.statPeriod}>{periodTitle}</Text>
-          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
-            {money(donut.spent, primaryCurrency)}
-          </Text>
-        </Card>
-        <Card style={styles.statCard}>
-          <Muted>Remaining</Muted>
-          <Text style={styles.statPeriod}>{periodTitle}</Text>
-          {!isYearMode && saved !== null ? (
-            <>
-              <Text
-                style={[styles.statValue, saved < 0 && { color: colors.danger }]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-              >
-                {saved < 0
-                  ? `${money(Math.abs(saved), primaryCurrency)} over`
-                  : money(saved, primaryCurrency)}
-              </Text>
-              {budgetLeftPct !== null ? (
-                // One line at a smaller size: at the value's size the phrase
-                // wraps in a third of the screen and makes this card taller
-                // than its neighbours.
-                <Text style={styles.statNote} numberOfLines={1} adjustsFontSizeToFit>
-                  {`${budgetLeftPct}% of budget left`}
-                </Text>
-              ) : null}
-            </>
-          ) : (
-            <Text style={styles.statValue}>—</Text>
-          )}
+          <View onLayout={(e) => setSpentCardW(Math.round(e.nativeEvent.layout.width))}>
+            <Muted>{isYearMode ? 'Out' : 'Spent'}</Muted>
+            <Text style={styles.statPeriod}>{periodTitle}</Text>
+            <Text
+              style={[styles.statValue, { fontSize: valueFit(spentValueText, spentCardW) }]}
+              numberOfLines={1}
+            >
+              {spentValueText}
+            </Text>
+          </View>
         </Card>
       </View>
+
+      <Card style={[styles.statCard, styles.statCardWide]}>
+        <View onLayout={(e) => setRemainingCardW(Math.round(e.nativeEvent.layout.width))}>
+          <Muted>Remaining</Muted>
+          <Text style={styles.statPeriod}>{periodTitle}</Text>
+          <Text
+            style={[
+              styles.statValue,
+              saved !== null && saved < 0 && { color: colors.danger },
+              { fontSize: valueFit(remainingValueText, remainingCardW) },
+            ]}
+            numberOfLines={1}
+          >
+            {remainingValueText}
+          </Text>
+          {!isYearMode && saved !== null && budgetLeftPct !== null ? (
+            <Text style={styles.statNote} numberOfLines={1}>
+              {`${budgetLeftPct}% of budget left`}
+            </Text>
+          ) : null}
+        </View>
+      </Card>
 
       {/* ---- Budgets (always current month) ---- */}
       {budgetProgress.items.length > 0 || budgetProgress.hiddenCurrencies.size > 0 ? (
@@ -911,6 +939,7 @@ const useStyles = themedStyles((colors) => ({
   legendValue: { color: colors.muted, fontSize: 13, fontVariant: ['tabular-nums'] },
   statRow: { flexDirection: 'row', gap: 10 },
   statCard: { flex: 1, paddingVertical: 12, paddingHorizontal: 12 },
+  statCardWide: { marginTop: 10 },
   statPeriod: { fontSize: 11, color: colors.muted, marginTop: 1 },
   statValue: { fontSize: 16, fontWeight: '800', color: colors.text, marginTop: 2 },
   statNote: { fontSize: 11, color: colors.muted, marginTop: 2 },

@@ -71,8 +71,8 @@ export function signedAmount(
 }
 
 export const DIRECTION_LABELS: Record<TxDirection, string> = {
-  out: 'Money out',
-  in: 'Money in',
+  out: 'Out',
+  in: 'In',
   refund: 'Refund',
   transfer: 'Transfer',
 };
@@ -83,9 +83,9 @@ export function directionLabel(direction: TxDirection | null): string {
 
 /** The four explicit choices, in the order the pickers show them. */
 export const DIRECTION_CHOICES: { value: TxDirection | null; label: string }[] = [
-  { value: 'out', label: 'Money out' },
-  { value: 'in', label: 'Money in' },
-  { value: 'refund', label: 'Refund (money in)' },
+  { value: 'out', label: 'Out' },
+  { value: 'in', label: 'In' },
+  { value: 'refund', label: 'Refund' },
   { value: 'transfer', label: 'Transfer' },
   { value: null, label: 'Not set' },
 ];

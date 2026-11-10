@@ -72,7 +72,7 @@ export default function Budgets() {
   function confirmReset() {
     Alert.alert(
       'Reset all budgets?',
-      'This will permanently clear every monthly budget limit. Your categories and transactions are not affected.',
+      'This will permanently clear every monthly budget. Your categories and transactions are not affected.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -161,7 +161,7 @@ export default function Budgets() {
       <Card>
         <Title>Reset budgets</Title>
         <Muted>
-          Clears every monthly budget limit back to none. Type{' '}
+          Clears every monthly budget back to none. Type{' '}
           <Text style={styles.resetPhrase}>{RESET_PHRASE}</Text> below to unlock the
           reset button.
         </Muted>

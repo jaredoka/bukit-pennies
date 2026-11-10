@@ -186,7 +186,7 @@ export default function Insights() {
                 </View>
                 <View style={styles.legendItem}>
                   <View style={[styles.legendLine, { backgroundColor: colors.primary }]} />
-                  <Text style={styles.legendText}>Money in</Text>
+                  <Text style={styles.legendText}>In</Text>
                 </View>
               </View>
             </>
@@ -199,7 +199,7 @@ export default function Insights() {
             <Card>
               <Title>Year totals</Title>
               <View style={styles.row}>
-                <Text style={styles.rowName}>Money in</Text>
+                <Text style={styles.rowName}>In</Text>
                 <Text style={styles.rowValue}>{money(insights.moneyInTotal, primaryCurrency)}</Text>
               </View>
               <View style={styles.row}>

@@ -801,7 +801,7 @@ function AddSheet({ visible, onClose }: { visible: boolean; onClose: () => void 
               <Ionicons name="cash-outline" size={22} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.addRowTitle}>Money out</Text>
+              <Text style={styles.addRowTitle}>Out</Text>
               <Muted>A cash or card spend</Muted>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.muted} />
@@ -814,7 +814,7 @@ function AddSheet({ visible, onClose }: { visible: boolean; onClose: () => void 
               <Ionicons name="arrow-down-circle-outline" size={22} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.addRowTitle}>Money in</Text>
+              <Text style={styles.addRowTitle}>In</Text>
               <Muted>Money arriving: a salary, a gift, a repayment</Muted>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.muted} />

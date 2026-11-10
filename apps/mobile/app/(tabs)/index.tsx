@@ -412,14 +412,14 @@ export default function Dashboard() {
                       {(() => { const s = money(selectedSlice.value, primaryCurrency); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }]} numberOfLines={1} adjustsFontSizeToFit>{s}</Text>; })()}
                       <Muted>
                         {pctBase > 0
-                          ? `${Math.round((selectedSlice.value / pctBase) * 100)}% of ${incomeBase !== null ? 'money in' : 'spending'}`
+                          ? `${Math.round((selectedSlice.value / pctBase) * 100)}% of ${incomeBase !== null ? 'budget' : 'spending'}`
                           : ''}
                       </Muted>
                     </>
                   ) : incomeBase !== null ? (
                     <>
                       <Text style={styles.centerLabel}>
-                        {donut.remaining !== null && donut.remaining < 0 ? 'Over money in' : 'Remaining'}
+                        {donut.remaining !== null && donut.remaining < 0 ? 'Over budget' : 'Remaining'}
                       </Text>
                       {(() => { const s = money(Math.abs(donut.remaining ?? 0), primaryCurrency); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }, donut.remaining !== null && donut.remaining < 0 && { color: colors.danger }]} numberOfLines={1} adjustsFontSizeToFit>{s}</Text>; })()}
                       <Muted>{`of ${money(incomeBase, primaryCurrency)}`}</Muted>
@@ -455,7 +455,7 @@ export default function Dashboard() {
             {income === null && recordedMoneyIn === 0 && !isYearMode && primaryCurrency === 'BND' ? (
               <Link href="/(tabs)/settings" asChild>
                 <Pressable>
-                  <Muted>Record money in, or set your monthly income in Settings, to see what's remaining →</Muted>
+                  <Muted>Record In, or set your monthly budget in Settings, to see what's remaining →</Muted>
                 </Pressable>
               </Link>
             ) : null}
@@ -570,18 +570,18 @@ export default function Dashboard() {
       {/* ---- 3-stat strip ---- */}
       <View style={styles.statRow}>
         <Card style={styles.statCard}>
-          <Muted>{`Money in ${periodLabel}`}</Muted>
+          <Muted>{`In · ${periodLabel}`}</Muted>
           <Text style={styles.statValue}>{money(recordedMoneyIn, primaryCurrency)}</Text>
         </Card>
         <Card style={styles.statCard}>
-          <Muted>{`Saved ${periodLabel}`}</Muted>
+          <Muted>{`Left over · ${periodLabel}`}</Muted>
           <Text style={[styles.statValue, saved !== null && saved < 0 && { color: colors.danger }]}>
             {saved !== null ? money(Math.abs(saved), primaryCurrency) : '—'}
           </Text>
           {saved !== null && saved < 0 ? <Muted>over budget</Muted> : null}
         </Card>
         <Card style={styles.statCard}>
-          <Muted>{`Spent ${periodLabel}`}</Muted>
+          <Muted>{`Out · ${periodLabel}`}</Muted>
           <Text style={styles.statValue}>{money(donut.spent, primaryCurrency)}</Text>
         </Card>
       </View>

@@ -56,7 +56,7 @@ export function DirectionChips({
 
 /** The list's badge: only the two directions the sign cannot convey. */
 export function directionBadge(direction: TxDirection | null): string | null {
-  if (direction === 'refund') return 'refund';
+  if (direction === 'refund') return 'Refund';
   if (direction === 'transfer') return 'Transfer';
   return null;
 }

@@ -22,11 +22,11 @@ export default function Budget() {
       automaticallyAdjustKeyboardInsets
     >
       <Card>
-        <Title>Monthly limit</Title>
+        <Title>Monthly budget</Title>
         <Muted>
-          Set your monthly limit. When you record money in for a month, the dashboard uses that
-          instead; this figure is the fallback for months with no money-in entries. It can be your
-          income, a spending cap, or any figure you want to track against.
+          Set your monthly budget. When you record In for a month, the dashboard uses that
+          instead; this figure is the fallback for months with no In entries. It can be a
+          spending cap or any figure you want to track against.
         </Muted>
         <View style={{ marginTop: 12 }}>
           <Field

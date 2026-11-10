@@ -41,7 +41,7 @@ export default function Settings() {
           inset
           href="/(tabs)/settings/budget"
           icon="wallet"
-          label="Monthly limit"
+          label="Monthly budget"
           note="Set the amount the dashboard measures against"
         />
         <NavRow

@@ -13,6 +13,7 @@ import {
 import { PieChart } from 'react-native-gifted-charts';
 import { Card, Button, Field, Muted, Sheet, Title, WheelPicker } from '@/components/ui';
 import { monthKeyOf, resolveBudget } from '@/lib/budget';
+import { fitFontSize } from '@/lib/fitText';
 import {
   bruneiDayKey,
   bruneiMonthKey,
@@ -178,6 +179,11 @@ export default function Dashboard() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [budgetDraft, setBudgetDraft] = useState('');
+  // Measured card widths, so the amounts are sized to the space they actually
+  // have rather than assuming a screen width.
+  const [budgetCardW, setBudgetCardW] = useState(0);
+  const [spentCardW, setSpentCardW] = useState(0);
+  const [remainingCardW, setRemainingCardW] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   // The multi-currency note below the donut. Collapsed by default: it is
   // standing context, not news, and three lines of it under the chart pulled
@@ -197,7 +203,9 @@ export default function Dashboard() {
 
   // ---- Budget for the selected month --------------------------------------
   // The wheel selects the month, so the budget follows it. A year view has no
-  // annual budget: recorded In and the monthly default are both month-shaped.
+  // annual budget. Recorded In is deliberately not consulted: a salary is not a
+  // spending cap, and showing one in a card labelled "Budget" was the confusing
+  // part of the old fallback.
   const budgetMonth = monthKeyOf(selectedYear, isYearMode ? 1 : periodMonthIdx);
   const monthBudgets = useMonthBudgets();
   const monthOverride = isYearMode
@@ -216,15 +224,27 @@ export default function Dashboard() {
         : resolveBudget({
             month: budgetMonth,
             override: monthOverride,
-            recordedIn: recordedMoneyIn,
             defaultAmount: income,
             defaultCurrency: incomeCurrency,
             primaryCurrency,
             fx: budgetFx.data ?? new Map(),
           }),
-    [isYearMode, budgetMonth, monthOverride, recordedMoneyIn, income, incomeCurrency, primaryCurrency, budgetFx.data],
+    [isYearMode, budgetMonth, monthOverride, income, incomeCurrency, primaryCurrency, budgetFx.data],
   );
   const incomeBase = budget.amount;
+
+  // One short line saying where the Budget card's figure came from. Without it
+  // the card said "Budget" whether the number was a figure set for the month or
+  // a default set three screens away.
+  const budgetHint = isYearMode
+    ? null
+    : budget.unconverted !== null
+      ? 'Not converted'
+      : budget.source === 'month'
+        ? 'Set by you'
+        : budget.source === 'default'
+          ? 'From Settings'
+          : 'Tap to set one';
 
   const saveMonthBudget = useSaveMonthBudget();
   const deleteMonthBudget = useDeleteMonthBudget();
@@ -377,6 +397,26 @@ export default function Dashboard() {
     saved !== null && incomeBase !== null && incomeBase > 0
       ? Math.max(0, Math.round((saved / incomeBase) * 100))
       : null;
+
+  // ---- Stat strip text and sizes ------------------------------------------
+  // The amount has to read in full: "BND 99,999.99", five figures plus cents.
+  // Sizing is computed from the measured card width (see lib/fitText.ts), not
+  // from adjustsFontSizeToFit, which react-native-web ignores.
+  const budgetValueText = isYearMode
+    ? money(recordedMoneyIn, primaryCurrency)
+    : budget.amount !== null
+      ? money(budget.amount, primaryCurrency)
+      : budget.unconverted !== null
+        ? money(budget.unconverted.amount, budget.unconverted.currency)
+        : 'Not set';
+  const spentValueText = money(donut.spent, primaryCurrency);
+  const remainingValueText =
+    !isYearMode && saved !== null
+      ? saved < 0
+        ? `${money(Math.abs(saved), primaryCurrency)} over`
+        : money(saved, primaryCurrency)
+      : '—';
+  const valueFit = (text: string, width: number) => fitFontSize(text, width, { base: 16, min: 12 });
 
   return (
     <>
@@ -619,7 +659,10 @@ export default function Dashboard() {
         ) : null}
       </Card>
 
-      {/* ---- 3-stat strip: label, period, amount on separate lines ---- */}
+      {/* ---- Stat strip: Budget and Spent side by side, Remaining full width.
+              Remaining needs the extra room for "% of budget left", and the
+              half-width cards give the amounts enough space to stay at 16px
+              even for BND 99,999.99. ---- */}
       <View style={styles.statRow}>
         <Card style={styles.statCard}>
           <Pressable
@@ -628,64 +671,58 @@ export default function Dashboard() {
             accessibilityRole={isYearMode ? undefined : 'button'}
             accessibilityLabel={isYearMode ? undefined : `Set the budget for ${periodTitle}`}
           >
-            <Muted>{isYearMode ? 'In' : 'Budget'}</Muted>
-            <Text style={styles.statPeriod}>{periodTitle}</Text>
-            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
-              {isYearMode
-                ? money(recordedMoneyIn, primaryCurrency)
-                : budget.amount !== null
-                  ? money(budget.amount, primaryCurrency)
-                  : budget.unconverted !== null
-                    ? money(budget.unconverted.amount, budget.unconverted.currency)
-                    : 'Not set'}
-            </Text>
-            {!isYearMode && budget.source === 'month' ? (
-              <Text style={styles.statNote} numberOfLines={1} adjustsFontSizeToFit>
-                Set for this month
+            <View onLayout={(e) => setBudgetCardW(Math.round(e.nativeEvent.layout.width))}>
+              <Muted>{isYearMode ? 'In' : 'Budget'}</Muted>
+              <Text style={styles.statPeriod}>{periodTitle}</Text>
+              <Text
+                style={[styles.statValue, { fontSize: valueFit(budgetValueText, budgetCardW) }]}
+                numberOfLines={1}
+              >
+                {budgetValueText}
               </Text>
-            ) : null}
-            {!isYearMode && budget.source !== 'month' && budget.amount === null ? (
-              <Text style={styles.statNote} numberOfLines={1} adjustsFontSizeToFit>
-                Tap to set
-              </Text>
-            ) : null}
+              {budgetHint !== null ? (
+                <Text style={styles.statNote} numberOfLines={1}>
+                  {budgetHint}
+                </Text>
+              ) : null}
+            </View>
           </Pressable>
         </Card>
         <Card style={styles.statCard}>
-          <Muted>{isYearMode ? 'Out' : 'Spent'}</Muted>
-          <Text style={styles.statPeriod}>{periodTitle}</Text>
-          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
-            {money(donut.spent, primaryCurrency)}
-          </Text>
-        </Card>
-        <Card style={styles.statCard}>
-          <Muted>Remaining</Muted>
-          <Text style={styles.statPeriod}>{periodTitle}</Text>
-          {!isYearMode && saved !== null ? (
-            <>
-              <Text
-                style={[styles.statValue, saved < 0 && { color: colors.danger }]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-              >
-                {saved < 0
-                  ? `${money(Math.abs(saved), primaryCurrency)} over`
-                  : money(saved, primaryCurrency)}
-              </Text>
-              {budgetLeftPct !== null ? (
-                // One line at a smaller size: at the value's size the phrase
-                // wraps in a third of the screen and makes this card taller
-                // than its neighbours.
-                <Text style={styles.statNote} numberOfLines={1} adjustsFontSizeToFit>
-                  {`${budgetLeftPct}% of budget left`}
-                </Text>
-              ) : null}
-            </>
-          ) : (
-            <Text style={styles.statValue}>—</Text>
-          )}
+          <View onLayout={(e) => setSpentCardW(Math.round(e.nativeEvent.layout.width))}>
+            <Muted>{isYearMode ? 'Out' : 'Spent'}</Muted>
+            <Text style={styles.statPeriod}>{periodTitle}</Text>
+            <Text
+              style={[styles.statValue, { fontSize: valueFit(spentValueText, spentCardW) }]}
+              numberOfLines={1}
+            >
+              {spentValueText}
+            </Text>
+          </View>
         </Card>
       </View>
+
+      <Card style={styles.statCard}>
+        <View onLayout={(e) => setRemainingCardW(Math.round(e.nativeEvent.layout.width))}>
+          <Muted>Remaining</Muted>
+          <Text style={styles.statPeriod}>{periodTitle}</Text>
+          <Text
+            style={[
+              styles.statValue,
+              saved !== null && saved < 0 && { color: colors.danger },
+              { fontSize: valueFit(remainingValueText, remainingCardW) },
+            ]}
+            numberOfLines={1}
+          >
+            {remainingValueText}
+          </Text>
+          {!isYearMode && saved !== null && budgetLeftPct !== null ? (
+            <Text style={styles.statNote} numberOfLines={1}>
+              {`${budgetLeftPct}% of budget left`}
+            </Text>
+          ) : null}
+        </View>
+      </Card>
 
       {/* ---- Budgets (always current month) ---- */}
       {budgetProgress.items.length > 0 || budgetProgress.hiddenCurrencies.size > 0 ? (
@@ -803,8 +840,12 @@ export default function Dashboard() {
     <Sheet visible={budgetOpen} onClose={() => setBudgetOpen(false)} title={`Budget · ${periodTitle}`}>
       <Muted>
         {monthOverride !== null
-          ? `Set for ${periodTitle}. Months without their own figure use money recorded In, then the Settings monthly budget.`
-          : `Without a figure here, ${periodTitle} uses money recorded In, then the Settings monthly budget.`}
+          ? `${periodTitle} has its own budget. Remove it to go back to your monthly budget.`
+          : budget.unconverted !== null
+            ? `Your monthly budget of ${money(budget.unconverted.amount, budget.unconverted.currency)} from Settings can't be converted to ${primaryCurrency} yet.`
+            : budget.amount !== null
+              ? `${periodTitle} uses your monthly budget of ${money(budget.amount, primaryCurrency)} from Settings.`
+              : `No budget for ${periodTitle} yet. Set one here, or add a monthly budget in Settings.`}
       </Muted>
       <View style={{ marginTop: 12 }}>
         <Field
@@ -826,15 +867,15 @@ export default function Dashboard() {
           busy={saveMonthBudget.isPending}
         />
         {monthOverride !== null ? (
-          <Pressable
+          <Button
+            label="Use the monthly budget instead"
+            variant="secondary"
             onPress={() =>
               deleteMonthBudget.mutate(budgetMonth, { onSuccess: () => setBudgetOpen(false) })
             }
-            hitSlop={8}
-            style={{ marginTop: 12 }}
-          >
-            <Muted>Use the Settings monthly budget instead</Muted>
-          </Pressable>
+            busy={deleteMonthBudget.isPending}
+            style={{ marginTop: 8 }}
+          />
         ) : null}
         {saveMonthBudget.error ? <Muted>{saveMonthBudget.error.message}</Muted> : null}
         {deleteMonthBudget.error ? <Muted>{deleteMonthBudget.error.message}</Muted> : null}

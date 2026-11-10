@@ -262,6 +262,12 @@ export default function Dashboard() {
     return { slices, spent, remaining };
   }, [snapshot.data, categories.data, colors, incomeBase, isYearMode]);
 
+  // Once spending passes the budget the grey Remaining slice disappears, so the
+  // ring totals spending rather than the budget. The centre has to agree with
+  // that: show the month's total spent, with the overage as context, instead of
+  // leading with a residual that starts again from zero.
+  const overBudget = donut.remaining !== null && donut.remaining < 0;
+
   const selectedSlice = donut.slices.find((s) => s.key === selected) ?? null;
   const pctBase = incomeBase !== null ? incomeBase : donut.spent;
 
@@ -418,11 +424,17 @@ export default function Dashboard() {
                     </>
                   ) : incomeBase !== null ? (
                     <>
-                      <Text style={styles.centerLabel}>
-                        {donut.remaining !== null && donut.remaining < 0 ? 'Over budget' : 'Remaining'}
-                      </Text>
-                      {(() => { const s = money(Math.abs(donut.remaining ?? 0), primaryCurrency); return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }, donut.remaining !== null && donut.remaining < 0 && { color: colors.danger }]} numberOfLines={1} adjustsFontSizeToFit>{s}</Text>; })()}
-                      <Muted>{`of ${money(incomeBase, primaryCurrency)}`}</Muted>
+                      <Text style={styles.centerLabel}>{overBudget ? 'Spent' : 'Remaining'}</Text>
+                      {(() => {
+                        const amount = overBudget ? donut.spent : Math.abs(donut.remaining ?? 0);
+                        const s = money(amount, primaryCurrency);
+                        return <Text style={[styles.centerValue, { fontSize: donutFontSize(s) }]} numberOfLines={1} adjustsFontSizeToFit>{s}</Text>;
+                      })()}
+                      <Muted>
+                        {overBudget
+                          ? `of ${money(incomeBase, primaryCurrency)} · ${money(Math.abs(donut.remaining ?? 0), primaryCurrency)} over`
+                          : `of ${money(incomeBase, primaryCurrency)}`}
+                      </Muted>
                     </>
                   ) : (
                     <>

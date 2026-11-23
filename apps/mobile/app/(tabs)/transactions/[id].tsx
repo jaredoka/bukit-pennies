@@ -12,7 +12,9 @@ import {
   View,
 } from 'react-native';
 import { Badge, Button, Card, Centered, Field, Muted, Sheet, Title } from '@/components/ui';
+import { countingExplanation, countingStatus, type CountingStatus } from '@/lib/counting';
 import { amountSign, DIRECTION_CHOICES, directionLabel, keepsCategory } from '@/lib/direction';
+import { usePrimaryCurrency } from '@/lib/primaryCurrency';
 import { formatTime, bruneiParts } from '@/lib/format';
 import { buildReparsePatch, canReparse } from '@/lib/reparse';
 import { themedStyles, useTheme } from '@/lib/theme';
@@ -59,6 +61,7 @@ export default function TransactionDetail() {
   const { money } = usePrivacy();
   const styles = useStyles();
   const { colors } = useTheme();
+  const { currency: primaryCurrency, convertOthers } = usePrimaryCurrency();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: tx, isLoading } = useTransaction(id);
   const categories = useCategories();
@@ -122,6 +125,12 @@ export default function TransactionDetail() {
   }
 
   const currentCategory = (categories.data ?? []).find((c) => c.id === tx.category_id);
+  const counting = countingStatus({
+    tx,
+    categoryName: currentCategory?.name ?? null,
+    primaryCurrency,
+    convertOthers,
+  });
   const sign = amountSign(tx.direction);
 
   function chooseDirection(next: (typeof DIRECTION_CHOICES)[number]['value']) {
@@ -209,6 +218,14 @@ export default function TransactionDetail() {
           <Muted>Source</Muted>
           <Text style={styles.detailValue}>{tx.source}</Text>
         </View>
+      </Card>
+
+      {/* Why this row does or does not appear in each dashboard figure. The
+          rules live in lib/counting.ts; this only states the result. */}
+      <Card>
+        <Title>Where it counts</Title>
+        <CountingRow label="Dashboard donut" status={counting.dashboard} currency={tx.currency} />
+        <CountingRow label="Budgets" status={counting.budgets} currency={tx.currency} />
       </Card>
 
       <Card>
@@ -332,6 +349,47 @@ export default function TransactionDetail() {
   );
 }
 
+function CountingRow({
+  label,
+  status,
+  currency,
+}: {
+  label: string;
+  status: CountingStatus;
+  currency: string;
+}) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  // Money in is not an omission: it is counted, just as In rather than
+  // spending. The icon should not read as a warning.
+  const positive = status.counted || status.reason === 'money_in';
+  const headline = status.counted
+    ? 'Counted'
+    : status.reason === 'money_in'
+      ? 'Shown as In'
+      : 'Not counted';
+  const detail = status.counted
+    ? [status.category ?? 'Uncategorized', status.month].filter(Boolean).join(' · ')
+    : status.reason === 'money_in'
+      ? [status.month, countingExplanation(status, currency)].filter(Boolean).join(' · ')
+      : countingExplanation(status, currency);
+  return (
+    <View style={styles.countRow}>
+      <Ionicons
+        name={positive ? 'checkmark-circle' : 'remove-circle-outline'}
+        size={18}
+        color={positive ? colors.primary : colors.muted}
+      />
+      <View style={styles.countBody}>
+        <Text style={styles.countLabel}>
+          {`${label} · ${headline}`}
+        </Text>
+        {detail ? <Muted>{detail}</Muted> : null}
+      </View>
+    </View>
+  );
+}
+
 const useStyles = themedStyles((colors) => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, maxWidth: 720, width: '100%', alignSelf: 'center' },
@@ -368,6 +426,10 @@ const useStyles = themedStyles((colors) => ({
   },
   detailValue: { color: colors.text, fontWeight: '500', flexShrink: 1, textAlign: 'right', marginLeft: 16 },
   directionValue: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  // Counting card
+  countRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 8 },
+  countBody: { flex: 1, gap: 2 },
+  countLabel: { color: colors.text, fontSize: 14, fontWeight: '600' },
   // Category sheet
   catRow: {
     flexDirection: 'row',

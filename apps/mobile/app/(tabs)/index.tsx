@@ -331,11 +331,18 @@ export default function Dashboard() {
     setSelected((cur) => (cur === key ? null : key));
   }
 
-  // ---- Budget progress (always current month) -----------------------------
+  // ---- Budget progress (the month the wheel is on) -------------------------
+  // This used to read `this_month`, which the snapshot always resolves to the
+  // current month — and only when the current month is inside the selected
+  // period. Park the wheel on an older month and every bar read zero while the
+  // transactions were plainly listed below. A monthly category budget only
+  // means something for a single month, so "All year" has none.
   const budgetProgress = useMemo(() => {
-    if (!budgets.data?.length) return { items: [], hiddenCurrencies: new Set<string>() };
+    if (isYearMode || !budgets.data?.length) {
+      return { items: [], hiddenCurrencies: new Set<string>() };
+    }
     const spentByCategory = new Map<string, number>();
-    for (const c of snapshot.data?.this_month.by_category ?? []) {
+    for (const c of snapshot.data?.period.by_category ?? []) {
       if (c.category_id === null) continue;
       spentByCategory.set(c.category_id, Number(c.total));
     }
@@ -357,7 +364,7 @@ export default function Dashboard() {
       })
       .sort((a, b) => b.spent / b.limit - a.spent / a.limit);
     return { items, hiddenCurrencies };
-  }, [budgets.data, snapshot.data, categories.data, colors, primaryCurrency]);
+  }, [isYearMode, budgets.data, snapshot.data, categories.data, colors, primaryCurrency]);
 
   // Declared subscriptions only. Detected clusters are not subscriptions — see
   // the Subscriptions screen for the same decision.
@@ -724,10 +731,13 @@ export default function Dashboard() {
         </View>
       </Card>
 
-      {/* ---- Budgets (always current month) ---- */}
+      {/* ---- Budgets for the month the wheel is on ---- */}
       {budgetProgress.items.length > 0 || budgetProgress.hiddenCurrencies.size > 0 ? (
         <Card>
-          <Title>Budgets</Title>
+          <View style={styles.budgetTitleRow}>
+            <Title>Budgets</Title>
+            <Muted>{periodTitle}</Muted>
+          </View>
           {budgetProgress.items.map((b) => {
             const ratio = b.limit > 0 ? b.spent / b.limit : 0;
             const over = ratio > 1;
@@ -942,6 +952,7 @@ const useStyles = themedStyles((colors) => ({
   statPeriod: { fontSize: 11, color: colors.muted, marginTop: 1 },
   statValue: { fontSize: 16, fontWeight: '800', color: colors.text, marginTop: 2 },
   statNote: { fontSize: 11, color: colors.muted, marginTop: 2 },
+  budgetTitleRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
   budgetRow: { marginBottom: 12 },
   budgetHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   budgetAmounts: { color: colors.text, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] },

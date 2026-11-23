@@ -325,7 +325,7 @@ function CurrencySheet({
   );
 }
 
-function RecipientSheet({
+function MerchantSheet({
   visible,
   value,
   onChange,
@@ -337,7 +337,7 @@ function RecipientSheet({
   onClose: () => void;
 }) {
   return (
-    <Sheet visible={visible} title="Recipient" onClose={onClose} onClear={() => onChange('')}>
+    <Sheet visible={visible} title="Merchant" onClose={onClose} onClear={() => onChange('')}>
       <View style={{ marginBottom: 16 }}>
         <Field
           placeholder="Search by merchant name…"
@@ -347,6 +347,7 @@ function RecipientSheet({
           autoFocus
         />
       </View>
+      <Muted>Matches the merchant name on the bank message, case-insensitively.</Muted>
     </Sheet>
   );
 }
@@ -578,7 +579,9 @@ export default function TransactionsList() {
     : filters.dateFrom ? `From ${filters.dateFrom}`
     : filters.dateTo ? `To ${filters.dateTo}`
     : 'Date';
-  const recipLabel = filters.recipient.trim() || 'Recipient';
+  // The control filters `merchant` / `merchant_normalized`; it was labelled
+  // "Recipient" even though the bank statement calls the payee the merchant.
+  const recipLabel = filters.recipient.trim() || 'Merchant';
   const dirLabel =
     filters.directions.length === 1
       ? (filters.directions[0] === null
@@ -770,7 +773,7 @@ export default function TransactionsList() {
       <CategorySheet visible={activeSheet === 'category'} categories={categories.data ?? []} selected={filters.categoryIds} onChange={(v) => patch({ categoryIds: v })} onClose={() => setActiveSheet(null)} />
       <CurrencySheet visible={activeSheet === 'currency'} available={availCurrencies} selected={filters.currencies} onChange={(v) => patch({ currencies: v })} onClose={() => setActiveSheet(null)} />
       <CalendarSheet visible={activeSheet === 'date'} dateFrom={filters.dateFrom} dateTo={filters.dateTo} onChange={(p) => patch(p)} onClose={() => setActiveSheet(null)} />
-      <RecipientSheet visible={activeSheet === 'recipient'} value={filters.recipient} onChange={(v) => patch({ recipient: v })} onClose={() => setActiveSheet(null)} />
+      <MerchantSheet visible={activeSheet === 'recipient'} value={filters.recipient} onChange={(v) => patch({ recipient: v })} onClose={() => setActiveSheet(null)} />
       <DirectionSheet visible={activeSheet === 'direction'} selected={filters.directions} onChange={(v) => patch({ directions: v })} onClose={() => setActiveSheet(null)} />
     </>
   );
